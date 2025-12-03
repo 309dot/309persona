@@ -1,42 +1,126 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-import { Button } from '../components/Button';
-import { ChatBubble } from '../components/ChatBubble';
-import { PageShell } from '../components/PageShell';
-import { TextArea } from '../components/TextArea';
-import { QUESTION_TEMPLATES } from '../constants/questions';
+import agentAvatar from '@assets/images/agent-avatar.png';
+import chatProductImage from '@assets/images/chat-product.png';
+
+import { NavBar } from '../components/NavBar';
+import { VisitorModal } from '../components/VisitorModal';
 import { useSessionContext } from '../context/SessionContext';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { sendQuestion } from '../services/api';
+import type { ChatMessage } from '../types/api';
+
+function formatTimestamp(timestamp: string) {
+  try {
+    return new Date(timestamp).toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
+function SuggestionCard() {
+  return (
+    <div className="mt-4 flex gap-4 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_1px_3px_rgba(20,21,26,0.08)]">
+      <div className="h-20 w-20 overflow-hidden rounded-2xl bg-slate-50">
+        <img src={chatProductImage} alt="추천 리소스" className="h-full w-full object-cover" />
+      </div>
+      <div className="flex flex-col justify-between text-sm">
+        <div>
+          <p className="font-semibold text-slate-900">Craftwork Icons</p>
+          <p className="text-slate-500">3D, Vector</p>
+        </div>
+        <p className="font-semibold text-slate-900">$59</p>
+      </div>
+    </div>
+  );
+}
+
+function AgentMessage({ message }: { message: ChatMessage }) {
+  const showSuggestionCard = /suggestions?/i.test(message.text);
+
+  return (
+    <div className="flex w-full max-w-xl gap-4">
+      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-[0_6px_15px_rgba(0,0,0,0.08)]">
+        <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+      </div>
+      <div className="flex-1 space-y-2">
+        <div className="flex items-end gap-2 text-xs text-slate-500">
+          <span className="font-semibold text-slate-900">309</span>
+          <span>{formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-4 text-sm text-slate-800 shadow-[0_1px_3px_rgba(20,21,26,0.08)]">
+          {message.text}
+          {message.category ? (
+            <span className="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+              #{message.category}
+            </span>
+          ) : null}
+          {showSuggestionCard ? <SuggestionCard /> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VisitorMessage({ message }: { message: ChatMessage }) {
+  return (
+    <div className="flex w-full justify-end">
+      <div className="max-w-xl rounded-[24px] bg-sky-500 px-5 py-4 text-sm text-white shadow-[0_8px_16px_rgba(11,152,255,0.3)]">
+        {message.text}
+      </div>
+    </div>
+  );
+}
+
+function SystemMessage({ message }: { message: ChatMessage }) {
+  return (
+    <div className="text-center text-xs font-medium text-slate-400">{message.text}</div>
+  );
+}
 
 export function ChatPage() {
   const navigate = useNavigate();
-  const { session } = useSessionContext();
-  const { messages, appendMessage, clearHistory } = useChatHistory(session?.sessionId);
+  const location = useLocation();
+  const { session, setSession } = useSessionContext();
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showVisitorModal, setShowVisitorModal] = useState(!session);
+  const [incomingQuestion, setIncomingQuestion] = useState<string | null>(null);
+
+  const { messages, appendMessage } = useChatHistory(session?.sessionId);
 
   useEffect(() => {
-    if (!session) {
-      navigate('/');
-    }
-  }, [session, navigate]);
-
-  const heroSubtitle = useMemo(() => {
-    if (!session) return '';
-    const chunk = [session.visitorName, session.visitorAffiliation, session.visitRef]
-      .filter(Boolean)
-      .join(' · ');
-    return chunk ? `${chunk} 님의 세션` : '방문 정보를 바탕으로 세션이 생성되었습니다.';
+    setShowVisitorModal(!session);
   }, [session]);
 
-  const handleAsk = async () => {
-    if (!session || !input.trim()) return;
-    const question = input.trim();
+  const visitorDisplayName = useMemo(() => session?.visitorName || '리크루터', [session]);
+
+  useEffect(() => {
+    const state = (location.state as { initialQuestion?: string } | null) ?? null;
+    if (state?.initialQuestion) {
+      setIncomingQuestion(state.initialQuestion);
+      setInput(state.initialQuestion);
+      navigate(location.pathname + location.search, { replace: true });
+    }
+  }, [location, navigate]);
+
+  const handleAsk = async (questionOverride?: string) => {
+    if (!session) {
+      setShowVisitorModal(true);
+      return;
+    }
+
+    const question = (questionOverride ?? input).trim();
+    if (!question) return;
     appendMessage({ role: 'visitor', text: question });
-    setInput('');
+    if (!questionOverride) {
+      setInput('');
+    }
     setLoading(true);
     setError(null);
     try {
@@ -54,8 +138,7 @@ export function ChatPage() {
         setError(response.reason ?? '질문이 차단되었습니다.');
       }
     } catch (e) {
-      const message = (e as Error).message;
-      setError(message);
+      setError((e as Error).message);
       appendMessage({
         role: 'system',
         text: '답변을 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
@@ -65,76 +148,94 @@ export function ChatPage() {
     }
   };
 
-  const handleTemplateClick = (template: string) => {
-    setInput(template);
+  useEffect(() => {
+    if (session && incomingQuestion) {
+      handleAsk(incomingQuestion);
+      setIncomingQuestion(null);
+      setInput('');
+    }
+  }, [session, incomingQuestion]);
+
+  const renderMessage = (message: ChatMessage) => {
+    if (message.role === 'system') {
+      return <SystemMessage key={message.id} message={message} />;
+    }
+    if (message.role === 'agent') {
+      return <AgentMessage key={message.id} message={message} />;
+    }
+    return <VisitorMessage key={message.id} message={message} />;
   };
 
-  if (!session) {
-    return null;
-  }
-
   return (
-    <PageShell title="질문하기" subtitle={heroSubtitle}>
-      <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-        <section className="glass-panel flex h-[70vh] flex-col gap-4 rounded-3xl p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">대화</h2>
-            <Button variant="ghost" onClick={clearHistory}>
-              대화 리셋
-            </Button>
+    <div className="min-h-screen bg-white text-slate-900">
+      <NavBar />
+
+      <main className="mx-auto flex w-full max-w-4xl flex-col items-center gap-12 px-6 pb-28 pt-4">
+        <div className="w-full text-left text-2xl font-semibold leading-snug">
+          <p>
+            <span className="font-bold">{`${visitorDisplayName}님,`}</span> 이제 대화를 시작해 볼까요?
+          </p>
+          <p className="text-xl text-slate-500">준비가 끝났습니다. 궁금한 점을 자유롭게 물어보세요.</p>
+        </div>
+
+        <section className="w-full space-y-8">
+          <div className="flex items-center gap-3 text-xs font-medium text-slate-400">
+            <span className="h-px flex-1 bg-slate-200" />
+            Chat Started
+            <span className="h-px flex-1 bg-slate-200" />
           </div>
-          <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-            {messages.map((message) => (
-              <ChatBubble key={message.id} message={message} />
-            ))}
-          </div>
-          <div className="flex flex-col gap-3">
-            <TextArea
-              placeholder="309에게 묻고 싶은 내용을 입력하세요."
-              rows={3}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-            />
-            {error ? <p className="text-sm text-rose-500">{error}</p> : null}
-            <div className="flex items-center gap-3">
-              <Button onClick={handleAsk} loading={loading} disabled={!input.trim()}>
-                질문 보내기
-              </Button>
-              <p className="text-xs text-slate-500">
-                세션당 최대 3개의 질문만 허용됩니다. 궁금한 주제를 압축해 주세요.
-              </p>
-            </div>
+          <div className="flex flex-col items-center gap-6">
+            {messages.length ? messages.map((message) => renderMessage(message)) : null}
           </div>
         </section>
-        <aside className="glass-panel flex flex-col gap-4 rounded-3xl p-6">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">추천 질문 템플릿</h3>
-            <p className="text-sm text-slate-500">클릭하면 입력창에 자동으로 채워집니다.</p>
-          </div>
-          <div className="flex flex-col gap-2">
-            {QUESTION_TEMPLATES.map((template) => (
+
+        <section className="w-full">
+          <div className="rounded-[28px] border border-slate-200 bg-neutral-100/80 p-1 shadow-[3px_4px_16px_rgba(0,0,0,0.12)]">
+            <div className="flex items-center gap-3 rounded-[26px] bg-white px-5 py-3">
+              <textarea
+                rows={1}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="무엇이든 물어보세요"
+                className="min-h-[48px] flex-1 resize-none border-none bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              />
               <button
-                key={template}
                 type="button"
-                onClick={() => handleTemplateClick(template)}
-                className="rounded-2xl border border-slate-100 bg-white/80 px-4 py-3 text-left text-sm text-slate-700 transition hover:border-brand-200 hover:bg-brand-50"
+                onClick={() => handleAsk()}
+                disabled={loading || !input.trim()}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:bg-slate-300"
+                aria-label="질문 보내기"
               >
-                {template}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  className="h-5 w-5"
+                >
+                  <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
-            ))}
+            </div>
           </div>
-          <div className="mt-4">
-            <h4 className="text-sm font-semibold uppercase tracking-widest text-slate-500">
-              가이드
-            </h4>
-            <p className="mt-2 text-sm text-slate-600">
-              프로젝트 맥락, 협업 방식, 문제 해결 사례, PM 관점에서의 의사결정 질문이 가장 좋은
-              답변을 받을 수 있습니다. 309와 무관한 질문은 시스템에서 자동 거절됩니다.
-            </p>
-          </div>
-        </aside>
-      </div>
-    </PageShell>
+          <p className="mt-2 text-xs text-slate-400">
+            세션당 최대 3개의 질문이 허용됩니다. 더 깊은 이야기를 원하시면 새로운 세션을 생성해 주세요.
+          </p>
+          {error ? <p className="mt-3 text-sm text-rose-500">{error}</p> : null}
+        </section>
+      </main>
+
+      <VisitorModal
+        isOpen={showVisitorModal}
+        canClose={Boolean(session)}
+        onClose={() => setShowVisitorModal(false)}
+        onSuccess={(visitorSession) => {
+          setSession(visitorSession);
+          setShowVisitorModal(false);
+        }}
+      />
+    </div>
   );
 }
 

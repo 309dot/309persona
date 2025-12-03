@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'pill';
   loading?: boolean;
   leftIcon?: ReactNode;
 }
@@ -22,12 +22,14 @@ export function Button({
     secondary:
       'bg-white text-brand-700 border border-brand-100 hover:border-brand-300 disabled:text-slate-400',
     ghost: 'bg-transparent text-brand-700 hover:bg-brand-50',
+    pill: 'border border-slate-200 bg-white text-slate-900 shadow-[0_4px_12px_rgba(15,16,32,0.08)] hover:bg-slate-50',
   };
 
   return (
     <button
       className={clsx(
-        'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-150',
+        'inline-flex items-center justify-center gap-2 text-sm font-semibold transition-all duration-150',
+        variant === 'pill' ? 'rounded-full px-5 py-2.5' : 'rounded-xl px-4 py-2',
         styles[variant],
         className,
       )}
