@@ -10,6 +10,19 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def lenient_json_loads(value: Any) -> Any:
+    """Return JSON-decoded value, but fall back to original on decode errors."""
+    if not isinstance(value, str):
+        return value
+    trimmed = value.strip()
+    if not trimmed:
+        return value
+    try:
+        return json.loads(trimmed)
+    except json.JSONDecodeError:
+        return value
+
+
 class Settings(BaseSettings):
     """Environment driven configuration."""
 
@@ -17,6 +30,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        json_loads=lenient_json_loads,
     )
 
     app_name: str = "309 Interview Agent API"
