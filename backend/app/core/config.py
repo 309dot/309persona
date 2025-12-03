@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import List, Optional, Union
+import json
+from typing import Any, List, Optional, Union
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -56,10 +57,22 @@ class Settings(BaseSettings):
 
     @field_validator("allowed_origins", mode="before")
     @classmethod
-    def split_allowed_origins(cls, value: Optional[Union[str, List[str]]]):
-        """Allow comma separated env values."""
+    def split_allowed_origins(cls, value: Optional[Union[str, List[str], Any]]):
+        """Allow comma-separated strings or JSON arrays."""
+        if value is None:
+            return value
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            trimmed = value.strip()
+            if trimmed.startswith("["):
+                try:
+                    parsed = json.loads(trimmed)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except json.JSONDecodeError:
+                    pass
+            return [origin.strip() for origin in trimmed.split(",") if origin.strip()]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
         return value
 
     @field_validator("admin_allowed_emails", mode="before")
