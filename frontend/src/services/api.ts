@@ -8,7 +8,35 @@ import type {
   VisitorResponse,
 } from '../types/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api';
+const DEFAULT_LOCAL_API = 'http://localhost:8000/api';
+
+function resolveBaseUrl() {
+  const configured = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, '');
+  }
+
+  const isBrowser = typeof window !== 'undefined';
+  if (isBrowser) {
+    const hostname = window.location.hostname;
+    const isLocalhost =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname.endsWith('.local');
+
+    if (!isLocalhost) {
+      console.warn(
+        '[API] VITE_API_BASE_URL is not set. Falling back to same-origin /api. Configure this environment variable for production to avoid CORS issues.',
+      );
+      return `${window.location.origin.replace(/\/$/, '')}/api`;
+    }
+  }
+
+  return DEFAULT_LOCAL_API;
+}
+
+const API_BASE_URL = resolveBaseUrl();
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {

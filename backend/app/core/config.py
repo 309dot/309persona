@@ -33,7 +33,12 @@ class Settings(BaseSettings):
         default=None, description="Inline JSON for Firebase credentials"
     )
     allowed_origins: List[str] = Field(
-        default_factory=lambda: ["http://localhost:5173"]
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://www.309designlab.com",
+            "https://309designlab.com",
+        ]
     )
     blocked_message: str = Field(
         default="이 서비스는 309의 경력 관련 질문만 응답합니다."
