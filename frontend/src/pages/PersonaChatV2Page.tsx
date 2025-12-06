@@ -8,7 +8,6 @@ import iconPdf from '@assets/icons/resume-pdf.svg';
 import logoFull from '@assets/icons/logo.svg';
 
 const AI_ANSWER = '커피챗에 앞서 소개 부탁드립니다. (간단한 회사명정도만 밝혀주셔도 됩니다. 😄)';
-const LOADING_TEXT = '대답을 생각하는 중입니다';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
