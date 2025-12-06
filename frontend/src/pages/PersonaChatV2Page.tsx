@@ -113,11 +113,11 @@ function ProposalCard() {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white/95 px-5 py-3 text-[13px] font-semibold text-slate-900 shadow-[0_6px_20px_rgba(15,19,36,0.08)] transition hover:border-slate-300"
+      className="inline-flex items-center gap-3 rounded-full border border-[#DADDE2] bg-white px-5 py-3 text-[15px] font-semibold text-[#14151A] shadow-[0_15px_30px_rgba(15,19,36,0.14)] transition hover:border-slate-400"
     >
-      <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-90" />
+      <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-80" />
       309에게 제안하기
-      <img src={iconArrow} alt="arrow" className="h-3.5 w-3.5 opacity-90" />
+      <img src={iconArrow} alt="arrow" className="h-3.5 w-3.5 opacity-80" />
     </button>
   );
 }
@@ -151,13 +151,13 @@ function InputPanel({
   const disabled = !question.trim() || loading;
 
   return (
-    <div className="w-full rounded-[24px] border border-[#E0E2E6] bg-white/95 px-6 py-4 shadow-[0_18px_45px_rgba(15,19,36,0.15)]">
-      <div className="flex flex-col gap-3 text-sm text-slate-900">
+    <div className="w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_28px_60px_rgba(15,19,36,0.22)]">
+      <div className="flex flex-col gap-4">
         <input
           value={question}
           onChange={(e) => onQuestionChange(e.target.value)}
           placeholder={INPUT_PLACEHOLDER}
-          className="w-full border border-transparent bg-transparent px-1 py-2 text-[16px] font-semibold leading-tight placeholder:text-slate-400 focus:outline-none"
+          className="w-full border border-transparent bg-transparent px-1 text-[20px] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -165,36 +165,32 @@ function InputPanel({
             }
           }}
         />
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <RemainingCounter used={usedCount} />
-          <div className="flex items-center gap-3 text-[12px] text-slate-600">
-            <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#14151A99]">
-              <span>{name || '삼성전자, 채용 담당자님'}</span>
-              <img src={iconEdit} alt="" className="h-3.5 w-3.5" />
-            </div>
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={disabled}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:bg-slate-400"
-              aria-label="전송"
-            >
-              <img src={iconSend} alt="질문 보내기" className="h-4 w-4" />
-            </button>
+          <div className="flex items-center gap-3 text-[14px] font-semibold text-[#14151A99]">
+            <span>{name || '삼성전자, 채용 담당자님'}</span>
+            <img src={iconEdit} alt="" className="h-[14px] w-[14px]" />
           </div>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={disabled}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F1324] text-white transition hover:bg-black disabled:bg-slate-400"
+            aria-label="전송"
+          >
+            <img src={iconSend} alt="질문 보내기" className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function SessionGuide() {
+function PersonaLegalNotice() {
   return (
-    <div className="mt-3 rounded-[24px] border border-slate-100 bg-white/90 px-5 py-4 text-[12px] text-[#14151A99] shadow-[0_20px_45px_rgba(15,19,36,0.12)]">
-      <p className="text-sm font-semibold text-[#14151A]">309 Flow-Maker 커피챗 가이드</p>
-      <p className="mt-1">∙ 실제 프로젝트/협업 사례를 기반으로 최대 5개의 질문까지 답변합니다.</p>
-      <p className="mt-1">∙ 커피챗 목적과 회사명을 공유하면 맞춤 레퍼런스와 스토리를 바로 정리해 드릴게요.</p>
-    </div>
+    <p className="mt-4 text-center text-[11px] font-medium text-[#0F1324] opacity-80">
+      채팅을 시작하게 되는 경우 개인정보 이용 동의 약관에 동의로 간주됩니다.
+    </p>
   );
 }
 
@@ -242,8 +238,8 @@ export function PersonaChatV2Page() {
   };
 
   return (
-    <div className="min-h-screen bg-white px-4 py-10 text-slate-900">
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-40">
+    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10">
         <section className="flex flex-col gap-3">
           <BrandBadge />
           <div className="space-y-1 text-[28px] font-bold leading-tight sm:text-[30px]">
@@ -328,47 +324,44 @@ export function PersonaChatV2Page() {
           ) : null}
         </section>
 
-        <section className="h-20" />
       </main>
 
       {dockVisible ? (
-        <div className="fixed inset-x-0 bottom-4 z-10 flex justify-center px-4">
-          <div className="flex w-full max-w-3xl flex-col gap-1">
+        <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-white/60 pb-6 pt-4">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
             {ctaVisible ? (
-              <div className="rounded-[32px] border border-white/60 bg-white/95 px-6 py-4 shadow-[0_30px_70px_rgba(15,19,36,0.18)]">
-                <div className="flex items-center justify-between gap-3">
-                  <ProposalCard />
-                  <div className="flex items-center gap-3 text-[12px] text-slate-600">
-                    <a
-                      href={PORTFOLIO_URL}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#E1E3E6] bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_12px_25px_rgba(15,19,36,0.12)] transition hover:border-slate-300"
-                      download
-                    >
-                      <img src={iconPortfolio} alt="portfolio" className="h-3.5 w-3.5" />
-                      포트폴리오
-                    </a>
-                    <a
-                      href={RESUME_URL}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#E1E3E6] bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_12px_25px_rgba(15,19,36,0.12)] transition hover:border-slate-300"
-                      download
-                    >
-                      <img src={iconResume} alt="resume" className="h-4 w-4" />
-                      이력서
-                    </a>
-                  </div>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <ProposalCard />
+                <div className="flex items-center gap-4 text-[13px] font-semibold text-[#0F1324]">
+                  <a
+                    href={PORTFOLIO_URL}
+                    className="inline-flex items-center gap-1 text-[#0F1324] opacity-80 transition hover:opacity-100"
+                    download
+                  >
+                    <img src={iconPortfolio} alt="portfolio" className="h-4 w-4" />
+                    포트폴리오
+                  </a>
+                  <a
+                    href={RESUME_URL}
+                    className="inline-flex items-center gap-1 text-[#0F1324] opacity-80 transition hover:opacity-100"
+                    download
+                  >
+                    <img src={iconResume} alt="resume" className="h-4 w-4" />
+                    이력서
+                  </a>
                 </div>
               </div>
             ) : null}
-            <div className={ctaVisible ? 'mt-3' : ''}>
+            <div>
               <InputPanel
-                name={visitorName}
+                name={displayName}
                 question={question}
                 onQuestionChange={setQuestion}
                 onSubmit={handleSubmit}
                 loading={loading}
                 usedCount={usedCount}
               />
-              <SessionGuide />
+              <PersonaLegalNotice />
             </div>
           </div>
         </div>
