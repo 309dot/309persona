@@ -98,16 +98,16 @@ export function EntryPage() {
     <div className="min-h-screen bg-white text-slate-900">
       <NavBar
         rightSlot={
-          session ? (
+        session ? (
             <Button variant="pill" onClick={() => setShowVisitorModal(true)}>
               정보 수정
             </Button>
           ) : (
             <Button variant="pill" onClick={() => setShowVisitorModal(true)}>
               정보 입력하기
-            </Button>
+          </Button>
           )
-        }
+      }
       />
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-6 pb-20 pt-6 lg:flex-row lg:items-start">
@@ -180,7 +180,7 @@ export function EntryPage() {
                 >
                   {template}
                 </button>
-              ))}
+            ))}
             </div>
           </div>
         </section>
@@ -196,7 +196,7 @@ export function EntryPage() {
           setShowVisitorModal(false);
         }}
       />
-    </div>
+      </div>
   );
 }
 
