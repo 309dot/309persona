@@ -39,3 +39,18 @@ body {
 .glass-panel {
   @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-lg;
 }
+
+.animate-slide-up {
+  animation: slide-up 360ms ease-out forwards;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

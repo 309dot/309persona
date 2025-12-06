@@ -33,7 +33,7 @@ type PersonaThread = {
 
 function TypingText({
   text,
-  speed = 110,
+  speed = 55,
   onComplete,
 }: {
   text: string;
@@ -131,6 +131,7 @@ function InputPanel({
   onSubmit,
   loading,
   usedCount,
+  onEditVisitor,
 }: {
   name: string;
   question: string;
@@ -138,11 +139,12 @@ function InputPanel({
   onSubmit: () => void;
   loading: boolean;
   usedCount: number;
+  onEditVisitor: () => void;
 }) {
   const disabled = !question.trim() || loading;
 
   return (
-    <div className="w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_20px_45px_rgba(15,19,36,0.16)]">
+    <div className="animate-slide-up w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_20px_45px_rgba(15,19,36,0.16)]">
       <div className="flex flex-col gap-4">
         <input
           value={question}
@@ -160,10 +162,14 @@ function InputPanel({
           <div className="mr-auto">
             <RemainingCounter used={usedCount} />
           </div>
-          <div className="flex items-center gap-4 text-[14px] font-semibold text-[#14151A99]">
+          <button
+            type="button"
+            onClick={onEditVisitor}
+            className="inline-flex items-center gap-1 text-[14px] font-semibold text-[#14151A99] transition hover:text-[#14151A]"
+          >
             <span>{withHonorific(name)}</span>
-            <img src={iconEdit} alt="" className="h-[10.5px] w-[10.5px]" />
-          </div>
+            <img src={iconEdit} alt="정보 수정" className="h-[10.5px] w-[10.5px]" />
+          </button>
           <button
             type="button"
             onClick={onSubmit}
@@ -244,8 +250,100 @@ function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
+function VisitorInfoModal({
+  open,
+  name,
+  affiliation,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  name: string;
+  affiliation: string;
+  onClose: () => void;
+  onSave: (name: string, affiliation: string) => void;
+}) {
+  const [localName, setLocalName] = useState(name);
+  const [localAffiliation, setLocalAffiliation] = useState(affiliation);
+
+  useEffect(() => {
+    if (open) {
+      setLocalName(name);
+      setLocalAffiliation(affiliation);
+    }
+  }, [open, name, affiliation]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/60 px-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave(localName.trim(), localAffiliation.trim());
+        }}
+        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-[0_30px_80px_rgba(15,19,36,0.4)]"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-500">Visitor Info</p>
+            <h3 className="text-2xl font-bold text-[#0F1324]">회사/이름 업데이트</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-200"
+          >
+            닫기
+          </button>
+        </div>
+        <div className="mt-4 space-y-4">
+          <label className="block text-sm font-semibold text-slate-700" htmlFor="visitor-name">
+            이름 또는 이니셜
+          </label>
+          <input
+            id="visitor-name"
+            name="visitorName"
+            value={localName}
+            onChange={(event) => setLocalName(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
+            placeholder="예) 최백호"
+          />
+          <label className="block text-sm font-semibold text-slate-700" htmlFor="visitor-affiliation">
+            회사 / 팀
+          </label>
+          <input
+            id="visitor-affiliation"
+            name="visitorAffiliation"
+            value={localAffiliation}
+            onChange={(event) => setLocalAffiliation(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
+            placeholder="예) 울진상사 전략팀"
+          />
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300"
+          >
+            취소
+          </button>
+          <button
+            type="submit"
+            className="rounded-full bg-[#0F1324] px-5 py-2 text-sm font-semibold text-white hover:bg-black"
+          >
+            저장
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function PersonaChatV2Page() {
   const [visitorName, setVisitorName] = useState('채용 담당자');
+  const [visitorAffiliation, setVisitorAffiliation] = useState('');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [heroDone, setHeroDone] = useState(false);
@@ -257,6 +355,7 @@ export function PersonaChatV2Page() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
@@ -274,6 +373,7 @@ export function PersonaChatV2Page() {
         if (!cancelled) {
           setSession(info);
           setVisitorName(info.visitorName || '채용 담당자');
+          setVisitorAffiliation(info.visitorAffiliation || '');
         }
       } catch (error) {
         if (!cancelled) {
@@ -355,7 +455,7 @@ export function PersonaChatV2Page() {
             <p>
               <TypingText
                 text="안녕하세요. 🙋 만나서 반갑습니다. 이 서비스는 저의 페르소나가 담긴 🤖 AI Agent 기반 커피챗 서비스(베타)입니다."
-                speed={100}
+                speed={50}
                 onComplete={() => setHeroDone(true)}
               />
             </p>
@@ -378,7 +478,7 @@ export function PersonaChatV2Page() {
                 <div className="text-[15px] leading-6 text-slate-900">
                   <TypingText
                     text={INTRO_MESSAGE}
-                    speed={95}
+                    speed={48}
                     onComplete={() => setDockVisible(true)}
                   />
                 </div>
@@ -469,6 +569,7 @@ export function PersonaChatV2Page() {
                 onSubmit={handleSubmit}
                 loading={loading}
                 usedCount={usedCount}
+                onEditVisitor={() => setShowVisitorInfoModal(true)}
               />
               {apiError ? <p className="mt-3 text-center text-sm text-rose-500">{apiError}</p> : null}
               <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
@@ -477,6 +578,17 @@ export function PersonaChatV2Page() {
         </div>
       ) : null}
       <ConsentModal open={showConsentModal} onClose={() => setShowConsentModal(false)} />
+      <VisitorInfoModal
+        open={showVisitorInfoModal}
+        name={visitorName}
+        affiliation={visitorAffiliation}
+        onClose={() => setShowVisitorInfoModal(false)}
+        onSave={(nameValue, affiliationValue) => {
+          setVisitorName(nameValue || '채용 담당자');
+          setVisitorAffiliation(affiliationValue);
+          setShowVisitorInfoModal(false);
+        }}
+      />
     </div>
   );
 }
