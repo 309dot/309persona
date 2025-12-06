@@ -171,15 +171,6 @@ export function PersonaChatV2Page() {
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
   const [usedCount, setUsedCount] = useState(0);
   const [botAnswered, setBotAnswered] = useState(false);
-  const now = useMemo(
-    () =>
-      new Date().toLocaleTimeString('ko-KR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }),
-    [],
-  );
 
   const handleSubmit = () => {
     if (!question.trim()) return;
