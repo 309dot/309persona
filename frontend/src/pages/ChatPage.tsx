@@ -119,7 +119,7 @@ export function ChatPage() {
     if (!question) return;
     appendMessage({ role: 'visitor', text: question });
     if (!questionOverride) {
-      setInput('');
+    setInput('');
     }
     setLoading(true);
     setError(null);
@@ -170,13 +170,13 @@ export function ChatPage() {
     <div className="min-h-screen bg-white text-slate-900">
       <NavBar />
 
-      <main className="mx-auto flex w-full max-w-4xl flex-col items-center gap-12 px-6 pb-[180px] pt-4">
+      <main className="mx-auto flex w-full max-w-4xl flex-col items-center gap-12 px-6 pb-28 pt-4">
         <div className="w-full text-left text-2xl font-semibold leading-snug">
           <p>
             <span className="font-bold">{`${visitorDisplayName}님,`}</span> 이제 대화를 시작해 볼까요?
           </p>
           <p className="text-xl text-slate-500">준비가 끝났습니다. 궁금한 점을 자유롭게 물어보세요.</p>
-        </div>
+          </div>
 
         <section className="w-full space-y-8">
           <div className="flex items-center gap-3 text-xs font-medium text-slate-400">
@@ -188,10 +188,8 @@ export function ChatPage() {
             {messages.length ? messages.map((message) => renderMessage(message)) : null}
           </div>
         </section>
-      </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 px-6 py-3">
+        <section className="w-full">
           <div className="rounded-[28px] border border-slate-200 bg-neutral-100/80 p-1 shadow-[3px_4px_16px_rgba(0,0,0,0.12)]">
             <div className="flex items-center gap-3 rounded-[26px] bg-white px-5 py-3">
               <textarea
@@ -215,18 +213,18 @@ export function ChatPage() {
                   stroke="currentColor"
                   strokeWidth={1.8}
                   className="h-5 w-5"
-                >
+              >
                   <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
             </div>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-400">
             세션당 최대 3개의 질문이 허용됩니다. 더 깊은 이야기를 원하시면 새로운 세션을 생성해 주세요.
           </p>
-          {error ? <p className="text-sm text-rose-500">{error}</p> : null}
-        </div>
-      </div>
+          {error ? <p className="mt-3 text-sm text-rose-500">{error}</p> : null}
+        </section>
+      </main>
 
       <VisitorModal
         isOpen={showVisitorModal}
@@ -237,7 +235,7 @@ export function ChatPage() {
           setShowVisitorModal(false);
         }}
       />
-    </div>
+      </div>
   );
 }
 

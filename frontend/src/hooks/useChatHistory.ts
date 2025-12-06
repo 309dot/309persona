@@ -23,11 +23,7 @@ export function useChatHistory(sessionId?: string) {
         {
           id: uuid(),
           role: 'agent',
-          text: [
-            '안녕하세요, 성백곤의 흐름을 재현하는 Flow-Maker Product Designer 309입니다.',
-            '복잡한 요구를 정리해 UX·비즈니스·팀 관점에서 현실적인 방향을 드릴게요.',
-            '어떤 목적(채용/협업/프로젝트)으로 오셨나요? 그리고 어느 회사에서 오셨는지 알려주시면 맞춰서 답변하겠습니다.',
-          ].join(' '),
+          text: '안녕하세요, 309 AI입니다. 편하게 회사명이나 이름을 알려주시면 커피챗을 시작할게요. 😊',
           timestamp: new Date().toISOString(),
         },
       ]);
