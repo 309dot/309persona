@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from ..core.config import settings
 
@@ -27,6 +27,7 @@ def load_knowledge_pack() -> Dict[str, Any]:
 def build_context_block() -> str:
     """Format the knowledge pack into a prompt-friendly block."""
     pack = load_knowledge_pack()
+    extra_documents = load_extra_documents()
 
     summary = pack.get("summary", "")
     collaboration = pack.get("collaboration_style", "")
@@ -68,9 +69,38 @@ def build_context_block() -> str:
         f"=== PROJECT HIGHLIGHTS ===\n{highlights}",
         f"=== QA TEMPLATES ===\n{qa_templates_text}" if qa_templates_text else "",
         f"=== GUARDRAILS ===\n{guardrails_text}" if guardrails_text else "",
+        extra_documents,
     ]
 
     return "\n\n".join(filter(None, sections))
+
+
+@lru_cache
+def load_extra_documents(limit_chars: int = 20000) -> str:
+    """Load raw markdown files from knowledge_base/309files directory."""
+    pack_path = Path(settings.knowledge_pack_path).resolve()
+    base_dir = pack_path.parent / "309files"
+    if not base_dir.exists() or not base_dir.is_dir():
+        return ""
+
+    documents: List[str] = []
+    for md_file in sorted(base_dir.glob("*.md")):
+        try:
+            content = md_file.read_text(encoding="utf-8").strip()
+        except UnicodeDecodeError:
+            continue
+        if not content:
+            continue
+        heading = md_file.stem.replace("_", " ").title()
+        documents.append(f"=== 309 FILE: {heading} ===\n{content}")
+
+    if not documents:
+        return ""
+
+    combined = "\n\n".join(documents)
+    if len(combined) > limit_chars:
+        combined = combined[:limit_chars].rstrip() + "\n... (truncated)"
+    return combined
 
 
 def get_allowed_topics() -> list[str]:

@@ -10,6 +10,9 @@ import iconResume from '@assets/icons/resume-file.svg';
 import iconSend from '@assets/icons/send-arrow.svg';
 import logoFull from '@assets/icons/logo.svg';
 
+import { createVisitor, sendQuestion } from '../services/api';
+import type { SessionInfo } from '../types/api';
+
 const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
@@ -25,6 +28,7 @@ type PersonaThread = {
   questionAt: string;
   answer?: string;
   answerAt?: string;
+  blocked?: boolean;
 };
 
 function TypingText({
@@ -81,31 +85,10 @@ function Divider() {
 }
 
 function RemainingCounter({ used }: { used: number }) {
-  const progress = useMemo(() => Math.min(1, Math.max(0, used / TOTAL_QUESTIONS)), [used]);
-
-  const circumference = 2 * Math.PI * 7;
-  const dashOffset = circumference - circumference * progress;
-
   return (
-    <div className="flex items-center gap-1.5 text-[12px] font-semibold text-[#14151A99]">
-      <svg className="h-4 w-4" viewBox="0 0 16 16">
-        <circle cx="8" cy="8" r="7" stroke="#E1E3E6" strokeWidth="2" fill="none" />
-        <circle
-          cx="8"
-          cy="8"
-          r="7"
-          stroke="#0B98FF"
-          strokeWidth="2"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-        />
-      </svg>
-      <span>
-        {used}/{TOTAL_QUESTIONS}
-      </span>
-    </div>
+    <span className="text-[12px] font-semibold text-[#14151A99]">
+      {used}/{TOTAL_QUESTIONS}
+    </span>
   );
 }
 
@@ -131,6 +114,14 @@ function formatTimeLabel(timestamp?: string) {
   } catch {
     return '';
   }
+}
+
+function withHonorific(name?: string | null) {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) {
+    return '채용 담당자님';
+  }
+  return trimmed.endsWith('님') ? trimmed : `${trimmed}님`;
 }
 
 function InputPanel({
@@ -165,10 +156,12 @@ function InputPanel({
             }
           }}
         />
-        <div className="flex flex-wrap items-center justify-end gap-4">
-          <RemainingCounter used={usedCount} />
-          <div className="flex items-center gap-3 text-[14px] font-semibold text-[#14151A99]">
-            <span>{name || '채용 담당자님'}</span>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="mr-auto">
+            <RemainingCounter used={usedCount} />
+          </div>
+          <div className="flex items-center gap-4 text-[14px] font-semibold text-[#14151A99]">
+            <span>{withHonorific(name)}</span>
             <img src={iconEdit} alt="" className="h-[10.5px] w-[10.5px]" />
           </div>
           <button
@@ -186,21 +179,73 @@ function InputPanel({
   );
 }
 
-function PersonaLegalNotice() {
+function PersonaLegalNotice({ onOpen }: { onOpen: () => void }) {
   return (
-    <p className="mt-4 text-center text-[11px] font-medium text-[#0F1324] opacity-80">
-      채팅을 시작하게 되는 경우 개인정보 이용 동의 약관에 동의로 간주됩니다.
+    <p className="mt-4 text-center text-[11px] font-medium text-[#0F1324] opacity-60">
+      채팅을 시작하게 되는 경우{' '}
+      <button
+        type="button"
+        onClick={onOpen}
+        className="underline decoration-dotted underline-offset-4 hover:opacity-100"
+      >
+        개인정보 이용 동의 약관
+      </button>
+      에 동의로 간주됩니다.
     </p>
   );
 }
 
-function buildAnswerCopy(name: string, question: string) {
-  const primaryName = (name?.split(',')[0] ?? name ?? '채용 담당자님').trim();
-  return `${primaryName}님, “${question}” 질문에 대해 309가 실제 프로젝트에서 했던 방식으로 답해 드릴게요. 문제를 사용자 여정과 데이터 지표로 구조화하고, 팀 OKR과 연결된 실행 플랜을 설계해 의사결정을 앞당긴 경험을 바탕으로 말할 수 있습니다.`;
+function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/60 px-4">
+      <div className="max-w-xl rounded-3xl bg-white p-6 shadow-[0_35px_85px_rgba(15,19,36,0.35)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-500">Privacy Notice</p>
+            <h3 className="text-2xl font-bold text-[#0F1324]">개인정보 이용 동의</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-200"
+          >
+            닫기
+          </button>
+        </div>
+        <ul className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600">
+          <li>
+            <span className="font-semibold text-slate-800">수집 항목:</span> 방문자 이름/이니셜, 소속,
+            초대 경로, 질문·대화 내용, 접속 시각
+          </li>
+          <li>
+            <span className="font-semibold text-slate-800">이용 목적:</span> 309 페르소나 기반 답변 제공,
+            대화 품질 개선, 문의 이력 모니터링, 악용 방지
+          </li>
+          <li>
+            <span className="font-semibold text-slate-800">보관 기간:</span> 대화 종료 후 최대 12개월,
+            혹은 삭제 요청 시 즉시 파기
+          </li>
+          <li>
+            <span className="font-semibold text-slate-800">제3자 제공:</span> 없음. 보관 중인 데이터는
+            Firebase / Firestore EU 리전에 암호화되어 저장됩니다.
+          </li>
+          <li>
+            <span className="font-semibold text-slate-800">문의/철회:</span> privacy@309designlab.com 으로
+            요청 시 열람·수정·삭제가 가능합니다.
+          </li>
+        </ul>
+        <p className="mt-4 text-xs text-slate-500">
+          * 서비스 이용 시 상기 항목에 동의한 것으로 간주되며, 동의 철회 시 일부 기능이 제한될 수
+          있습니다.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function PersonaChatV2Page() {
-  const [visitorName] = useState('채용 담당자님');
+  const [visitorName, setVisitorName] = useState('채용 담당자');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [heroDone, setHeroDone] = useState(false);
@@ -209,37 +254,101 @@ export function PersonaChatV2Page() {
   const [dockVisible, setDockVisible] = useState(false);
   const [ctaVisible, setCtaVisible] = useState(false);
   const [threads, setThreads] = useState<PersonaThread[]>([]);
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
-  const displayName = visitorName || '채용 담당자님';
+  const displayName = visitorName || '채용 담당자';
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const info = await createVisitor({
+          visitorName: '채용 담당자 프리뷰',
+          visitorAffiliation: 'Persona Preview',
+          visitRef: 'persona-v2',
+        });
+        if (!cancelled) {
+          setSession(info);
+          setVisitorName(info.visitorName || '채용 담당자');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('[Persona] 세션 생성 실패', error);
+          setApiError('프리뷰 세션을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({
+        top: contentRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [threads, showLoadingBubble]);
+
+  const handleSubmit = async () => {
     const trimmed = question.trim();
     if (!trimmed) return;
+    if (!session) {
+      setApiError('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
+      return;
+    }
+
     const threadId = uuid();
     const questionAt = new Date().toISOString();
-
+    setApiError(null);
     setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt }]);
     setUsedCount((prev) => Math.min(TOTAL_QUESTIONS, prev + 1));
     setQuestion('');
     setShowLoadingBubble(true);
     setLoading(true);
-    setTimeout(() => {
-      const answerCopy = buildAnswerCopy(displayName, trimmed);
+
+    try {
+      const response = await sendQuestion({
+        sessionId: session.sessionId,
+        question: trimmed,
+      });
       setThreads((prev) =>
         prev.map((thread) =>
-          thread.id === threadId ? { ...thread, answer: answerCopy, answerAt: new Date().toISOString() } : thread,
+          thread.id === threadId
+            ? {
+                ...thread,
+                answer: response.answer,
+                answerAt: new Date().toISOString(),
+                blocked: response.blocked,
+              }
+            : thread,
         ),
       );
+      if (response.blocked) {
+        setApiError(response.reason ?? '허용되지 않은 질문입니다.');
+      }
+      setCtaVisible(true);
+    } catch (error) {
+      console.error('[Persona] 답변 실패', error);
+      setApiError(error instanceof Error ? error.message : '응답을 가져오지 못했습니다.');
+    } finally {
       setLoading(false);
       setShowLoadingBubble(false);
-      setCtaVisible(true);
-    }, 1200);
+    }
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10">
+      <main
+        ref={contentRef}
+        className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10"
+      >
         <section className="flex flex-col gap-3">
           <BrandBadge />
           <div className="space-y-1 text-[28px] font-bold leading-tight sm:text-[30px]">
@@ -361,11 +470,13 @@ export function PersonaChatV2Page() {
                 loading={loading}
                 usedCount={usedCount}
               />
-              <PersonaLegalNotice />
+              {apiError ? <p className="mt-3 text-center text-sm text-rose-500">{apiError}</p> : null}
+              <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
             </div>
           </div>
         </div>
       ) : null}
+      <ConsentModal open={showConsentModal} onClose={() => setShowConsentModal(false)} />
     </div>
   );
 }
