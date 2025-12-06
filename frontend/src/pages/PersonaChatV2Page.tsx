@@ -25,8 +25,11 @@ function TypingText({
   onComplete?: () => void;
 }) {
   const [visible, setVisible] = useState('');
+  const hasRunRef = useRef(false);
 
   useEffect(() => {
+    if (hasRunRef.current) return undefined;
+    hasRunRef.current = true;
     let i = 0;
     const interval = setInterval(() => {
       i += 1;
