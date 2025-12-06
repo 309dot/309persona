@@ -103,11 +103,11 @@ function ProposalCard() {
   return (
     <button
       type="button"
-      className="flex w-fit items-center gap-2 rounded-full border border-[#dee0e3] bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(20,21,26,0.05)] transition hover:border-slate-300"
+      className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white/95 px-5 py-3 text-[13px] font-semibold text-slate-900 shadow-[0_6px_20px_rgba(15,19,36,0.08)] transition hover:border-slate-300"
     >
-      <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-80" />
+      <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-90" />
       309에게 제안하기
-      <img src={iconArrow} alt="arrow" className="h-3.5 w-3.5 opacity-80" />
+      <img src={iconArrow} alt="arrow" className="h-3.5 w-3.5 opacity-90" />
     </button>
   );
 }
@@ -151,18 +151,18 @@ function InputPanel({
             }
           }}
         />
-        <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
           <RemainingCounter used={usedCount} />
           <div className="flex items-center gap-2 text-[12px] text-slate-600">
-            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2">
-              <img src={iconEdit} alt="" className="h-3 w-3 opacity-70" />
-              <span className="text-slate-700">{name || '삼성전자, 채용 담당자님'}</span>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-2">
+                <img src={iconEdit} alt="" className="h-3.5 w-3.5 opacity-80" />
+                <span className="text-[13px] font-semibold text-slate-900">{name || '삼성전자, 채용 담당자님'}</span>
             </div>
             <button
               type="button"
               onClick={onSubmit}
               disabled={disabled}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:bg-slate-300"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:bg-slate-300"
               aria-label="전송"
             >
               ↑
@@ -182,6 +182,7 @@ export function PersonaChatV2Page() {
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
   const [usedCount, setUsedCount] = useState(0);
   const [dockVisible, setDockVisible] = useState(false);
+  const [ctaVisible, setCtaVisible] = useState(false);
 
   const introTimestamp = useMemo(() => formatIntroTime(), []);
 
@@ -194,6 +195,7 @@ export function PersonaChatV2Page() {
       setQuestion('');
       setLoading(false);
       setShowLoadingBubble(false);
+      setCtaVisible(true);
     }, 500);
   };
 
@@ -221,12 +223,12 @@ export function PersonaChatV2Page() {
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex w-full max-w-[540px] flex-col gap-1">
                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                   <span className="font-semibold text-slate-900">309</span>
                   <span>{introTimestamp}</span>
                 </div>
-                <div className="text-[15px] leading-6 text-slate-900">
+                <div className="rounded-[22px] border border-slate-200 bg-white px-5 py-4 text-[15px] leading-6 text-slate-900 shadow-[0_1px_3px_rgba(20,21,26,0.08)]">
                   <TypingText
                     text={INTRO_MESSAGE}
                     speed={95}
@@ -260,28 +262,30 @@ export function PersonaChatV2Page() {
       {dockVisible ? (
         <div className="fixed inset-x-0 bottom-4 z-10 flex justify-center px-4">
           <div className="flex w-full max-w-3xl flex-col gap-1">
-            <div className="flex items-center justify-between gap-3">
-              <ProposalCard />
-              <div className="flex items-center gap-3 text-[12px] text-slate-600">
-                <a
-                  href={PORTFOLIO_URL}
-                  className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
-                  download
-                >
-                  <img src={iconEdit} alt="portfolio" className="h-4 w-4 opacity-80" />
-                  포트폴리오
-                </a>
-                <a
-                  href={RESUME_URL}
-                  className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
-                  download
-                >
-                  <img src={iconPdf} alt="resume" className="h-4 w-4 opacity-90" />
-                  이력서
-                </a>
+            {ctaVisible ? (
+              <div className="flex items-center justify-between gap-3">
+                <ProposalCard />
+                <div className="flex items-center gap-3 text-[12px] text-slate-600">
+                  <a
+                    href={PORTFOLIO_URL}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_4px_12px_rgba(15,19,36,0.06)] transition hover:border-slate-300"
+                    download
+                  >
+                    <img src={iconEdit} alt="portfolio" className="h-3.5 w-3.5 opacity-90" />
+                    포트폴리오
+                  </a>
+                  <a
+                    href={RESUME_URL}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_4px_12px_rgba(15,19,36,0.06)] transition hover:border-slate-300"
+                    download
+                  >
+                    <img src={iconPdf} alt="resume" className="h-3.5 w-3.5 opacity-90" />
+                    이력서
+                  </a>
+                </div>
               </div>
-            </div>
-            <div className="mt-1">
+            ) : null}
+            <div className={ctaVisible ? 'mt-1' : ''}>
               <InputPanel
                 name={visitorName}
                 question={question}
