@@ -7,7 +7,8 @@ import iconEnvelope from '@assets/icons/proposal-mail.svg';
 import iconPdf from '@assets/icons/resume-pdf.svg';
 import logoFull from '@assets/icons/logo.svg';
 
-const AI_ANSWER = '안녕하세요, 309 AI입니다. 편하게 회사명이나 이름을 알려주시면 커피챗을 시작할게요. 😊';
+const INTRO_MESSAGE =
+  '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 풀어왔는지 먼저 들려드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
@@ -111,6 +112,13 @@ function ProposalCard() {
   );
 }
 
+function formatIntroTime() {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date());
+}
+
 function InputPanel({
   name,
   question,
@@ -173,7 +181,9 @@ export function PersonaChatV2Page() {
   const [heroDone, setHeroDone] = useState(false);
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
   const [usedCount, setUsedCount] = useState(0);
-  const [botAnswered, setBotAnswered] = useState(false);
+  const [dockVisible, setDockVisible] = useState(false);
+
+  const introTimestamp = useMemo(() => formatIntroTime(), []);
 
   const handleSubmit = () => {
     if (!question.trim()) return;
@@ -184,7 +194,6 @@ export function PersonaChatV2Page() {
       setQuestion('');
       setLoading(false);
       setShowLoadingBubble(false);
-      setBotAnswered(true);
     }, 500);
   };
 
@@ -215,12 +224,13 @@ export function PersonaChatV2Page() {
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
                   <span className="font-semibold text-slate-900">309</span>
-                  <span>10:04 AM</span>
+                  <span>{introTimestamp}</span>
                 </div>
                 <div className="text-[15px] leading-6 text-slate-900">
                   <TypingText
-                    text={AI_ANSWER}
+                    text={INTRO_MESSAGE}
                     speed={95}
+                    onComplete={() => setDockVisible(true)}
                   />
                 </div>
               </div>
@@ -247,7 +257,7 @@ export function PersonaChatV2Page() {
         <section className="h-20" />
       </main>
 
-      {botAnswered ? (
+      {dockVisible ? (
         <div className="fixed inset-x-0 bottom-4 z-10 flex justify-center px-4">
           <div className="flex w-full max-w-3xl flex-col gap-1">
             <div className="flex items-center justify-between gap-3">
