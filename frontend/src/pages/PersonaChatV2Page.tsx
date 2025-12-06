@@ -7,7 +7,7 @@ import iconEnvelope from '@assets/icons/proposal-mail.svg';
 import iconPdf from '@assets/icons/resume-pdf.svg';
 import logoFull from '@assets/icons/logo.svg';
 
-const AI_ANSWER = '커피챗에 앞서 소개 부탁드립니다. (간단한 회사명정도만 밝혀주셔도 됩니다. 😄)';
+const AI_ANSWER = '안녕하세요, 309 AI입니다. 편하게 회사명이나 이름을 알려주시면 커피챗을 시작할게요. 😊';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
@@ -170,6 +170,16 @@ export function PersonaChatV2Page() {
   const [heroDone, setHeroDone] = useState(false);
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
   const [usedCount, setUsedCount] = useState(0);
+  const [botAnswered, setBotAnswered] = useState(false);
+  const now = useMemo(
+    () =>
+      new Date().toLocaleTimeString('ko-KR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }),
+    [],
+  );
 
   const handleSubmit = () => {
     if (!question.trim()) return;
@@ -180,12 +190,13 @@ export function PersonaChatV2Page() {
       setQuestion('');
       setLoading(false);
       setShowLoadingBubble(false);
+      setBotAnswered(true);
     }, 500);
   };
 
   return (
     <div className="min-h-screen bg-white px-4 py-10 text-slate-900">
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 pb-40">
         <section className="flex flex-col gap-3">
           <BrandBadge />
           <div className="space-y-1 text-[28px] font-bold leading-tight sm:text-[30px]">
@@ -239,38 +250,46 @@ export function PersonaChatV2Page() {
           ) : null}
         </section>
 
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <ProposalCard />
-            <div className="flex items-center gap-3 text-[12px] text-slate-600">
-              <a
-                href={PORTFOLIO_URL}
-                className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
-                download
-              >
-                <img src={iconEdit} alt="portfolio" className="h-4 w-4 opacity-80" />
-                포트폴리오
-              </a>
-              <a
-                href={RESUME_URL}
-                className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
-                download
-              >
-                <img src={iconPdf} alt="resume" className="h-4 w-4 opacity-90" />
-                이력서
-              </a>
+        <section className="h-20" />
+      </main>
+
+      {botAnswered ? (
+        <div className="fixed inset-x-0 bottom-4 z-10 flex justify-center px-4">
+          <div className="flex w-full max-w-3xl flex-col gap-1">
+            <div className="flex items-center justify-between gap-3">
+              <ProposalCard />
+              <div className="flex items-center gap-3 text-[12px] text-slate-600">
+                <a
+                  href={PORTFOLIO_URL}
+                  className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
+                  download
+                >
+                  <img src={iconEdit} alt="portfolio" className="h-4 w-4 opacity-80" />
+                  포트폴리오
+                </a>
+                <a
+                  href={RESUME_URL}
+                  className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
+                  download
+                >
+                  <img src={iconPdf} alt="resume" className="h-4 w-4 opacity-90" />
+                  이력서
+                </a>
+              </div>
+            </div>
+            <div className="mt-1">
+              <InputPanel
+                name={visitorName}
+                question={question}
+                onQuestionChange={setQuestion}
+                onSubmit={handleSubmit}
+                loading={loading}
+                usedCount={usedCount}
+              />
             </div>
           </div>
-          <InputPanel
-            name={visitorName}
-            question={question}
-            onQuestionChange={setQuestion}
-            onSubmit={handleSubmit}
-            loading={loading}
-            usedCount={usedCount}
-          />
-        </section>
-      </main>
+        </div>
+      ) : null}
     </div>
   );
 }
