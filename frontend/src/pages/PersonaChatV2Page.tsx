@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
+import iconArrow from '@assets/icons/proposal-arrow.svg';
+import iconEdit from '@assets/icons/name-edit.svg';
+import iconEnvelope from '@assets/icons/proposal-mail.svg';
+import iconPdf from '@assets/icons/resume-pdf.svg';
 import logoFull from '@assets/icons/logo.svg';
-import logoBubble from '@assets/icons/logo-bubble.svg';
 
 const AI_ANSWER = '커피챗에 앞서 소개 부탁드립니다. (간단한 회사명정도만 밝혀주셔도 됩니다. 😄)';
+const LOADING_TEXT = '대답을 생각하는 중입니다';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
 const TOTAL_QUESTIONS = 5;
+const PORTFOLIO_URL =
+  'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%8F%AC%ED%8A%B8%ED%8F%B4%EB%A6%AC%EC%98%A4_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
+const RESUME_URL =
+  'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%94%84%EB%A1%9C%EB%8D%95%ED%8A%B8%20%EB%94%94%EC%9E%90%EC%9D%B4%EB%84%A4_%EC%9D%B4%EB%A0%A5%EC%84%9C_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
 
 function TypingText({
   text,
-  speed = 70,
+  speed = 110,
   onComplete,
 }: {
   text: string;
@@ -58,20 +66,32 @@ function Divider() {
   );
 }
 
-function RemainingCounter({ left }: { left: number }) {
+function RemainingCounter({ used }: { used: number }) {
   const progress = useMemo(() => {
-    const used = TOTAL_QUESTIONS - left;
     return Math.min(100, Math.max(0, (used / TOTAL_QUESTIONS) * 100));
-  }, [left]);
+  }, [used]);
 
   return (
-    <div className="flex w-full items-center gap-3 text-[12px] font-medium text-slate-500">
-      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
-        <div className="absolute left-0 top-0 h-full rounded-full bg-sky-500" style={{ width: `${progress}%` }} />
+    <div className="flex items-center gap-2 text-[12px] font-medium text-slate-600">
+      <div className="relative inline-flex h-8 w-8 items-center justify-center">
+        <svg className="h-8 w-8 rotate-[-90deg]" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="16" className="stroke-slate-200" strokeWidth="3" fill="none" />
+          <circle
+            cx="18"
+            cy="18"
+            r="16"
+            className="stroke-sky-500"
+            strokeWidth="3"
+            fill="none"
+            strokeDasharray="100"
+            strokeDashoffset={`${100 - progress}`}
+            strokeLinecap="round"
+          />
+        </svg>
+        <span className="absolute text-[11px] font-semibold text-slate-700">
+          {used}/{TOTAL_QUESTIONS}
+        </span>
       </div>
-      <span className="text-slate-600">
-        {TOTAL_QUESTIONS - left}/{TOTAL_QUESTIONS}
-      </span>
     </div>
   );
 }
@@ -80,11 +100,11 @@ function ProposalCard() {
   return (
     <button
       type="button"
-      className="flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm transition hover:border-slate-300"
+      className="flex w-fit items-center gap-2 rounded-full border border-[#dee0e3] bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-[0_1px_2px_rgba(20,21,26,0.05)] transition hover:border-slate-300"
     >
-      <img src={logoBubble} alt="" className="h-4 w-4" />
+      <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-80" />
       309에게 제안하기
-      <span className="text-base">→</span>
+      <img src={iconArrow} alt="arrow" className="h-3.5 w-3.5 opacity-80" />
     </button>
   );
 }
@@ -95,12 +115,14 @@ function InputPanel({
   onQuestionChange,
   onSubmit,
   loading,
+  usedCount,
 }: {
   name: string;
   question: string;
   onQuestionChange: (value: string) => void;
   onSubmit: () => void;
   loading: boolean;
+  usedCount: number;
 }) {
   const disabled = !question.trim() || loading;
 
@@ -120,10 +142,11 @@ function InputPanel({
           }}
         />
         <div className="flex items-center justify-between">
-          <RemainingCounter left={TOTAL_QUESTIONS} />
-          <div className="flex items-center gap-2 text-[12px] text-slate-500">
-            <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-              <span className="text-slate-600">{name || '삼성전자, 채용 담당자님'}</span>
+          <RemainingCounter used={usedCount} />
+          <div className="flex items-center gap-2 text-[12px] text-slate-600">
+            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-2">
+              <img src={iconEdit} alt="" className="h-3 w-3 opacity-70" />
+              <span className="text-slate-700">{name || '삼성전자, 채용 담당자님'}</span>
             </div>
             <button
               type="button"
@@ -147,13 +170,17 @@ export function PersonaChatV2Page() {
   const [loading, setLoading] = useState(false);
   const [heroDone, setHeroDone] = useState(false);
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
+  const [usedCount, setUsedCount] = useState(0);
 
   const handleSubmit = () => {
     if (!question.trim()) return;
+    setUsedCount((prev) => Math.min(TOTAL_QUESTIONS, prev + 1));
+    setShowLoadingBubble(true);
     setLoading(true);
     setTimeout(() => {
       setQuestion('');
       setLoading(false);
+      setShowLoadingBubble(false);
     }, 500);
   };
 
@@ -166,7 +193,7 @@ export function PersonaChatV2Page() {
             <p>
               <TypingText
                 text="안녕하세요. 🙋 만나서 반갑습니다. 이 서비스는 저의 페르소나가 담긴 🤖 AI Agent 기반 커피챗 서비스(베타)입니다."
-                speed={80}
+                speed={100}
                 onComplete={() => setHeroDone(true)}
               />
             </p>
@@ -189,15 +216,14 @@ export function PersonaChatV2Page() {
                 <div className="text-[15px] leading-6 text-slate-900">
                   <TypingText
                     text={AI_ANSWER}
-                    speed={70}
-                    onComplete={() => setShowLoadingBubble(true)}
+                    speed={95}
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {showLoadingBubble ? (
+          {showLoadingBubble && loading ? (
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
@@ -218,12 +244,22 @@ export function PersonaChatV2Page() {
           <div className="flex items-center justify-between gap-3">
             <ProposalCard />
             <div className="flex items-center gap-3 text-[12px] text-slate-600">
-              <button className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 shadow-sm transition hover:border-slate-300">
-                📁 포트폴리오
-              </button>
-              <button className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 shadow-sm transition hover:border-slate-300">
-                📄 이력서
-              </button>
+              <a
+                href={PORTFOLIO_URL}
+                className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
+                download
+              >
+                <img src={iconEdit} alt="portfolio" className="h-4 w-4 opacity-80" />
+                포트폴리오
+              </a>
+              <a
+                href={RESUME_URL}
+                className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-slate-800 shadow-sm transition hover:bg-slate-200"
+                download
+              >
+                <img src={iconPdf} alt="resume" className="h-4 w-4 opacity-90" />
+                이력서
+              </a>
             </div>
           </div>
           <InputPanel
@@ -232,10 +268,8 @@ export function PersonaChatV2Page() {
             onQuestionChange={setQuestion}
             onSubmit={handleSubmit}
             loading={loading}
+            usedCount={usedCount}
           />
-          <div className="mt-2 text-center text-[12px] text-slate-400">
-            채팅을 시작하게 되는 경우 개인정보 이용 동의로 간주됩니다.
-          </div>
         </section>
       </main>
     </div>
