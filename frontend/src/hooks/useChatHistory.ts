@@ -22,8 +22,12 @@ export function useChatHistory(sessionId?: string) {
       setMessages([
         {
           id: uuid(),
-          role: 'system',
-          text: '309의 경험을 바탕으로 어떤 점이 궁금한지 물어봐 주세요.',
+          role: 'agent',
+          text: [
+            '안녕하세요, 성백곤의 흐름을 재현하는 Flow-Maker Product Designer 309입니다.',
+            '복잡한 요구를 정리해 UX·비즈니스·팀 관점에서 현실적인 방향을 드릴게요.',
+            '어떤 목적(채용/협업/프로젝트)으로 오셨나요? 그리고 어느 회사에서 오셨는지 알려주시면 맞춰서 답변하겠습니다.',
+          ].join(' '),
           timestamp: new Date().toISOString(),
         },
       ]);

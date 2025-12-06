@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconArrow from '@assets/icons/proposal-arrow.svg';
