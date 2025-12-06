@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
-import dividerWide from '@assets/icons/divider-wide.svg';
 import logoBubble from '@assets/icons/logo-bubble.svg';
 import logo0 from '@assets/icons/logo-0.svg';
 import logo3 from '@assets/icons/logo-3.svg';
@@ -24,39 +23,6 @@ function BrandBadge() {
         <img src={logoBubble} alt="bubble" className="h-3.5 w-3.5" />
         BETA
       </span>
-    </div>
-  );
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">{children}</p>;
-}
-
-function BubbleCard({
-  label,
-  text,
-  tone = 'ai',
-}: {
-  label: string;
-  text: string;
-  tone?: 'ai' | 'user' | 'loading';
-}) {
-  const style = useMemo(() => {
-    if (tone === 'user') {
-      return 'bg-white border border-slate-200 text-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.12)]';
-    }
-    if (tone === 'loading') {
-      return 'bg-slate-50 border border-slate-200 text-slate-500';
-    }
-    return 'bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-[0_18px_60px_rgba(15,23,42,0.3)]';
-  }, [tone]);
-
-  return (
-    <div className="w-full">
-      <SectionLabel>{label}</SectionLabel>
-      <div className={`mt-2 rounded-3xl px-6 py-5 text-base leading-6 ${style}`}>
-        {tone === 'ai' ? <TypingText text={text} /> : text}
-      </div>
     </div>
   );
 }
@@ -88,27 +54,15 @@ function ProposalCard() {
   );
 }
 
-function Terms() {
-  return (
-    <div className="pt-4 text-center text-[11px] text-slate-400">
-      개인정보 수집 · 이용 동의 후 진행해 주세요.
-    </div>
-  );
-}
-
 function InputPanel({
-  remaining,
   name,
   question,
-  onNameChange,
   onQuestionChange,
   onSubmit,
   loading,
 }: {
-  remaining: number;
   name: string;
   question: string;
-  onNameChange: (value: string) => void;
   onQuestionChange: (value: string) => void;
   onSubmit: () => void;
   loading: boolean;
@@ -159,7 +113,7 @@ function InputPanel({
 }
 
 export function PersonaChatV2Page() {
-  const [visitorName, setVisitorName] = useState('리크루터');
+  const [visitorName] = useState('삼성전자, 채용 담당자님');
   const [question, setQuestion] = useState('');
   const [remaining, setRemaining] = useState(3);
   const [loading, setLoading] = useState(false);
@@ -226,10 +180,8 @@ export function PersonaChatV2Page() {
             </div>
           </div>
           <InputPanel
-            remaining={remaining}
             name={visitorName}
             question={question}
-            onNameChange={setVisitorName}
             onQuestionChange={setQuestion}
             onSubmit={handleSubmit}
             loading={loading}
