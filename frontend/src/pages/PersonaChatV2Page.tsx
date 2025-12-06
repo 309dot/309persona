@@ -144,7 +144,6 @@ function InputPanel({
 export function PersonaChatV2Page() {
   const [visitorName] = useState('삼성전자, 채용 담당자님');
   const [question, setQuestion] = useState('');
-  const [remaining, setRemaining] = useState(TOTAL_QUESTIONS);
   const [loading, setLoading] = useState(false);
   const [heroDone, setHeroDone] = useState(false);
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
@@ -153,7 +152,6 @@ export function PersonaChatV2Page() {
     if (!question.trim()) return;
     setLoading(true);
     setTimeout(() => {
-      setRemaining((prev) => Math.max(0, prev - 1));
       setQuestion('');
       setLoading(false);
     }, 500);
