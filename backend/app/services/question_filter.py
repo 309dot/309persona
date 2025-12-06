@@ -8,6 +8,11 @@ from typing import Optional, Tuple
 from ..core.config import settings
 from .knowledge_base import get_allowed_topics
 
+BANNED_MESSAGE = settings.blocked_message
+OUT_OF_SCOPE_MESSAGE = (
+    f"{settings.blocked_message} 프로덕트/UX/경력 맥락으로 다시 질문해 주세요."
+)
+
 BANNED_PATTERNS = [
     r"ignore (all )?previous instructions",
     r"규칙(을)? 무시",
@@ -16,6 +21,12 @@ BANNED_PATTERNS = [
     r"연애상담",
     r"날씨",
     r"lottery",
+    r"system prompt",
+    r"시스템 프롬프트",
+    r"시스템 메시지",
+    r"프롬프트를 알려",
+    r"guardrail",
+    r"가드레일",
 ]
 
 QUESTION_CATEGORIES = {
@@ -53,12 +64,12 @@ def validate_question(question: str) -> Tuple[bool, Optional[str], Optional[str]
 
     for pattern in BANNED_PATTERNS:
         if re.search(pattern, lowered, flags=re.IGNORECASE):
-            return False, None, settings.blocked_message
+            return False, None, BANNED_MESSAGE
 
     if "309" not in lowered:
         category = detect_category(lowered)
         if not category:
-            return False, None, settings.blocked_message
+            return False, None, OUT_OF_SCOPE_MESSAGE
         return True, category, None
 
     category = detect_category(lowered) or "general"
