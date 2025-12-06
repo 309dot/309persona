@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { v4 as uuid } from 'uuid';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconArrow from '@assets/icons/proposal-arrow.svg';
 import iconEdit from '@assets/icons/name-edit.svg';
 import iconEnvelope from '@assets/icons/proposal-mail.svg';
-import iconPdf from '@assets/icons/resume-pdf.svg';
+import iconPortfolio from '@assets/icons/portfolio-card.svg';
+import iconResume from '@assets/icons/resume-file.svg';
+import iconSend from '@assets/icons/send-arrow.svg';
 import logoFull from '@assets/icons/logo.svg';
 
 const INTRO_MESSAGE =
@@ -15,6 +18,14 @@ const PORTFOLIO_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%8F%AC%ED%8A%B8%ED%8F%B4%EB%A6%AC%EC%98%A4_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
 const RESUME_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%94%84%EB%A1%9C%EB%8D%95%ED%8A%B8%20%EB%94%94%EC%9E%90%EC%9D%B4%EB%84%A4_%EC%9D%B4%EB%A0%A5%EC%84%9C_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
+
+type PersonaThread = {
+  id: string;
+  question: string;
+  questionAt: string;
+  answer?: string;
+  answerAt?: string;
+};
 
 function TypingText({
   text,
@@ -70,31 +81,30 @@ function Divider() {
 }
 
 function RemainingCounter({ used }: { used: number }) {
-  const progress = useMemo(() => {
-    return Math.min(100, Math.max(0, (used / TOTAL_QUESTIONS) * 100));
-  }, [used]);
+  const progress = useMemo(() => Math.min(1, Math.max(0, used / TOTAL_QUESTIONS)), [used]);
+
+  const circumference = 2 * Math.PI * 7;
+  const dashOffset = circumference - circumference * progress;
 
   return (
-    <div className="flex items-center gap-2 text-[12px] font-medium text-slate-600">
-      <div className="relative inline-flex h-8 w-8 items-center justify-center">
-        <svg className="h-8 w-8 rotate-[-90deg]" viewBox="0 0 36 36">
-          <circle cx="18" cy="18" r="16" className="stroke-slate-200" strokeWidth="3" fill="none" />
-          <circle
-            cx="18"
-            cy="18"
-            r="16"
-            className="stroke-sky-500"
-            strokeWidth="3"
-            fill="none"
-            strokeDasharray="100"
-            strokeDashoffset={`${100 - progress}`}
-            strokeLinecap="round"
-          />
-        </svg>
-        <span className="absolute text-[11px] font-semibold text-slate-700">
-          {used}/{TOTAL_QUESTIONS}
-        </span>
-      </div>
+    <div className="flex items-center gap-1.5 text-[12px] font-semibold text-[#14151A99]">
+      <svg className="h-4 w-4" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="7" stroke="#E1E3E6" strokeWidth="2" fill="none" />
+        <circle
+          cx="8"
+          cy="8"
+          r="7"
+          stroke="#0B98FF"
+          strokeWidth="2"
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+        />
+      </svg>
+      <span>
+        {used}/{TOTAL_QUESTIONS}
+      </span>
     </div>
   );
 }
@@ -112,11 +122,15 @@ function ProposalCard() {
   );
 }
 
-function formatIntroTime() {
-  return new Intl.DateTimeFormat('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(new Date());
+function formatTimeLabel(timestamp?: string) {
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(timestamp ? new Date(timestamp) : new Date());
+  } catch {
+    return '';
+  }
 }
 
 function InputPanel({
@@ -137,13 +151,13 @@ function InputPanel({
   const disabled = !question.trim() || loading;
 
   return (
-    <div className="w-full rounded-[24px] border border-[#bdbdbd] bg-white px-6 py-4 shadow-[3px_4px_16px_rgba(0,0,0,0.12)]">
+    <div className="w-full rounded-[24px] border border-[#E0E2E6] bg-white/95 px-6 py-4 shadow-[0_18px_45px_rgba(15,19,36,0.15)]">
       <div className="flex flex-col gap-3 text-sm text-slate-900">
         <input
           value={question}
           onChange={(e) => onQuestionChange(e.target.value)}
           placeholder={INPUT_PLACEHOLDER}
-          className="w-full rounded-2xl border border-transparent bg-transparent px-1 py-2 text-[16px] placeholder:text-slate-400 focus:outline-none"
+          className="w-full border border-transparent bg-transparent px-1 py-2 text-[16px] font-semibold leading-tight placeholder:text-slate-400 focus:outline-none"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -151,27 +165,42 @@ function InputPanel({
             }
           }}
         />
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <RemainingCounter used={usedCount} />
-          <div className="flex items-center gap-2 text-[12px] text-slate-600">
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-2">
-                <img src={iconEdit} alt="" className="h-3.5 w-3.5 opacity-80" />
-                <span className="text-[13px] font-semibold text-slate-900">{name || '삼성전자, 채용 담당자님'}</span>
+          <div className="flex items-center gap-3 text-[12px] text-slate-600">
+            <div className="flex items-center gap-1.5 text-[13px] font-medium text-[#14151A99]">
+              <span>{name || '삼성전자, 채용 담당자님'}</span>
+              <img src={iconEdit} alt="" className="h-3.5 w-3.5" />
             </div>
             <button
               type="button"
               onClick={onSubmit}
               disabled={disabled}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:bg-slate-300"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:bg-slate-400"
               aria-label="전송"
             >
-              ↑
+              <img src={iconSend} alt="질문 보내기" className="h-4 w-4" />
             </button>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function SessionGuide() {
+  return (
+    <div className="mt-3 rounded-[24px] border border-slate-100 bg-white/90 px-5 py-4 text-[12px] text-[#14151A99] shadow-[0_20px_45px_rgba(15,19,36,0.12)]">
+      <p className="text-sm font-semibold text-[#14151A]">309 Flow-Maker 커피챗 가이드</p>
+      <p className="mt-1">∙ 실제 프로젝트/협업 사례를 기반으로 최대 5개의 질문까지 답변합니다.</p>
+      <p className="mt-1">∙ 커피챗 목적과 회사명을 공유하면 맞춤 레퍼런스와 스토리를 바로 정리해 드릴게요.</p>
+    </div>
+  );
+}
+
+function buildAnswerCopy(name: string, question: string) {
+  const primaryName = (name?.split(',')[0] ?? name ?? '리크루터').trim();
+  return `${primaryName}님, “${question}” 질문 기준으로 309가 설계했던 문제 정의와 실행 흐름을 바로 연결해 드릴 수 있어요. 구체적인 목표나 팀 상황을 조금 더 알려주시면 관련 사례와 데이터를 정리해 드릴게요.`;
 }
 
 export function PersonaChatV2Page() {
@@ -183,20 +212,33 @@ export function PersonaChatV2Page() {
   const [usedCount, setUsedCount] = useState(0);
   const [dockVisible, setDockVisible] = useState(false);
   const [ctaVisible, setCtaVisible] = useState(false);
+  const [threads, setThreads] = useState<PersonaThread[]>([]);
 
-  const introTimestamp = useMemo(() => formatIntroTime(), []);
+  const introTimestamp = useMemo(() => formatTimeLabel(), []);
+  const displayName = visitorName || '삼성전자, 채용 담당자님';
 
   const handleSubmit = () => {
-    if (!question.trim()) return;
+    const trimmed = question.trim();
+    if (!trimmed) return;
+    const threadId = uuid();
+    const questionAt = new Date().toISOString();
+
+    setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt }]);
     setUsedCount((prev) => Math.min(TOTAL_QUESTIONS, prev + 1));
+    setQuestion('');
     setShowLoadingBubble(true);
     setLoading(true);
     setTimeout(() => {
-      setQuestion('');
+      const answerCopy = buildAnswerCopy(displayName, trimmed);
+      setThreads((prev) =>
+        prev.map((thread) =>
+          thread.id === threadId ? { ...thread, answer: answerCopy, answerAt: new Date().toISOString() } : thread,
+        ),
+      );
       setLoading(false);
       setShowLoadingBubble(false);
       setCtaVisible(true);
-    }, 500);
+    }, 1200);
   };
 
   return (
@@ -228,7 +270,7 @@ export function PersonaChatV2Page() {
                   <span className="font-semibold text-slate-900">309</span>
                   <span>{introTimestamp}</span>
                 </div>
-                <div className="rounded-[22px] border border-slate-200 bg-white px-5 py-4 text-[15px] leading-6 text-slate-900 shadow-[0_1px_3px_rgba(20,21,26,0.08)]">
+                <div className="text-[15px] leading-6 text-slate-900">
                   <TypingText
                     text={INTRO_MESSAGE}
                     speed={95}
@@ -238,6 +280,36 @@ export function PersonaChatV2Page() {
               </div>
             </div>
           )}
+
+          {threads.length ? (
+            <div className="flex flex-col gap-6">
+              {threads.map((thread) => (
+                <div key={thread.id} className="space-y-3">
+                  <div className="flex justify-end">
+                    <div className="max-w-[420px] rounded-[22px] bg-[#14151A] px-5 py-3 text-[14px] leading-6 text-white shadow-[0_15px_30px_rgba(15,19,36,0.3)]">
+                      {thread.question}
+                    </div>
+                  </div>
+                  {thread.answer ? (
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+                        <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+                      </div>
+                      <div className="flex w-full max-w-[540px] flex-col gap-1">
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          <span className="font-semibold text-slate-900">309</span>
+                          <span>{formatTimeLabel(thread.answerAt || thread.questionAt)}</span>
+                        </div>
+                        <div className="text-[14px] leading-6 text-slate-900">
+                          {thread.answer}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
 
           {showLoadingBubble && loading ? (
             <div className="flex items-start gap-3">
@@ -263,29 +335,31 @@ export function PersonaChatV2Page() {
         <div className="fixed inset-x-0 bottom-4 z-10 flex justify-center px-4">
           <div className="flex w-full max-w-3xl flex-col gap-1">
             {ctaVisible ? (
-              <div className="flex items-center justify-between gap-3">
-                <ProposalCard />
-                <div className="flex items-center gap-3 text-[12px] text-slate-600">
-                  <a
-                    href={PORTFOLIO_URL}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_4px_12px_rgba(15,19,36,0.06)] transition hover:border-slate-300"
-                    download
-                  >
-                    <img src={iconEdit} alt="portfolio" className="h-3.5 w-3.5 opacity-90" />
-                    포트폴리오
-                  </a>
-                  <a
-                    href={RESUME_URL}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_4px_12px_rgba(15,19,36,0.06)] transition hover:border-slate-300"
-                    download
-                  >
-                    <img src={iconPdf} alt="resume" className="h-3.5 w-3.5 opacity-90" />
-                    이력서
-                  </a>
+              <div className="rounded-[32px] border border-white/60 bg-white/95 px-6 py-4 shadow-[0_30px_70px_rgba(15,19,36,0.18)]">
+                <div className="flex items-center justify-between gap-3">
+                  <ProposalCard />
+                  <div className="flex items-center gap-3 text-[12px] text-slate-600">
+                    <a
+                      href={PORTFOLIO_URL}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#E1E3E6] bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_12px_25px_rgba(15,19,36,0.12)] transition hover:border-slate-300"
+                      download
+                    >
+                      <img src={iconPortfolio} alt="portfolio" className="h-3.5 w-3.5" />
+                      포트폴리오
+                    </a>
+                    <a
+                      href={RESUME_URL}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#E1E3E6] bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-900 shadow-[0_12px_25px_rgba(15,19,36,0.12)] transition hover:border-slate-300"
+                      download
+                    >
+                      <img src={iconResume} alt="resume" className="h-4 w-4" />
+                      이력서
+                    </a>
+                  </div>
                 </div>
               </div>
             ) : null}
-            <div className={ctaVisible ? 'mt-1' : ''}>
+            <div className={ctaVisible ? 'mt-3' : ''}>
               <InputPanel
                 name={visitorName}
                 question={question}
@@ -294,6 +368,7 @@ export function PersonaChatV2Page() {
                 loading={loading}
                 usedCount={usedCount}
               />
+              <SessionGuide />
             </div>
           </div>
         </div>
