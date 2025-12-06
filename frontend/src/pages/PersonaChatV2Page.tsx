@@ -11,7 +11,7 @@ import iconSend from '@assets/icons/send-arrow.svg';
 import logoFull from '@assets/icons/logo.svg';
 
 const INTRO_MESSAGE =
-  '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 풀어왔는지 먼저 들려드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
+  '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
@@ -113,7 +113,7 @@ function ProposalCard() {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-3 rounded-full border border-[#DADDE2] bg-white px-5 py-3 text-[15px] font-semibold text-[#14151A] shadow-[0_15px_30px_rgba(15,19,36,0.14)] transition hover:border-slate-400"
+      className="inline-flex items-center gap-3 rounded-full border border-[#DADDE2] bg-white px-5 py-3 text-[15px] font-semibold text-[#14151A] transition hover:border-slate-400"
     >
       <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-80" />
       309에게 제안하기
@@ -151,13 +151,13 @@ function InputPanel({
   const disabled = !question.trim() || loading;
 
   return (
-    <div className="w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_28px_60px_rgba(15,19,36,0.22)]">
+    <div className="w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_20px_45px_rgba(15,19,36,0.16)]">
       <div className="flex flex-col gap-4">
         <input
           value={question}
           onChange={(e) => onQuestionChange(e.target.value)}
           placeholder={INPUT_PLACEHOLDER}
-          className="w-full border border-transparent bg-transparent px-1 text-[20px] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none"
+          className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -165,11 +165,11 @@ function InputPanel({
             }
           }}
         />
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-4">
           <RemainingCounter used={usedCount} />
           <div className="flex items-center gap-3 text-[14px] font-semibold text-[#14151A99]">
-            <span>{name || '삼성전자, 채용 담당자님'}</span>
-            <img src={iconEdit} alt="" className="h-[14px] w-[14px]" />
+            <span>{name || '채용 담당자님'}</span>
+            <img src={iconEdit} alt="" className="h-[10.5px] w-[10.5px]" />
           </div>
           <button
             type="button"
@@ -178,7 +178,7 @@ function InputPanel({
             className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F1324] text-white transition hover:bg-black disabled:bg-slate-400"
             aria-label="전송"
           >
-            <img src={iconSend} alt="질문 보내기" className="h-4 w-4" />
+            <img src={iconSend} alt="질문 보내기" className="h-[10.5px] w-[10.5px]" />
           </button>
         </div>
       </div>
@@ -195,12 +195,12 @@ function PersonaLegalNotice() {
 }
 
 function buildAnswerCopy(name: string, question: string) {
-  const primaryName = (name?.split(',')[0] ?? name ?? '리크루터').trim();
-  return `${primaryName}님, “${question}” 질문 기준으로 309가 설계했던 문제 정의와 실행 흐름을 바로 연결해 드릴 수 있어요. 구체적인 목표나 팀 상황을 조금 더 알려주시면 관련 사례와 데이터를 정리해 드릴게요.`;
+  const primaryName = (name?.split(',')[0] ?? name ?? '채용 담당자님').trim();
+  return `${primaryName}님, “${question}” 질문에 대해 309가 실제 프로젝트에서 했던 방식으로 답해 드릴게요. 문제를 사용자 여정과 데이터 지표로 구조화하고, 팀 OKR과 연결된 실행 플랜을 설계해 의사결정을 앞당긴 경험을 바탕으로 말할 수 있습니다.`;
 }
 
 export function PersonaChatV2Page() {
-  const [visitorName] = useState('삼성전자, 채용 담당자님');
+  const [visitorName] = useState('채용 담당자님');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [heroDone, setHeroDone] = useState(false);
@@ -211,7 +211,7 @@ export function PersonaChatV2Page() {
   const [threads, setThreads] = useState<PersonaThread[]>([]);
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
-  const displayName = visitorName || '삼성전자, 채용 담당자님';
+  const displayName = visitorName || '채용 담당자님';
 
   const handleSubmit = () => {
     const trimmed = question.trim();
@@ -335,7 +335,7 @@ export function PersonaChatV2Page() {
                 <div className="flex items-center gap-4 text-[13px] font-semibold text-[#0F1324]">
                   <a
                     href={PORTFOLIO_URL}
-                    className="inline-flex items-center gap-1 text-[#0F1324] opacity-80 transition hover:opacity-100"
+                    className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[#0F1324] opacity-80 transition hover:opacity-100"
                     download
                   >
                     <img src={iconPortfolio} alt="portfolio" className="h-4 w-4" />
@@ -343,7 +343,7 @@ export function PersonaChatV2Page() {
                   </a>
                   <a
                     href={RESUME_URL}
-                    className="inline-flex items-center gap-1 text-[#0F1324] opacity-80 transition hover:opacity-100"
+                    className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[#0F1324] opacity-80 transition hover:opacity-100"
                     download
                   >
                     <img src={iconResume} alt="resume" className="h-4 w-4" />
