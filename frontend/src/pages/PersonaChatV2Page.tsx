@@ -1,25 +1,42 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
+import logoFull from '@assets/icons/logo.svg';
 import logoBubble from '@assets/icons/logo-bubble.svg';
-import logo0 from '@assets/icons/logo-0.svg';
-import logo3 from '@assets/icons/logo-3.svg';
-import logo9 from '@assets/icons/logo-9.svg';
 
 const AI_ANSWER = '커피챗에 앞서 소개 부탁드립니다. (간단한 회사명정도만 밝혀주셔도 됩니다. 😄)';
 const USER_SAMPLE = '반가워. 난 삼성전자에서 왔어.';
 const LOADING_TEXT = '대답을 생각하는 중입니다...';
 const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
 
+function TypingText({ text, speed = 18 }: { text: string; speed?: number }) {
+  const [visible, setVisible] = useState('');
+
+  useEffect(() => {
+    let i = 0;
+    const interval = setInterval(() => {
+      i += 1;
+      setVisible(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(interval);
+      }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return (
+    <span className="inline-block">
+      {visible}
+      {visible.length < text.length ? <span className="ml-[1px] inline-block animate-pulse">|</span> : null}
+    </span>
+  );
+}
+
 function BrandBadge() {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1 rounded-full bg-slate-900 px-4 py-1.5 text-white shadow">
-        <img src={logo3} alt="3" className="h-5 w-5" />
-        <img src={logo0} alt="0" className="h-5 w-5" />
-        <img src={logo9} alt="9" className="h-5 w-5" />
-      </div>
-      <span className="relative inline-flex items-center gap-1 rounded-[6px] bg-sky-500 px-[10px] py-[6px] text-[11px] font-semibold text-white shadow-sm">
+      <img src={logoFull} alt="309 logo" className="h-10 w-auto" />
+      <span className="flex items-center gap-2 rounded-[6px] bg-sky-500 px-3 py-[6px] text-[11px] font-semibold text-white shadow-sm">
         <img src={logoBubble} alt="bubble" className="h-3.5 w-3.5" />
         BETA
       </span>
@@ -134,7 +151,9 @@ export function PersonaChatV2Page() {
         <section className="flex flex-col gap-3">
           <BrandBadge />
           <div className="space-y-1 text-[28px] font-bold leading-tight sm:text-[30px]">
-            <p>안녕하세요. 🙋 만나서 반갑습니다. 이 서비스는 저의 페르소나가 담긴 🤖 AI Agent 기반 커피챗 서비스(베타)입니다.</p>
+            <p>
+              <TypingText text="안녕하세요. 🙋 만나서 반갑습니다. 이 서비스는 저의 페르소나가 담긴 🤖 AI Agent 기반 커피챗 서비스(베타)입니다." />
+            </p>
           </div>
         </section>
 
@@ -150,7 +169,9 @@ export function PersonaChatV2Page() {
                 <span className="font-semibold text-slate-900">309</span>
                 <span>10:04 AM</span>
               </div>
-              <div className="text-[15px] leading-6 text-slate-900">{AI_ANSWER}</div>
+              <div className="text-[15px] leading-6 text-slate-900">
+                <TypingText text={AI_ANSWER} />
+              </div>
             </div>
           </div>
 
@@ -186,6 +207,9 @@ export function PersonaChatV2Page() {
             onSubmit={handleSubmit}
             loading={loading}
           />
+          <div className="mt-2 text-center text-[12px] text-slate-400">
+            채팅을 시작하게 되는 경우 개인정보 이용 동의로 간주됩니다.
+          </div>
         </section>
       </main>
     </div>
