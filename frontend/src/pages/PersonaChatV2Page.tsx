@@ -5,6 +5,9 @@ import agentAvatar from '@assets/images/agent-avatar.png';
 import iconArrow from '@assets/icons/proposal-arrow.svg';
 import iconEdit from '@assets/icons/name-edit.svg';
 import iconEnvelope from '@assets/icons/proposal-mail.svg';
+import iconAccount from '@assets/icons/icon-account-box-fill.svg';
+import iconClose from '@assets/icons/icon-close.svg';
+import heroCardImage from '@assets/icons/card.svg';
 import iconPortfolio from '@assets/icons/portfolio-card.svg';
 import iconResume from '@assets/icons/resume-file.svg';
 import iconSend from '@assets/icons/send-arrow.svg';
@@ -31,6 +34,11 @@ type PersonaThread = {
   blocked?: boolean;
 };
 
+type AnswerBlock =
+  | { type: 'heading'; text: string }
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; items: string[] };
+
 function TypingText({
   text,
   speed = 55,
@@ -41,22 +49,46 @@ function TypingText({
   onComplete?: () => void;
 }) {
   const [visible, setVisible] = useState('');
-  const hasRunRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completedRef = useRef(false);
+  const latestCompleteRef = useRef(onComplete);
 
   useEffect(() => {
-    if (hasRunRef.current) return undefined;
-    hasRunRef.current = true;
-    let i = 0;
-    const interval = setInterval(() => {
-      i += 1;
-      setVisible(text.slice(0, i));
-      if (i >= text.length) {
-        clearInterval(interval);
-        onComplete?.();
+    latestCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    setVisible('');
+    completedRef.current = false;
+    let index = 0;
+
+    const clearExisting = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
-    }, speed);
-    return () => clearInterval(interval);
-  }, [text, speed, onComplete]);
+    };
+
+    const step = () => {
+      index += 1;
+      setVisible(text.slice(0, index));
+      if (index < text.length) {
+        timeoutRef.current = setTimeout(step, speed);
+      } else if (!completedRef.current) {
+        completedRef.current = true;
+        latestCompleteRef.current?.();
+      }
+    };
+
+    if (text.length === 0) {
+      latestCompleteRef.current?.();
+      return clearExisting;
+    }
+
+    timeoutRef.current = setTimeout(step, speed);
+
+    return clearExisting;
+  }, [text, speed]);
 
   return (
     <span className="inline-block">
@@ -68,27 +100,54 @@ function TypingText({
 
 function BrandBadge() {
   return (
-    <div className="flex items-center gap-2">
-      <img src={logoFull} alt="309 logo" className="h-10 w-auto" />
-    </div>
-  );
-}
-
-function Divider() {
-  return (
-    <div className="flex w-full items-center justify-center gap-3 py-2 text-[12px] font-medium text-slate-400">
-      <span className="h-px flex-1 bg-slate-200" />
-      Chat Started
-      <span className="h-px flex-1 bg-slate-200" />
+    <div className="flex items-center">
+      <img src={logoFull} alt="309 logo" className="h-11 w-auto" />
     </div>
   );
 }
 
 function RemainingCounter({ used }: { used: number }) {
+  const size = 16;
+  const strokeWidth = 2;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(used, TOTAL_QUESTIONS);
+  const progress = clamped / TOTAL_QUESTIONS;
+  const dashoffset = circumference * (1 - progress);
+
   return (
-    <span className="text-[12px] font-semibold text-[#14151A99]">
-      {used}/{TOTAL_QUESTIONS}
-    </span>
+    <div className="flex items-center gap-2 text-[12px] font-semibold text-[#14151A99]">
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        className="-rotate-90 transform"
+        aria-hidden="true"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#E3E7EE"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#0B98FF"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={dashoffset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span>
+        {clamped}/{TOTAL_QUESTIONS}
+      </span>
+    </div>
   );
 }
 
@@ -159,13 +218,11 @@ function InputPanel({
           }}
         />
         <div className="flex flex-wrap items-center gap-4">
-          <div className="mr-auto">
-            <RemainingCounter used={usedCount} />
-          </div>
+          <RemainingCounter used={usedCount} />
           <button
             type="button"
             onClick={onEditVisitor}
-            className="inline-flex items-center gap-1 text-[14px] font-semibold text-[#14151A99] transition hover:text-[#14151A]"
+            className="ml-auto inline-flex items-center gap-1 text-[14px] font-semibold text-[#14151A99] transition hover:text-[#14151A]"
           >
             <span>{withHonorific(name)}</span>
             <img src={iconEdit} alt="정보 수정" className="h-[10.5px] w-[10.5px]" />
@@ -180,6 +237,91 @@ function InputPanel({
             <img src={iconSend} alt="질문 보내기" className="h-[10.5px] w-[10.5px]" />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function parseAnswerBlocks(text: string): AnswerBlock[] {
+  const lines = text.split('\n');
+  const blocks: AnswerBlock[] = [];
+  let listBuffer: string[] = [];
+
+  const flushList = () => {
+    if (listBuffer.length) {
+      blocks.push({ type: 'list', items: listBuffer });
+      listBuffer = [];
+    }
+  };
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) {
+      flushList();
+      return;
+    }
+    if (line.startsWith('### ')) {
+      flushList();
+      blocks.push({ type: 'heading', text: line.replace(/^###\s*/, '') });
+      return;
+    }
+    if (line.startsWith('- ')) {
+      listBuffer.push(line.replace(/^-+\s*/, ''));
+      return;
+    }
+    flushList();
+    blocks.push({ type: 'paragraph', text: line });
+  });
+
+  flushList();
+  if (!blocks.length) {
+    return [{ type: 'paragraph', text }];
+  }
+  return blocks;
+}
+
+function renderInlineNodes(text: string) {
+  const segments = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+  return segments.map((segment, index) => {
+    if (segment.startsWith('**') && segment.endsWith('**')) {
+      return (
+        <strong key={`strong-${index}`} className="font-semibold text-[#0F1324]">
+          {segment.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={`text-${index}`}>{segment}</span>;
+  });
+}
+
+function FormattedAnswer({ text }: { text: string }) {
+  const blocks = useMemo(() => parseAnswerBlocks(text), [text]);
+  return (
+    <div className="rounded-2xl border border-[#ECEEF1] bg-white px-5 py-4 text-[14px] leading-6 text-[#0F1324] shadow-[0_15px_35px_rgba(15,19,36,0.12)]">
+      <div className="space-y-3">
+        {blocks.map((block, index) => {
+          if (block.type === 'heading') {
+            return (
+              <p key={`heading-${index}`} className="text-[15px] font-bold text-[#0F1324]">
+                {renderInlineNodes(block.text)}
+              </p>
+            );
+          }
+          if (block.type === 'list') {
+            return (
+              <ul key={`list-${index}`} className="list-disc pl-5 text-[14px] leading-6 text-[#14151A]">
+                {block.items.map((item, itemIndex) => (
+                  <li key={`list-item-${index}-${itemIndex}`}>{renderInlineNodes(item)}</li>
+                ))}
+              </ul>
+            );
+          }
+          return (
+            <p key={`paragraph-${index}`} className="text-[14px] leading-6 text-[#14151A]">
+              {renderInlineNodes(block.text)}
+            </p>
+          );
+        })}
       </div>
     </div>
   );
@@ -245,6 +387,25 @@ function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void })
           * 서비스 이용 시 상기 항목에 동의한 것으로 간주되며, 동의 철회 시 일부 기능이 제한될 수
           있습니다.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function HeroInfoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/70 px-4">
+      <div className="relative w-full max-w-sm">
+        <img src={heroCardImage} alt="309 persona hero info" className="w-full rounded-[32px] shadow-[0_45px_95px_rgba(15,19,36,0.35)]" />
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute -top-4 -right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#14151A] text-white hover:bg-black"
+          aria-label="모달 닫기"
+        >
+          <img src={iconClose} alt="닫기" className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );
@@ -355,6 +516,7 @@ export function PersonaChatV2Page() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -395,6 +557,10 @@ export function PersonaChatV2Page() {
       });
     }
   }, [threads, showLoadingBubble]);
+
+  useEffect(() => {
+    setHeroDone(true);
+  }, []);
 
   const handleSubmit = async () => {
     const trimmed = question.trim();
@@ -449,20 +615,23 @@ export function PersonaChatV2Page() {
         ref={contentRef}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10"
       >
-        <section className="flex flex-col gap-3">
-          <BrandBadge />
-          <div className="space-y-1 text-[28px] font-bold leading-tight sm:text-[30px]">
-            <p>
-              <TypingText
-                text="안녕하세요. 🙋 만나서 반갑습니다. 이 서비스는 저의 페르소나가 담긴 🤖 AI Agent 기반 커피챗 서비스(베타)입니다."
-                speed={50}
-                onComplete={() => setHeroDone(true)}
-              />
+        <section className="flex flex-col gap-5">
+          <div className="flex items-center justify-between gap-4">
+            <BrandBadge />
+            <div className="h-10 w-10" />
+          </div>
+          <div className="space-y-4">
+            <p className="text-[32px] font-bold leading-snug text-[#0F1324] sm:text-[38px]">
+              안녕하세요. 🙋 만나서 반갑습니다.
+              <br />
+              이 서비스는 저의 페르소나가 담긴 🤖 *AI Agent 기반 커피챗 서비스입니다.
+            </p>
+            <p className="text-sm font-medium text-[#767676]">
+              *저의 경력과 일하는 방식을 AI가 자연스럽게 재현해 면접 전에 후보자 이해도를 높이고, 채용담당자가 보다 효율적이고 정확한 평가를
+              할 수 있도록 돕는 사전 인터뷰 에이전트입니다.
             </p>
           </div>
         </section>
-
-        <Divider />
 
         <section className="flex flex-col gap-6">
           {heroDone && (
@@ -488,13 +657,18 @@ export function PersonaChatV2Page() {
 
           {threads.length ? (
             <div className="flex flex-col gap-6">
-              {threads.map((thread) => (
-                <div key={thread.id} className="space-y-3">
+              {threads.map((thread, index) => {
+                const remaining = Math.max(0, TOTAL_QUESTIONS - (index + 1));
+                return (
+                  <div key={thread.id} className="space-y-3">
                   <div className="flex justify-end">
-                    <div className="max-w-[420px] rounded-[22px] bg-[#14151A] px-5 py-3 text-[14px] leading-6 text-white shadow-[0_15px_30px_rgba(15,19,36,0.3)]">
+                      <div className="max-w-[420px] rounded-[22px] bg-[#0B98FF] px-5 py-3 text-[14px] leading-6 text-white shadow-[0_20px_45px_rgba(11,152,255,0.3)]">
                       {thread.question}
                     </div>
                   </div>
+                    <p className="text-right text-[11px] font-medium text-[#0F1324] opacity-60">
+                      남은 질문 {remaining}/{TOTAL_QUESTIONS}
+                    </p>
                   {thread.answer ? (
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
@@ -505,14 +679,13 @@ export function PersonaChatV2Page() {
                           <span className="font-semibold text-slate-900">309</span>
                           <span>{formatTimeLabel(thread.answerAt || thread.questionAt)}</span>
                         </div>
-                        <div className="text-[14px] leading-6 text-slate-900">
-                          {thread.answer}
-                        </div>
+                          <FormattedAnswer text={thread.answer} />
                       </div>
                     </div>
                   ) : null}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 
@@ -521,12 +694,12 @@ export function PersonaChatV2Page() {
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
               </div>
-              <div className="flex items-center gap-2 rounded-[16px] bg-slate-100 px-4 py-3 text-[15px] text-slate-600 shadow-inner">
-                <span>대답을 생각하는 중입니다</span>
+              <div className="flex items-center gap-2 text-[13px] font-medium text-slate-500">
+                <span>답변을 정리하고 있어요</span>
                 <span className="flex gap-1">
-                  <span className="inline-block h-2 w-2 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="inline-block h-2 w-2 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '120ms' }} />
-                  <span className="inline-block h-2 w-2 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '240ms' }} />
+                  <span className="inline-block h-[2px] w-[2px] rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="inline-block h-[2px] w-[2px] rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '120ms' }} />
+                  <span className="inline-block h-[2px] w-[2px] rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '240ms' }} />
                 </span>
               </div>
             </div>
@@ -577,6 +750,7 @@ export function PersonaChatV2Page() {
           </div>
         </div>
       ) : null}
+      <HeroInfoModal open={showHeroInfoModal} onClose={() => setShowHeroInfoModal(false)} />
       <ConsentModal open={showConsentModal} onClose={() => setShowConsentModal(false)} />
       <VisitorInfoModal
         open={showVisitorInfoModal}
