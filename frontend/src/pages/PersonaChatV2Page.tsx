@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
+import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconEdit from '@assets/icons/name-edit.svg';
@@ -7,12 +8,13 @@ import iconArrowRight from '@assets/icons/icon-arrow-right.svg';
 import iconMailSolid from '@assets/icons/icon-mail.svg';
 import iconClose from '@assets/icons/icon-close.svg';
 import heroCardImage from '@assets/icons/card.svg';
-import iconPortfolio from '@assets/icons/portfolio-card.svg';
-import iconResume from '@assets/icons/resume-file.svg';
+import iconPortfolio from '@assets/icons/icon-portfolio.svg';
+import iconResume from '@assets/icons/icon-resume.svg';
 import iconSend from '@assets/icons/send-arrow.svg';
 import logoFull from '@assets/icons/logo.svg';
 
 import { createVisitor, sendQuestion } from '../services/api';
+import { firestore } from '../lib/firebase';
 import type { SessionInfo } from '../types/api';
 
 const INTRO_MESSAGE =
@@ -23,6 +25,10 @@ const PORTFOLIO_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%8F%AC%ED%8A%B8%ED%8F%B4%EB%A6%AC%EC%98%A4_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
 const RESUME_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%94%84%EB%A1%9C%EB%8D%95%ED%8A%B8%20%EB%94%94%EC%9E%90%EC%9D%B4%EB%84%A4_%EC%9D%B4%EB%A0%A5%EC%84%9C_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
+const OUT_OF_SCOPE_MESSAGE = '이 서비스는 309의 경력 관련 질문만 응답합니다. 프로덕트/UX/경력 맥락으로 다시 질문해 주세요.';
+const CONTEXT_HINT =
+  '\n\n(맥락: 이 질문은 309 성백곤의 프로덕트/UX/협업/경력과 관련된 내용입니다. 해당 범위에서 답변해 주세요.)';
+const CONTEXT_KEYWORDS = ['프로덕트', 'UX', '경력', '프로젝트', '협업', '리더십', '디자인', '경험', '채용', '작업 방식'];
 
 type PersonaThread = {
   id: string;
@@ -150,11 +156,22 @@ function RemainingCounter({ used }: { used: number }) {
   );
 }
 
+function enrichQuestionContext(questionText: string) {
+  const hasKeyword = CONTEXT_KEYWORDS.some((keyword) => questionText.includes(keyword));
+  if (hasKeyword) return questionText;
+  return `${questionText}${CONTEXT_HINT}`;
+}
+
 function ProposalCard() {
+  const handleProposalClick = () => {
+    window.location.href = 'mailto:hello@309designlab.com?subject=309%20Interview%20Agent%20Inquiry';
+  };
+
   return (
     <button
       type="button"
       className="inline-flex items-center gap-3 rounded-full border border-transparent bg-white px-4 py-2 text-[15px] font-semibold text-[#14151A] shadow-[0_12px_30px_rgba(15,19,36,0.16)] transition hover:-translate-y-0.5"
+      onClick={handleProposalClick}
     >
       <img src={iconMailSolid} alt="proposal" className="h-4 w-4" />
       309에게 제안하기
@@ -202,7 +219,7 @@ function InputPanel({
   const disabled = !question.trim() || loading;
 
   return (
-    <div className="animate-slide-up w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_20px_45px_rgba(15,19,36,0.16)]">
+    <div className="animate-slide-up w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_12px_30px_rgba(15,19,36,0.14)]">
       <div className="flex flex-col gap-4">
         <input
           value={question}
@@ -440,7 +457,7 @@ function VisitorInfoModal({
           event.preventDefault();
           onSave(localName.trim(), localAffiliation.trim());
         }}
-        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-[0_30px_80px_rgba(15,19,36,0.4)]"
+        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-[0_18px_45px_rgba(15,19,36,0.25)]"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -511,7 +528,6 @@ export function PersonaChatV2Page() {
   const [ctaVisible, setCtaVisible] = useState(false);
   const [threads, setThreads] = useState<PersonaThread[]>([]);
   const [session, setSession] = useState<SessionInfo | null>(null);
-  const [apiError, setApiError] = useState<string | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
@@ -519,6 +535,47 @@ export function PersonaChatV2Page() {
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
   const displayName = visitorName || '채용 담당자';
+
+  const logQuestionToFirestore = useCallback(
+    async (questionText: string) => {
+      if (!firestore || !session) return;
+      try {
+        await addDoc(collection(firestore, 'personaQuestions'), {
+          sessionId: session.sessionId,
+          question: questionText,
+          visitorName,
+          visitorAffiliation,
+          visitRef: session.visitRef ?? '',
+          createdAt: serverTimestamp(),
+        });
+      } catch (error) {
+        console.error('[Persona] 질문 기록 실패', error);
+      }
+    },
+    [session, visitorName, visitorAffiliation],
+  );
+
+  const persistVisitorProfile = useCallback(
+    async (nameValue: string, affiliationValue: string, sessionOverride?: SessionInfo | null) => {
+      const activeSession = sessionOverride ?? session;
+      if (!firestore || !activeSession) return;
+      try {
+        await setDoc(
+          doc(firestore, 'personaVisitors', activeSession.sessionId),
+          {
+            visitorName: nameValue,
+            visitorAffiliation: affiliationValue,
+            visitRef: activeSession.visitRef ?? '',
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
+      } catch (error) {
+        console.error('[Persona] 방문자 정보 저장 실패', error);
+      }
+    },
+    [session],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -533,11 +590,27 @@ export function PersonaChatV2Page() {
           setSession(info);
           setVisitorName(info.visitorName || '채용 담당자');
           setVisitorAffiliation(info.visitorAffiliation || '');
+          if (firestore && (info.visitorName || info.visitorAffiliation)) {
+            try {
+              await setDoc(
+                doc(firestore, 'personaVisitors', info.sessionId),
+                {
+                  visitorName: info.visitorName || '채용 담당자',
+                  visitorAffiliation: info.visitorAffiliation || '',
+                  visitRef: info.visitRef ?? '',
+                  updatedAt: serverTimestamp(),
+                },
+                { merge: true },
+              );
+            } catch (error) {
+              console.error('[Persona] 초기 방문자 정보 저장 실패', error);
+            }
+          }
         }
       } catch (error) {
         if (!cancelled) {
           console.error('[Persona] 세션 생성 실패', error);
-          setApiError('프리뷰 세션을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          alert('프리뷰 세션을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
         }
       }
     })();
@@ -545,6 +618,29 @@ export function PersonaChatV2Page() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!session || !firestore) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snapshot = await getDoc(doc(firestore, 'personaVisitors', session.sessionId));
+        if (!snapshot.exists() || cancelled) return;
+        const data = snapshot.data() as { visitorName?: string; visitorAffiliation?: string };
+        if (typeof data.visitorName === 'string') {
+          setVisitorName(data.visitorName || '채용 담당자');
+        }
+        if (typeof data.visitorAffiliation === 'string') {
+          setVisitorAffiliation(data.visitorAffiliation || '');
+        }
+      } catch (error) {
+        console.error('[Persona] 방문자 정보 불러오기 실패', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, firestore]);
 
   useEffect(() => {
     if (contentRef.current) {
@@ -563,47 +659,68 @@ export function PersonaChatV2Page() {
     const trimmed = question.trim();
     if (!trimmed) return;
     if (!session) {
-      setApiError('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
+      alert('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
       return;
     }
 
     const threadId = uuid();
     const questionAt = new Date().toISOString();
-    setApiError(null);
     setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt }]);
     setUsedCount((prev) => Math.min(TOTAL_QUESTIONS, prev + 1));
     setQuestion('');
     setShowLoadingBubble(true);
     setLoading(true);
+    void logQuestionToFirestore(trimmed);
 
     try {
       const response = await sendQuestion({
         sessionId: session.sessionId,
-        question: trimmed,
+        question: enrichQuestionContext(trimmed),
       });
+      const normalizedAnswer =
+        response.blocked && (response.reason || !response.answer)
+          ? response.reason ?? OUT_OF_SCOPE_MESSAGE
+          : response.answer || OUT_OF_SCOPE_MESSAGE;
       setThreads((prev) =>
         prev.map((thread) =>
           thread.id === threadId
             ? {
                 ...thread,
-                answer: response.answer,
+                answer: normalizedAnswer,
                 answerAt: new Date().toISOString(),
                 blocked: response.blocked,
               }
             : thread,
         ),
       );
-      if (response.blocked) {
-        setApiError(response.reason ?? '허용되지 않은 질문입니다.');
-      }
       setCtaVisible(true);
     } catch (error) {
       console.error('[Persona] 답변 실패', error);
-      setApiError(error instanceof Error ? error.message : '응답을 가져오지 못했습니다.');
+      const fallback = error instanceof Error ? error.message : '응답을 가져오지 못했습니다.';
+      setThreads((prev) =>
+        prev.map((thread) =>
+          thread.id === threadId
+            ? {
+                ...thread,
+                answer: fallback,
+                answerAt: new Date().toISOString(),
+                blocked: true,
+              }
+            : thread,
+        ),
+      );
     } finally {
       setLoading(false);
       setShowLoadingBubble(false);
     }
+  };
+
+  const handleVisitorSave = (nameValue: string, affiliationValue: string) => {
+    const normalizedName = nameValue || '채용 담당자';
+    setVisitorName(normalizedName);
+    setVisitorAffiliation(affiliationValue);
+    setShowVisitorInfoModal(false);
+    void persistVisitorProfile(normalizedName, affiliationValue);
   };
 
   return (
@@ -659,7 +776,7 @@ export function PersonaChatV2Page() {
                 return (
                   <div key={thread.id} className="space-y-3">
                   <div className="flex justify-end">
-                      <div className="max-w-[420px] rounded-[22px] bg-[#0B98FF] px-5 py-3 text-[14px] leading-6 text-white shadow-[0_20px_45px_rgba(11,152,255,0.3)]">
+                      <div className="max-w-[420px] rounded-[22px] bg-[#0B98FF] px-5 py-3 text-[14px] leading-6 text-white shadow-[0_12px_28px_rgba(11,152,255,0.22)]">
                       {thread.question}
                     </div>
                   </div>
@@ -741,13 +858,6 @@ export function PersonaChatV2Page() {
                 usedCount={usedCount}
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
               />
-              {apiError ? (
-                <div className="mt-4 text-[14px] leading-6 text-[#0F1324]">
-                  <p>
-                    이 서비스는 309의 경력 관련 질문만 응답합니다. 프로덕트/UX/경력 맥락에서 다시 질문해 주시면 바로 도움 드릴게요. 🙂
-                  </p>
-                </div>
-              ) : null}
               <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
             </div>
           </div>
@@ -760,11 +870,7 @@ export function PersonaChatV2Page() {
         name={visitorName}
         affiliation={visitorAffiliation}
         onClose={() => setShowVisitorInfoModal(false)}
-        onSave={(nameValue, affiliationValue) => {
-          setVisitorName(nameValue || '채용 담당자');
-          setVisitorAffiliation(affiliationValue);
-          setShowVisitorInfoModal(false);
-        }}
+        onSave={handleVisitorSave}
       />
     </div>
   );
