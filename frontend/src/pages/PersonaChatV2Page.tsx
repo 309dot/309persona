@@ -642,14 +642,34 @@ export function PersonaChatV2Page() {
     };
   }, [session, firestore]);
 
-  useEffect(() => {
-    if (contentRef.current) {
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = 'smooth') => {
+      if (!contentRef.current) return;
       contentRef.current.scrollTo({
         top: contentRef.current.scrollHeight,
-        behavior: 'smooth',
+        behavior,
       });
-    }
-  }, [threads, showLoadingBubble]);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [threads, showLoadingBubble, scrollToBottom]);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      scrollToBottom();
+    });
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [scrollToBottom]);
 
   useEffect(() => {
     setHeroDone(true);
