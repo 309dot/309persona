@@ -4,7 +4,8 @@ import { v4 as uuid } from 'uuid';
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconArrow from '@assets/icons/proposal-arrow.svg';
 import iconEdit from '@assets/icons/name-edit.svg';
-import iconEnvelope from '@assets/icons/proposal-mail.svg';
+import iconArrowRight from '@assets/icons/icon-arrow-right.svg';
+import iconMailSolid from '@assets/icons/icon-mail.svg';
 import iconClose from '@assets/icons/icon-close.svg';
 import heroCardImage from '@assets/icons/card.svg';
 import iconPortfolio from '@assets/icons/portfolio-card.svg';
@@ -154,11 +155,11 @@ function ProposalCard() {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-3 rounded-full border border-[#DADDE2] bg-white px-5 py-3 text-[15px] font-semibold text-[#14151A] transition hover:border-slate-400"
+      className="inline-flex items-center gap-3 rounded-full border border-transparent bg-white px-4 py-2 text-[15px] font-semibold text-[#14151A] shadow-[0_12px_30px_rgba(15,19,36,0.16)] transition hover:-translate-y-0.5"
     >
-      <img src={iconEnvelope} alt="proposal" className="h-4 w-4 opacity-80" />
+      <img src={iconMailSolid} alt="proposal" className="h-4 w-4" />
       309에게 제안하기
-      <img src={iconArrow} alt="arrow" className="h-3.5 w-3.5 opacity-80" />
+      <img src={iconArrowRight} alt="arrow" className="h-3.5 w-3.5" />
     </button>
   );
 }
@@ -296,32 +297,30 @@ function renderInlineNodes(text: string) {
 function FormattedAnswer({ text }: { text: string }) {
   const blocks = useMemo(() => parseAnswerBlocks(text), [text]);
   return (
-    <div className="rounded-2xl border border-[#ECEEF1] bg-white px-5 py-4 text-[14px] leading-6 text-[#0F1324] shadow-[0_15px_35px_rgba(15,19,36,0.12)]">
-      <div className="space-y-3">
-        {blocks.map((block, index) => {
-          if (block.type === 'heading') {
-            return (
-              <p key={`heading-${index}`} className="text-[15px] font-bold text-[#0F1324]">
-                {renderInlineNodes(block.text)}
-              </p>
-            );
-          }
-          if (block.type === 'list') {
-            return (
-              <ul key={`list-${index}`} className="list-disc pl-5 text-[14px] leading-6 text-[#14151A]">
-                {block.items.map((item, itemIndex) => (
-                  <li key={`list-item-${index}-${itemIndex}`}>{renderInlineNodes(item)}</li>
-                ))}
-              </ul>
-            );
-          }
+    <div className="space-y-3 text-[14px] leading-6 text-[#0F1324]">
+      {blocks.map((block, index) => {
+        if (block.type === 'heading') {
           return (
-            <p key={`paragraph-${index}`} className="text-[14px] leading-6 text-[#14151A]">
+            <p key={`heading-${index}`} className="text-[15px] font-bold text-[#0F1324]">
               {renderInlineNodes(block.text)}
             </p>
           );
-        })}
-      </div>
+        }
+        if (block.type === 'list') {
+          return (
+            <ul key={`list-${index}`} className="list-disc pl-5 text-[14px] leading-6 text-[#0F1324]">
+              {block.items.map((item, itemIndex) => (
+                <li key={`list-item-${index}-${itemIndex}`}>{renderInlineNodes(item)}</li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p key={`paragraph-${index}`} className="text-[14px] leading-6 text-[#0F1324]">
+            {renderInlineNodes(block.text)}
+          </p>
+        );
+      })}
     </div>
   );
 }
@@ -743,7 +742,13 @@ export function PersonaChatV2Page() {
                 usedCount={usedCount}
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
               />
-              {apiError ? <p className="mt-3 text-center text-sm text-rose-500">{apiError}</p> : null}
+              {apiError ? (
+                <div className="mt-4 text-[14px] leading-6 text-[#0F1324]">
+                  <p>
+                    이 서비스는 309의 경력 관련 질문만 응답합니다. 프로덕트/UX/경력 맥락에서 다시 질문해 주시면 바로 도움 드릴게요. 🙂
+                  </p>
+                </div>
+              ) : null}
               <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
             </div>
           </div>
