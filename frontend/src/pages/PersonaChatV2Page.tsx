@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
-import iconArrow from '@assets/icons/proposal-arrow.svg';
 import iconEdit from '@assets/icons/name-edit.svg';
 import iconArrowRight from '@assets/icons/icon-arrow-right.svg';
 import iconMailSolid from '@assets/icons/icon-mail.svg';
