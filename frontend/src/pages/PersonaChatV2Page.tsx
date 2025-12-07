@@ -5,7 +5,6 @@ import agentAvatar from '@assets/images/agent-avatar.png';
 import iconArrow from '@assets/icons/proposal-arrow.svg';
 import iconEdit from '@assets/icons/name-edit.svg';
 import iconEnvelope from '@assets/icons/proposal-mail.svg';
-import iconAccount from '@assets/icons/icon-account-box-fill.svg';
 import iconClose from '@assets/icons/icon-close.svg';
 import heroCardImage from '@assets/icons/card.svg';
 import iconPortfolio from '@assets/icons/portfolio-card.svg';
