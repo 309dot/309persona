@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
@@ -39,8 +39,15 @@ function SuggestionCard() {
   );
 }
 
-function AgentMessage({ message }: { message: ChatMessage }) {
-  const showSuggestionCard = /suggestions?/i.test(message.text);
+interface AgentMessageProps {
+  message: ChatMessage;
+  animatedText?: string;
+  isAnimating?: boolean;
+}
+
+function AgentMessage({ message, animatedText, isAnimating }: AgentMessageProps) {
+  const displayText = isAnimating ? animatedText ?? '' : message.text;
+  const showSuggestionCard = /suggestions?/i.test(displayText);
 
   return (
     <div className="flex w-full max-w-xl gap-4">
@@ -53,7 +60,7 @@ function AgentMessage({ message }: { message: ChatMessage }) {
           <span>{formatTimestamp(message.timestamp)}</span>
         </div>
         <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-4 text-sm text-slate-800 shadow-[0_1px_3px_rgba(20,21,26,0.08)]">
-          {message.text}
+          {displayText}
           {message.category ? (
             <span className="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
               #{message.category}
@@ -91,6 +98,10 @@ export function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [showVisitorModal, setShowVisitorModal] = useState(!session);
   const [incomingQuestion, setIncomingQuestion] = useState<string | null>(null);
+  const [animatingMessageId, setAnimatingMessageId] = useState<string | null>(null);
+  const [animatedText, setAnimatedText] = useState('');
+  const typingTimeoutRef = useRef<number | null>(null);
+  const listEndRef = useRef<HTMLDivElement | null>(null);
 
   const { messages, appendMessage } = useChatHistory(session?.sessionId);
 
@@ -156,12 +167,62 @@ export function ChatPage() {
     }
   }, [session, incomingQuestion]);
 
+  useEffect(() => {
+    const lastAgentMessage = [...messages].reverse().find((message) => message.role === 'agent');
+    if (!lastAgentMessage) return;
+
+    if (lastAgentMessage.id === animatingMessageId) {
+      return;
+    }
+
+    setAnimatingMessageId(lastAgentMessage.id);
+    setAnimatedText('');
+
+    if (typingTimeoutRef.current) {
+      window.clearTimeout(typingTimeoutRef.current);
+    }
+
+    let index = 0;
+    const step = () => {
+      index += 2;
+      const nextText = lastAgentMessage.text.slice(0, index);
+      setAnimatedText(nextText);
+      if (index < lastAgentMessage.text.length) {
+        typingTimeoutRef.current = window.setTimeout(step, 18);
+      } else {
+        typingTimeoutRef.current = null;
+      }
+    };
+
+    step();
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [messages, animatingMessageId]);
+
+  useEffect(() => {
+    if (listEndRef.current) {
+      listEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages, animatedText]);
+
   const renderMessage = (message: ChatMessage) => {
     if (message.role === 'system') {
       return <SystemMessage key={message.id} message={message} />;
     }
     if (message.role === 'agent') {
-      return <AgentMessage key={message.id} message={message} />;
+      const isAnimating = message.id === animatingMessageId;
+      return (
+        <AgentMessage
+          key={message.id}
+          message={message}
+          isAnimating={isAnimating}
+          animatedText={isAnimating ? animatedText : undefined}
+        />
+      );
     }
     return <VisitorMessage key={message.id} message={message} />;
   };
@@ -186,6 +247,7 @@ export function ChatPage() {
           </div>
           <div className="flex flex-col items-center gap-6">
             {messages.length ? messages.map((message) => renderMessage(message)) : null}
+            <div ref={listEndRef} />
           </div>
         </section>
 
