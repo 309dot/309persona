@@ -532,6 +532,7 @@ export function PersonaChatV2Page() {
   const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
   const displayName = visitorName || '채용 담당자';
@@ -645,11 +646,16 @@ export function PersonaChatV2Page() {
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
       if (!contentRef.current) return;
+      const anchor = bottomRef.current;
       const doScroll = () => {
-        contentRef.current?.scrollTo({
-          top: contentRef.current.scrollHeight,
-          behavior,
-        });
+        if (anchor) {
+          anchor.scrollIntoView({ behavior, block: 'end' });
+        } else {
+          contentRef.current?.scrollTo({
+            top: contentRef.current.scrollHeight,
+            behavior,
+          });
+        }
       };
       doScroll();
       requestAnimationFrame(doScroll);
@@ -765,6 +771,7 @@ export function PersonaChatV2Page() {
     setQuestion('');
     setShowLoadingBubble(true);
     setLoading(true);
+    scrollToBottom();
     void logQuestionToFirestore(trimmed);
 
     try {
@@ -913,6 +920,7 @@ export function PersonaChatV2Page() {
               </div>
             </div>
           ) : null}
+          <div ref={bottomRef} className="h-1 w-full" />
         </section>
 
       </main>
