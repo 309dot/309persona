@@ -680,11 +680,65 @@ export function PersonaChatV2Page() {
     setHeroDone(true);
   }, []);
 
-  const inferVisitorName = (text: string) => {
-    const [prefix] = text.split(/[.,]/);
-    const cleaned = prefix?.trim();
-    if (!cleaned || cleaned.length > 60) return null;
-    return cleaned;
+  const inferVisitorProfile = (text: string) => {
+    const normalized = text.trim();
+    const firstSentence = normalized.split(/[\n?!]/)[0] ?? '';
+    const firstClause = firstSentence.split(/[.?!]/)[0]?.trim() ?? '';
+    const firstCommaClause = normalized.split(',')[0]?.trim() ?? '';
+
+    const cleanValue = (value: string | undefined | null) => {
+      const cleaned = value?.trim();
+      if (!cleaned) return null;
+      if (cleaned.length < 2 || cleaned.length > 60) return null;
+      return cleaned;
+    };
+
+    const nameMarkers: RegExp[] = [
+      /(저는|나는|제가)\s+([^,.\n]+?)(입니다|예요|에요|이고|이고요)?/i,
+      /(제\s*이름은)\s+([^,.\n]+?)(입니다|예요|에요)?/i,
+    ];
+    const affiliationMarkers: RegExp[] = [
+      /(소속|회사|팀|브랜드)\s*(은|는|이)?\s*([^,.\n]+?)(입니다|예요|에요|이고|이고요)?/i,
+    ];
+
+    let nameCandidate: string | null = null;
+    let affiliationCandidate: string | null = null;
+
+    for (const regex of nameMarkers) {
+      const match = firstSentence.match(regex);
+      if (match && match[2]) {
+        nameCandidate = cleanValue(match[2]);
+        break;
+      }
+    }
+
+    for (const regex of affiliationMarkers) {
+      const match = firstSentence.match(regex);
+      if (match && match[3]) {
+        affiliationCandidate = cleanValue(match[3]);
+        break;
+      }
+    }
+
+    if (!nameCandidate && firstCommaClause.length > 0 && firstCommaClause.length <= 30) {
+      const hasSpace = firstCommaClause.includes(' ');
+      const looksIntro = hasSpace && !/[?]/.test(firstCommaClause);
+      if (looksIntro) {
+        nameCandidate = cleanValue(firstCommaClause);
+      }
+    }
+
+    if (!nameCandidate && firstClause.length > 0 && firstClause.length <= 30) {
+      const hasPronoun = /(저는|나는|제가|제\s*이름)/.test(firstClause);
+      if (hasPronoun) {
+        nameCandidate = cleanValue(firstClause);
+      }
+    }
+
+    return {
+      name: nameCandidate,
+      affiliation: affiliationCandidate,
+    };
   };
 
   const handleSubmit = async () => {
@@ -695,10 +749,13 @@ export function PersonaChatV2Page() {
       return;
     }
 
-    const inferredName = inferVisitorName(trimmed);
-    if (inferredName && inferredName !== visitorName) {
-      setVisitorName(inferredName);
-      void persistVisitorProfile(inferredName, visitorAffiliation);
+    const inferred = inferVisitorProfile(trimmed);
+    const nextName = inferred.name ?? visitorName;
+    const nextAffiliation = inferred.affiliation ?? visitorAffiliation;
+    if (nextName !== visitorName || nextAffiliation !== visitorAffiliation) {
+      setVisitorName(nextName);
+      setVisitorAffiliation(nextAffiliation);
+      void persistVisitorProfile(nextName, nextAffiliation);
     }
 
     const threadId = uuid();
