@@ -645,10 +645,15 @@ export function PersonaChatV2Page() {
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
       if (!contentRef.current) return;
-      contentRef.current.scrollTo({
-        top: contentRef.current.scrollHeight,
-        behavior,
-      });
+      const doScroll = () => {
+        contentRef.current?.scrollTo({
+          top: contentRef.current.scrollHeight,
+          behavior,
+        });
+      };
+      doScroll();
+      requestAnimationFrame(doScroll);
+      setTimeout(doScroll, 32);
     },
     [],
   );
@@ -675,12 +680,25 @@ export function PersonaChatV2Page() {
     setHeroDone(true);
   }, []);
 
+  const inferVisitorName = (text: string) => {
+    const [prefix] = text.split(/[.,]/);
+    const cleaned = prefix?.trim();
+    if (!cleaned || cleaned.length > 60) return null;
+    return cleaned;
+  };
+
   const handleSubmit = async () => {
     const trimmed = question.trim();
     if (!trimmed) return;
     if (!session) {
       alert('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
       return;
+    }
+
+    const inferredName = inferVisitorName(trimmed);
+    if (inferredName && inferredName !== visitorName) {
+      setVisitorName(inferredName);
+      void persistVisitorProfile(inferredName, visitorAffiliation);
     }
 
     const threadId = uuid();
