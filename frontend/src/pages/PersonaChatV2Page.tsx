@@ -583,7 +583,7 @@ export function PersonaChatV2Page() {
     (async () => {
       try {
         const info = await createVisitor({
-          visitorName: '채용 담당자 프리뷰',
+          visitorName: '채용 담당자',
           visitorAffiliation: 'Persona Preview',
           visitRef: 'persona-v2',
         });
@@ -645,21 +645,19 @@ export function PersonaChatV2Page() {
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
-      if (!contentRef.current) return;
+      const container = contentRef.current;
+      if (!container) return;
       const anchor = bottomRef.current;
-      const doScroll = () => {
+      const scrollOnce = (mode: ScrollBehavior) => {
         if (anchor) {
-          anchor.scrollIntoView({ behavior, block: 'end' });
+          anchor.scrollIntoView({ behavior: mode, block: 'end' });
         } else {
-          contentRef.current?.scrollTo({
-            top: contentRef.current.scrollHeight,
-            behavior,
-          });
+          container.scrollTo({ top: container.scrollHeight, behavior: mode });
         }
       };
-      doScroll();
-      requestAnimationFrame(doScroll);
-      setTimeout(doScroll, 32);
+      scrollOnce('auto'); // 먼저 즉시 맞추기
+      requestAnimationFrame(() => scrollOnce(behavior)); // 레이아웃 반영 후
+      setTimeout(() => scrollOnce(behavior), 32); // 비동기 렌더 후 보강
     },
     [],
   );
@@ -706,6 +704,9 @@ export function PersonaChatV2Page() {
     const affiliationMarkers: RegExp[] = [
       /(소속|회사|팀|브랜드)\s*(은|는|이)?\s*([^,.\n]+?)(입니다|예요|에요|이고|이고요)?/i,
     ];
+    const greetingNameMarkers: RegExp[] = [
+      /(반가워|안녕하세요|안녕|hello|hi)?\s*([^,.\n]+?)(입니다|이에요|예요|야|이야)/i,
+    ];
 
     let nameCandidate: string | null = null;
     let affiliationCandidate: string | null = null;
@@ -723,6 +724,16 @@ export function PersonaChatV2Page() {
       if (match && match[3]) {
         affiliationCandidate = cleanValue(match[3]);
         break;
+      }
+    }
+
+    if (!nameCandidate) {
+      for (const regex of greetingNameMarkers) {
+        const match = firstSentence.match(regex);
+        if (match && match[2]) {
+          nameCandidate = cleanValue(match[2]);
+          break;
+        }
       }
     }
 
