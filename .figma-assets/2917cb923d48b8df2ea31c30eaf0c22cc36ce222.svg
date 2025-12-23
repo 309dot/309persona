@@ -1,0 +1,6 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Circle">
+<circle id="Progress Bar Base" cx="8" cy="8" r="7" stroke="var(--stroke-0, #BDBDBD)" stroke-width="2"/>
+<path id="Progress Bar Fill" d="M8 15C11.866 15 15 11.866 15 8C15 4.13401 11.866 1 8 1" stroke="var(--stroke-0, #0B98FF)" stroke-width="2" stroke-linecap="round"/>
+</g>
+</svg>

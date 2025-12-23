@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import logo from '@assets/logo.png';
+import logo from '@assets/icons/logo.svg';
 
 interface NavBarProps {
   rightSlot?: ReactNode;
