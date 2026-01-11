@@ -8,11 +8,12 @@ import { PersonaChatV2Page } from './pages/PersonaChatV2Page';
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<EntryPage />} />
+      <Route path="/" element={<Navigate to="/persona" replace />} />
+      <Route path="/entry" element={<EntryPage />} />
       <Route path="/chat" element={<ChatPage />} />
       <Route path="/persona" element={<PersonaChatV2Page />} />
       <Route path="/admin" element={<DashboardPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/persona" replace />} />
     </Routes>
   );
 }
