@@ -9,6 +9,7 @@ import { VisitorModal } from '../components/VisitorModal';
 import { useSessionContext } from '../context/SessionContext';
 import { useChatHistory } from '../hooks/useChatHistory';
 import { sendQuestion } from '../services/api';
+import { formatVisitorName } from '../lib/formatName';
 import type { ChatMessage } from '../types/api';
 
 function formatTimestamp(timestamp: string) {
@@ -109,7 +110,7 @@ export function ChatPage() {
     setShowVisitorModal(!session);
   }, [session]);
 
-  const visitorDisplayName = useMemo(() => session?.visitorName || '리크루터', [session]);
+  const visitorDisplayName = useMemo(() => formatVisitorName(session?.visitorName), [session]);
 
   useEffect(() => {
     const state = (location.state as { initialQuestion?: string } | null) ?? null;
@@ -234,7 +235,7 @@ export function ChatPage() {
       <main className="mx-auto flex w-full max-w-4xl flex-col items-center gap-12 px-6 pb-28 pt-4">
         <div className="w-full text-left text-2xl font-semibold leading-snug">
           <p>
-            <span className="font-bold">{`${visitorDisplayName}님,`}</span> 이제 대화를 시작해 볼까요?
+            <span className="font-bold">{visitorDisplayName},</span> 이제 대화를 시작해 볼까요?
           </p>
           <p className="text-xl text-slate-500">준비가 끝났습니다. 궁금한 점을 자유롭게 물어보세요.</p>
           </div>

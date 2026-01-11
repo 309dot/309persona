@@ -6,6 +6,7 @@ import { NavBar } from '../components/NavBar';
 import { VisitorModal } from '../components/VisitorModal';
 import { QUESTION_TEMPLATES } from '../constants/questions';
 import { useSessionContext } from '../context/SessionContext';
+import { formatVisitorName } from '../lib/formatName';
 
 const MAX_SUGGESTIONS = 5;
 const QUESTION_HISTORY_KEY = 'entry-question-history';
@@ -39,8 +40,7 @@ export function EntryPage() {
   }, []);
 
   const displayName = useMemo(() => {
-    if (session?.visitorName) return session.visitorName;
-    return '리크루터';
+    return formatVisitorName(session?.visitorName);
   }, [session]);
 
   const updateHistory = useCallback((question: string) => {
@@ -114,7 +114,7 @@ export function EntryPage() {
         <section className="flex-1">
           <div className="space-y-4">
             <p className="text-2xl font-bold leading-tight sm:text-[32px]">
-              <span className="font-bold">{`${displayName}님,`}</span>
+              <span className="font-bold">{displayName},</span>
               <br />
               안녕하세요. 🙋‍♂️ 만나서 반갑습니다. 이 서비스는 저의 페르소나가 담긴{' '}
               <span className="text-sky-500">🤖 AI Agent</span> 기반 커피챗 서비스입니다.

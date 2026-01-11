@@ -15,6 +15,7 @@ import logoFull from '@assets/icons/logo.svg';
 
 import { createVisitor, sendQuestion } from '../services/api';
 import { firestore } from '../lib/firebase';
+import { formatVisitorName } from '../lib/formatName';
 import type { SessionInfo } from '../types/api';
 
 const INTRO_MESSAGE =
@@ -192,11 +193,7 @@ function formatTimeLabel(timestamp?: string) {
 }
 
 function withHonorific(name?: string | null) {
-  const trimmed = (name ?? '').trim();
-  if (!trimmed) {
-    return '채용 담당자님';
-  }
-  return trimmed.endsWith('님') ? trimmed : `${trimmed}님`;
+  return formatVisitorName(name, '채용 담당자');
 }
 
 function InputPanel({
