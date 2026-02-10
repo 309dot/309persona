@@ -136,7 +136,7 @@ export function DashboardPage() {
         <div className="glass-panel rounded-3xl p-6">
           <h3 className="text-base font-semibold text-slate-900">유입 사이트별 통계</h3>
           <div className="mt-4 space-y-2">
-            {stats?.referrer_stats.length ? (
+            {stats?.referrer_stats?.length ? (
               stats.referrer_stats.map((point) => (
                 <div key={point.label} className="flex items-center justify-between text-sm">
                   <span className="text-slate-500 truncate">{point.label}</span>
