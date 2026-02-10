@@ -41,6 +41,7 @@ export function VisitorModal({ isOpen, defaultRef = 'direct', canClose = false, 
         visitorName: form.visitorName.trim(),
         visitorAffiliation: form.visitorAffiliation.trim(),
         visitRef: defaultRef,
+        referrer: document.referrer || '',
       });
       onSuccess(sessionInfo);
     } catch (err) {

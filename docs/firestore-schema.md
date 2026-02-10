@@ -7,11 +7,13 @@
 | `visitor_name` | string | 방문자 이름 혹은 이니셜 |
 | `visitor_affiliation` | string | 회사/팀/직무 정보 |
 | `visit_ref` | string | 초대 링크나 ref 태그 (예: 회사명) |
+| `referrer` | string | HTTP Referrer (유입 사이트 URL) |
 | `session_id` | string | 백엔드가 생성한 UUID, 문서 ID로도 사용 |
 | `created_at` | timestamp | Firestore 서버 타임스탬프 |
 
 - session_id를 문서 ID로 사용하면 조회가 단순해집니다.
 - ref별 방문 현황을 계산하기 위해 `visit_ref`는 빈 문자열 대신 `direct`로 치환합니다.
+- `referrer` 필드는 사용자가 어떤 사이트에서 유입되었는지 추적합니다. Dashboard에서 도메인별 통계로 표시됩니다.
 
 ## conversations
 

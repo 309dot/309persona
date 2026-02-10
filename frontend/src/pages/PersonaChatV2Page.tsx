@@ -583,6 +583,7 @@ export function PersonaChatV2Page() {
           visitorName: '채용 담당자',
           visitorAffiliation: 'Persona Preview',
           visitRef: 'persona-v2',
+          referrer: document.referrer || '',
         });
         if (!cancelled) {
           setSession(info);

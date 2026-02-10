@@ -2,6 +2,7 @@ export interface VisitorPayload {
   visitorName: string;
   visitorAffiliation?: string;
   visitRef?: string;
+  referrer?: string;
 }
 
 export interface VisitorResponse {
@@ -9,6 +10,7 @@ export interface VisitorResponse {
   visitor_name: string;
   visitor_affiliation?: string;
   visit_ref?: string;
+  referrer?: string;
 }
 
 export interface SessionInfo {
@@ -47,6 +49,7 @@ export interface StatPoint {
 
 export interface DashboardStats {
   ref_stats: StatPoint[];
+  referrer_stats: StatPoint[];
   question_categories: StatPoint[];
   daily_visits: StatPoint[];
   latest_visitors: VisitorRecord[];
@@ -58,6 +61,7 @@ export interface VisitorRecord {
   visitor_name?: string;
   visitor_affiliation?: string;
   visit_ref?: string;
+  referrer?: string;
   session_id?: string;
   created_at?: string;
 }

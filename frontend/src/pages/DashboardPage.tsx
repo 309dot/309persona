@@ -25,6 +25,11 @@ export function DashboardPage() {
     return `${stats.ref_stats[0].label} (${stats.ref_stats[0].value})`;
   }, [stats]);
 
+  const popularReferrer = useMemo(() => {
+    if (!stats?.referrer_stats?.length) return '-';
+    return `${stats.referrer_stats[0].label} (${stats.referrer_stats[0].value})`;
+  }, [stats]);
+
   const popularCategory = useMemo(() => {
     if (!stats?.question_categories?.length) return '-';
     return `${stats.question_categories[0].label} (${stats.question_categories[0].value})`;
@@ -102,7 +107,8 @@ export function DashboardPage() {
     >
       <div className="flex flex-wrap gap-4">
         <StatCard label="누적 방문자" value={totalVisitors} />
-        <StatCard label="주요 유입 경로" value={popularRef} />
+        <StatCard label="주요 유입 경로 (Ref)" value={popularRef} />
+        <StatCard label="주요 유입 사이트" value={popularReferrer} />
         <StatCard label="많이 묻는 카테고리" value={popularCategory} />
       </div>
       {error ? <p className="text-sm text-rose-500">{error}</p> : null}
@@ -119,6 +125,21 @@ export function DashboardPage() {
               stats.daily_visits.map((point) => (
                 <div key={point.label} className="flex items-center justify-between text-sm">
                   <span className="text-slate-500">{point.label}</span>
+                  <span className="font-semibold text-slate-900">{point.value}명</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">아직 데이터가 없습니다.</p>
+            )}
+          </div>
+        </div>
+        <div className="glass-panel rounded-3xl p-6">
+          <h3 className="text-base font-semibold text-slate-900">유입 사이트별 통계</h3>
+          <div className="mt-4 space-y-2">
+            {stats?.referrer_stats.length ? (
+              stats.referrer_stats.map((point) => (
+                <div key={point.label} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500 truncate">{point.label}</span>
                   <span className="font-semibold text-slate-900">{point.value}명</span>
                 </div>
               ))

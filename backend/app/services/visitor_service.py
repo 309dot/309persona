@@ -20,6 +20,7 @@ def create_visitor(payload: Dict[str, str]) -> Dict[str, str]:
         "visitor_name": payload.get("visitor_name", "").strip(),
         "visitor_affiliation": payload.get("visitor_affiliation", "").strip(),
         "visit_ref": payload.get("visit_ref", "").strip(),
+        "referrer": payload.get("referrer", "").strip(),
         "session_id": session_id,
         "created_at": firestore.SERVER_TIMESTAMP,
     }

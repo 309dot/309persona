@@ -12,6 +12,7 @@ class VisitorCreate(BaseModel):
     visitor_name: str = Field(..., min_length=1)
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
+    referrer: Optional[str] = None
 
 
 class VisitorResponse(BaseModel):
@@ -19,6 +20,7 @@ class VisitorResponse(BaseModel):
     visitor_name: str
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
+    referrer: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -44,6 +46,7 @@ class VisitorRecord(BaseModel):
     visitor_name: Optional[str] = None
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
+    referrer: Optional[str] = None
     session_id: Optional[str] = None
     created_at: Optional[datetime] = None
 
@@ -60,6 +63,7 @@ class ConversationRecord(BaseModel):
 
 class DashboardStats(BaseModel):
     ref_stats: List[StatPoint]
+    referrer_stats: List[StatPoint]
     question_categories: List[StatPoint]
     daily_visits: List[StatPoint]
     latest_visitors: List[VisitorRecord]

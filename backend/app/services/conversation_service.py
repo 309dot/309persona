@@ -64,6 +64,7 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
     )
 
     ref_counter = Counter()
+    referrer_counter = Counter()
     daily_counter = defaultdict(int)
     latest_visitors = []
 
@@ -71,6 +72,20 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
         data = doc.to_dict()
         ref = data.get("visit_ref") or "direct"
         ref_counter[ref] += 1
+
+        # Track referrer (HTTP Referer header)
+        referrer = data.get("referrer", "").strip()
+        if referrer:
+            # Extract domain from referrer URL
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(referrer)
+                domain = parsed.netloc or "direct"
+                referrer_counter[domain] += 1
+            except Exception:
+                referrer_counter["unknown"] += 1
+        else:
+            referrer_counter["direct"] += 1
 
         created_at = data.get("created_at")
         if isinstance(created_at, datetime):
@@ -92,6 +107,9 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
 
     return {
         "ref_stats": [{"label": ref, "value": count} for ref, count in ref_counter.most_common()],
+        "referrer_stats": [
+            {"label": referrer, "value": count} for referrer, count in referrer_counter.most_common()
+        ],
         "question_categories": [
             {"label": cat, "value": count} for cat, count in category_counter.most_common()
         ],
