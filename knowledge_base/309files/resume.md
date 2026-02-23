@@ -178,4 +178,4 @@ hello@309designlab.com
 2004.03 - 2011.02
 
 #이력서 URL
-Notion https://309works.notion.site/2024-c8f508e550014ea18741be449c971f26?pvs=4
+PDF: knowledge_base/309files/pdf/Product-resume.pdf
