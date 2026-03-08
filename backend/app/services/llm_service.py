@@ -9,18 +9,20 @@ from typing import Dict, Optional
 from openai import OpenAI
 
 from ..core.config import settings
-from .knowledge_base import build_context_block
+from .knowledge_base import build_context_block, retrieve_relevant_context
 
 _openai_client: Optional[OpenAI] = None
 
 
 def get_openai_client() -> OpenAI:
-    """Lazy initialize the OpenAI client."""
+    """Lazy initialize the OpenAI-compatible client (OpenAI or Ollama)."""
     global _openai_client
     if _openai_client is None:
-        if not settings.openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY is not configured.")
-        _openai_client = OpenAI(api_key=settings.openai_api_key)
+        api_key = settings.openai_api_key or "ollama"
+        kwargs = {"api_key": api_key}
+        if settings.openai_base_url:
+            kwargs["base_url"] = settings.openai_base_url
+        _openai_client = OpenAI(**kwargs)
     return _openai_client
 
 
@@ -65,8 +67,12 @@ def generate_persona_answer(
 ) -> str:
     """Call OpenAI with persona/system prompts and the knowledge base."""
     client = get_openai_client()
-    context_block = build_context_block()
-    system_prompt = load_system_prompt().format(knowledge_block=context_block)
+    base_context = build_context_block()
+    rag_hits = retrieve_relevant_context(question, top_k=settings.rag_top_k)
+    knowledge_block = (
+        f"{base_context[:8000]}\n\n=== RAG RETRIEVED CONTEXT ===\n{rag_hits}" if rag_hits else base_context[:8000]
+    )
+    system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
     try:

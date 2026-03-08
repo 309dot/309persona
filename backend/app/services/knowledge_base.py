@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from functools import lru_cache
+from math import sqrt
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from ..core.config import settings
 
@@ -101,6 +103,79 @@ def load_extra_documents(limit_chars: int = 20000) -> str:
     if len(combined) > limit_chars:
         combined = combined[:limit_chars].rstrip() + "\n... (truncated)"
     return combined
+
+
+def _tokenize(text: str) -> List[str]:
+    cleaned = "".join(ch.lower() if ch.isalnum() else " " for ch in text)
+    return [t for t in cleaned.split() if len(t) > 1]
+
+
+def _to_vec(text: str) -> Counter:
+    return Counter(_tokenize(text))
+
+
+def _cosine(a: Counter, b: Counter) -> float:
+    if not a or not b:
+        return 0.0
+    dot = sum(v * b.get(k, 0) for k, v in a.items())
+    na = sqrt(sum(v * v for v in a.values()))
+    nb = sqrt(sum(v * v for v in b.values()))
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
+
+
+@lru_cache
+def build_rag_chunks() -> List[Tuple[str, str]]:
+    """Return (source, text) chunks from the knowledge pack and markdown docs."""
+    pack = load_knowledge_pack()
+    chunks: List[Tuple[str, str]] = []
+
+    for key in ["summary", "collaboration_style", "values", "speaking_style", "guardrails"]:
+        value = pack.get(key)
+        if isinstance(value, str) and value.strip():
+            chunks.append((f"pack:{key}", value.strip()))
+        elif isinstance(value, list):
+            text = "\n".join(str(v).strip() for v in value if str(v).strip())
+            if text:
+                chunks.append((f"pack:{key}", text))
+
+    for project in pack.get("projects", []) if isinstance(pack.get("projects"), list) else []:
+        title = str(project.get("title", "project")).strip()
+        impact = str(project.get("impact", "")).strip()
+        detail = str(project.get("description", "")).strip()
+        merged = "\n".join([x for x in [title, impact, detail] if x])
+        if merged:
+            chunks.append((f"project:{title}", merged))
+
+    extra = load_extra_documents(limit_chars=120000)
+    if extra:
+        for idx, block in enumerate(extra.split("\n\n"), start=1):
+            text = block.strip()
+            if len(text) >= 40:
+                chunks.append((f"extra:{idx}", text))
+
+    return chunks
+
+
+def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
+    """Simple vector-like retrieval with cosine similarity over token counters."""
+    q_vec = _to_vec(query)
+    scored: List[Tuple[float, str, str]] = []
+    for source, text in build_rag_chunks():
+        score = _cosine(q_vec, _to_vec(text))
+        if score > 0:
+            scored.append((score, source, text))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    selected = scored[: max(1, top_k)]
+    if not selected:
+        return ""
+
+    lines = []
+    for score, source, text in selected:
+        lines.append(f"- [{source}] (score={score:.3f}) {text[:700].strip()}")
+    return "\n".join(lines)
 
 
 def get_allowed_topics() -> list[str]:

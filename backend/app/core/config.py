@@ -35,8 +35,13 @@ class Settings(BaseSettings):
 
     app_name: str = "309 Interview Agent API"
     environment: str = Field(default="local")
-    openai_api_key: str = Field(default="", description="OpenAI API Key")
-    openai_model: str = Field(default="gpt-4o-mini")
+    openai_api_key: str = Field(default="", description="LLM API Key (OpenAI or OpenAI-compatible)")
+    openai_model: str = Field(default="qwen3.5:27b")
+    openai_base_url: str = Field(
+        default="http://127.0.0.1:11434/v1",
+        description="OpenAI-compatible base URL (e.g. Ollama /v1)",
+    )
+    rag_top_k: int = Field(default=6, description="Top K chunks to retrieve for RAG")
     knowledge_pack_path: str = Field(
         default="../knowledge_base/309_knowledge_pack.json",
         description="Path to the 309 knowledge base JSON file",
