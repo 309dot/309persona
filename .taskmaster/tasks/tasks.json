@@ -226,7 +226,7 @@
       "id": 18,
       "title": "실서비스 브라우저 콘솔 재검증",
       "description": "최신 프론트 배포 반영 후 CORS/Firestore permission 에러가 사라졌는지 확인",
-      "details": "하드 리프레시 후 네트워크/콘솔 확인 | Browser retest found intermittent CORS on /api/chat from currently deployed frontend bundle (index-Br-D3foA). Need latest frontend deploy sync.",
+      "details": "하드 리프레시 후 네트워크/콘솔 확인 | Browser retest found intermittent CORS on /api/chat from currently deployed frontend bundle (index-Br-D3foA). Need latest frontend deploy sync. | live bundle still old (index-Br-D3foA.js), redeploy required",
       "testStrategy": "콘솔 에러 0건 또는 허용 가능한 수준 확인",
       "priority": "high",
       "dependencies": [
@@ -234,12 +234,39 @@
       ],
       "status": "in-progress",
       "assignee": "verifier"
+    },
+    {
+      "id": 19,
+      "title": "최초 인트로 타이핑 애니메이션 1초 내 완료",
+      "description": "/persona 최초 진입 텍스트 애니메이션을 체감 1초 수준으로 단축",
+      "details": "TypingText speed를 인트로 구간에서 빠르게 오버라이드",
+      "testStrategy": "첫 진입 시 1초 내 타이핑 종료 및 입력 패널 노출 확인",
+      "priority": "high",
+      "dependencies": [
+        "18"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 20,
+      "title": "프론트 최신 번들 배포 반영 확인 및 캐시 무효화",
+      "description": "main 최신 커밋 반영 번들이 www.309designlab.com에 서빙되는지 확인",
+      "details": "필요시 플랫폼에서 redeploy + CDN cache purge",
+      "testStrategy": "script hash가 최신 빌드로 변경되고 콘솔 CORS 에러 미재현",
+      "priority": "high",
+      "dependencies": [
+        "18",
+        "19"
+      ],
+      "status": "pending",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T13:30:37.109571Z",
-    "taskCount": 18,
-    "completedCount": 15
+    "lastModified": "2026-03-08T13:33:37.309067Z",
+    "taskCount": 20,
+    "completedCount": 16
   }
 }

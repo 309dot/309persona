@@ -951,7 +951,7 @@ export function PersonaChatV2Page() {
                 <div className="text-[15px] leading-6 text-slate-900">
                   <TypingText
                     text={INTRO_MESSAGE}
-                    speed={48}
+                    speed={6}
                     onComplete={() => setDockVisible(true)}
                   />
                 </div>
