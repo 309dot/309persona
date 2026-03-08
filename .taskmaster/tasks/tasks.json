@@ -112,14 +112,30 @@
       "dependencies": [
         "5"
       ],
-      "status": "in-progress",
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 10,
+      "title": "퍼널 데이터 7일 수집 및 개선안 검증 리포트",
+      "description": "추가된 퍼널 이벤트로 전환율/이탈지점을 수치화하고 다음 실험 우선순위를 확정한다.",
+      "details": "landing→first_submit→first_answer 지표를 variant(on/off)별 비교",
+      "testStrategy": "리포트에 baseline 및 개선 목표값 명시",
+      "priority": "high",
+      "dependencies": [
+        "6",
+        "7",
+        "8",
+        "9"
+      ],
+      "status": "pending",
       "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T12:52:33.443426Z",
-    "taskCount": 9,
-    "completedCount": 8
+    "lastModified": "2026-03-08T12:56:20.656144Z",
+    "taskCount": 10,
+    "completedCount": 9
   }
 }

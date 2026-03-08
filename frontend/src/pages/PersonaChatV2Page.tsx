@@ -35,6 +35,7 @@ const OUT_OF_SCOPE_MESSAGE = '이 서비스는 309의 경력 관련 질문만 �
 const CONTEXT_HINT =
   '\n\n(맥락: 이 질문은 309 성백곤의 프로덕트/UX/협업/경력과 관련된 내용입니다. 해당 범위에서 답변해 주세요.)';
 const CONTEXT_KEYWORDS = ['프로덕트', 'UX', '경력', '프로젝트', '협업', '리더십', '디자인', '경험', '채용', '작업 방식'];
+const QUESTION_FIRST_EXPERIMENT = String(import.meta.env.VITE_EXPERIMENT_QUESTION_FIRST ?? 'true') === 'true';
 
 type PersonaThread = {
   id: string;
@@ -211,6 +212,7 @@ function InputPanel({
   onEditVisitor,
   onInputFocus,
   onQuickQuestion,
+  showIdentityEdit,
 }: {
   name: string;
   question: string;
@@ -221,6 +223,7 @@ function InputPanel({
   onEditVisitor: () => void;
   onInputFocus: () => void;
   onQuickQuestion: (value: string) => void;
+  showIdentityEdit: boolean;
 }) {
   const disabled = !question.trim() || loading;
 
@@ -254,14 +257,18 @@ function InputPanel({
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <RemainingCounter used={usedCount} />
-          <button
-            type="button"
-            onClick={onEditVisitor}
-            className="ml-auto inline-flex items-center gap-1 text-[14px] font-semibold text-[#14151A99] transition hover:text-[#14151A]"
-          >
-            <span>{withHonorific(name)}</span>
-            <img src={iconEdit} alt="정보 수정" className="h-[10.5px] w-[10.5px]" />
-          </button>
+          {showIdentityEdit ? (
+            <button
+              type="button"
+              onClick={onEditVisitor}
+              className="ml-auto inline-flex items-center gap-1 text-[14px] font-semibold text-[#14151A99] transition hover:text-[#14151A]"
+            >
+              <span>{withHonorific(name)}</span>
+              <img src={iconEdit} alt="정보 수정" className="h-[10.5px] w-[10.5px]" />
+            </button>
+          ) : (
+            <span className="ml-auto text-[12px] font-semibold text-[#14151A66]">질문 먼저 시작해도 됩니다</span>
+          )}
           <button
             type="button"
             onClick={() => onSubmit('manual')}
@@ -558,6 +565,7 @@ export function PersonaChatV2Page() {
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
   const displayName = visitorName || '채용 담당자';
+  const showIdentityEdit = !QUESTION_FIRST_EXPERIMENT || usedCount > 0;
 
   const logQuestionToFirestore = useCallback(
     async (questionText: string) => {
@@ -731,7 +739,10 @@ export function PersonaChatV2Page() {
   useEffect(() => {
     if (landingTrackedRef.current) return;
     landingTrackedRef.current = true;
-    void trackFunnelEvent('landing_view');
+    void trackFunnelEvent('landing_view', {
+      experiment: 'question_first',
+      variant: QUESTION_FIRST_EXPERIMENT ? 'on' : 'off',
+    });
   }, [trackFunnelEvent]);
 
   useEffect(() => {
@@ -869,6 +880,9 @@ export function PersonaChatV2Page() {
       setCtaVisible(true);
       if (usedCount === 0) {
         void trackFunnelEvent('first_answer_rendered', { source });
+        if (QUESTION_FIRST_EXPERIMENT) {
+          setTimeout(() => setShowVisitorInfoModal(true), 300);
+        }
       }
     } catch (error) {
       console.error('[Persona] 답변 실패', error);
@@ -1048,6 +1062,7 @@ export function PersonaChatV2Page() {
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
                 onInputFocus={handleInputFocus}
                 onQuickQuestion={handleQuickQuestion}
+                showIdentityEdit={showIdentityEdit}
               />
               <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
             </div>
