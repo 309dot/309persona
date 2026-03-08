@@ -62,12 +62,64 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 6,
+      "title": "전환 개선 A/B 실험 설계 및 계측 이벤트 정의",
+      "description": "landing→first_submit 퍼널 이벤트 스키마와 지표 정의, 목표 임계치 설정",
+      "details": "PM hypothesis-driven conversion improvement",
+      "testStrategy": "이벤트 로그로 first-message conversion 계산 가능 확인",
+      "priority": "high",
+      "dependencies": [
+        "5"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 7,
+      "title": "첫 질문 유도 UI(예시 질문 3개 원클릭) 구현",
+      "description": "채팅 입력 상단에 원클릭 예시 질문 버튼 추가 및 클릭 시 자동 입력/전송 지원",
+      "details": "PM hypothesis-driven conversion improvement",
+      "testStrategy": "예시 질문 클릭으로 first_submit 이벤트 발생 확인",
+      "priority": "high",
+      "dependencies": [
+        "5"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 8,
+      "title": "입력 마이크로카피/CTA 개선",
+      "description": "Entry+Chat 카피를 첫 질문 유도형으로 교체",
+      "details": "PM hypothesis-driven conversion improvement",
+      "testStrategy": "UI에서 카피 반영 및 기존 기능 회귀 없음 확인",
+      "priority": "medium",
+      "dependencies": [
+        "5"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 9,
+      "title": "질문 우선 플로우 실험 토글",
+      "description": "이름/소속 이전 질문 우선 진입 A/B 토글 추가",
+      "details": "PM hypothesis-driven conversion improvement",
+      "testStrategy": "토글 on/off 시 플로우 분기 정상 확인",
+      "priority": "medium",
+      "dependencies": [
+        "5"
+      ],
+      "status": "in-progress",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T12:33:52.734092Z",
-    "taskCount": 5,
-    "completedCount": 5
+    "lastModified": "2026-03-08T12:52:33.443426Z",
+    "taskCount": 9,
+    "completedCount": 8
   }
 }

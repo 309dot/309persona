@@ -20,7 +20,12 @@ import type { SessionInfo } from '../types/api';
 
 const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
-const INPUT_PLACEHOLDER = '무엇이든 물어보세요';
+const INPUT_PLACEHOLDER = '예: 309가 프로젝트 우선순위를 정하는 기준은?';
+const QUICK_QUESTIONS = [
+  '309의 PM 사고방식을 3줄로 요약해줘',
+  '협업 스타일을 실제 사례 중심으로 설명해줘',
+  '면접 전에 물어보면 좋은 질문 5개를 추천해줘',
+];
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%8F%AC%ED%8A%B8%ED%8F%B4%EB%A6%AC%EC%98%A4_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
@@ -204,14 +209,18 @@ function InputPanel({
   loading,
   usedCount,
   onEditVisitor,
+  onInputFocus,
+  onQuickQuestion,
 }: {
   name: string;
   question: string;
   onQuestionChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (source?: 'manual' | 'quick') => void;
   loading: boolean;
   usedCount: number;
   onEditVisitor: () => void;
+  onInputFocus: () => void;
+  onQuickQuestion: (value: string) => void;
 }) {
   const disabled = !question.trim() || loading;
 
@@ -223,13 +232,26 @@ function InputPanel({
           onChange={(e) => onQuestionChange(e.target.value)}
           placeholder={INPUT_PLACEHOLDER}
           className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none"
+          onFocus={onInputFocus}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
               e.preventDefault();
-              onSubmit();
+              onSubmit('manual');
             }
           }}
         />
+        <div className="flex flex-wrap gap-2">
+          {QUICK_QUESTIONS.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => onQuickQuestion(q)}
+              className="rounded-full border border-[#E7EBF3] bg-[#F8FAFE] px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-[#EEF3FC]"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-4">
           <RemainingCounter used={usedCount} />
           <button
@@ -242,7 +264,7 @@ function InputPanel({
           </button>
           <button
             type="button"
-            onClick={onSubmit}
+            onClick={() => onSubmit('manual')}
             disabled={disabled}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F1324] text-white transition hover:bg-black disabled:bg-slate-400"
             aria-label="전송"
@@ -530,6 +552,9 @@ export function PersonaChatV2Page() {
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const landingTrackedRef = useRef(false);
+  const chatViewTrackedRef = useRef(false);
+  const inputFocusTrackedRef = useRef(false);
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
   const displayName = visitorName || '채용 담당자';
@@ -548,6 +573,27 @@ export function PersonaChatV2Page() {
         });
       } catch (error) {
         console.error('[Persona] 질문 기록 실패', error);
+      }
+    },
+    [session, visitorName, visitorAffiliation],
+  );
+
+  const trackFunnelEvent = useCallback(
+    async (eventName: string, extra: Record<string, unknown> = {}) => {
+      if (!firestore) return;
+      try {
+        await addDoc(collection(firestore, 'personaFunnelEvents'), {
+          event: eventName,
+          sessionId: session?.sessionId ?? null,
+          visitorName,
+          visitorAffiliation,
+          visitRef: session?.visitRef ?? '',
+          path: window.location.pathname,
+          ...extra,
+          createdAt: serverTimestamp(),
+        });
+      } catch (error) {
+        console.error('[Persona] 퍼널 이벤트 기록 실패', error);
       }
     },
     [session, visitorName, visitorAffiliation],
@@ -682,6 +728,18 @@ export function PersonaChatV2Page() {
     setHeroDone(true);
   }, []);
 
+  useEffect(() => {
+    if (landingTrackedRef.current) return;
+    landingTrackedRef.current = true;
+    void trackFunnelEvent('landing_view');
+  }, [trackFunnelEvent]);
+
+  useEffect(() => {
+    if (!dockVisible || chatViewTrackedRef.current) return;
+    chatViewTrackedRef.current = true;
+    void trackFunnelEvent('chat_view');
+  }, [dockVisible, trackFunnelEvent]);
+
   const inferVisitorProfile = (text: string) => {
     const normalized = text.trim();
     const firstSentence = normalized.split(/[\n?!]/)[0] ?? '';
@@ -756,8 +814,8 @@ export function PersonaChatV2Page() {
     };
   };
 
-  const handleSubmit = async () => {
-    const trimmed = question.trim();
+  const handleSubmit = async (source: 'manual' | 'quick' = 'manual', questionOverride?: string) => {
+    const trimmed = (questionOverride ?? question).trim();
     if (!trimmed) return;
     if (!session) {
       alert('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
@@ -782,6 +840,10 @@ export function PersonaChatV2Page() {
     setLoading(true);
     scrollToBottom();
     void logQuestionToFirestore(trimmed);
+    void trackFunnelEvent('question_submitted', { source, usedCount: usedCount + 1 });
+    if (usedCount === 0) {
+      void trackFunnelEvent('first_submit', { source });
+    }
 
     try {
       const response = await sendQuestion({
@@ -805,6 +867,9 @@ export function PersonaChatV2Page() {
         ),
       );
       setCtaVisible(true);
+      if (usedCount === 0) {
+        void trackFunnelEvent('first_answer_rendered', { source });
+      }
     } catch (error) {
       console.error('[Persona] 답변 실패', error);
       const fallback = error instanceof Error ? error.message : '응답을 가져오지 못했습니다.';
@@ -824,6 +889,18 @@ export function PersonaChatV2Page() {
       setLoading(false);
       setShowLoadingBubble(false);
     }
+  };
+
+  const handleInputFocus = () => {
+    if (inputFocusTrackedRef.current) return;
+    inputFocusTrackedRef.current = true;
+    void trackFunnelEvent('input_focus');
+  };
+
+  const handleQuickQuestion = (value: string) => {
+    setQuestion(value);
+    void trackFunnelEvent('quick_question_clicked', { value });
+    void handleSubmit('quick', value);
   };
 
   const handleVisitorSave = (nameValue: string, affiliationValue: string) => {
@@ -969,6 +1046,8 @@ export function PersonaChatV2Page() {
                 loading={loading}
                 usedCount={usedCount}
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
+                onInputFocus={handleInputFocus}
+                onQuickQuestion={handleQuickQuestion}
               />
               <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
             </div>
