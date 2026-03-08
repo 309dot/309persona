@@ -60,7 +60,27 @@ def ask_question(payload: schemas.ChatRequest):
             category=category,
         )
 
-    answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
+    try:
+        answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
+    except Exception:
+        fallback = "지금 답변 엔진 연결이 잠시 불안정합니다. 잠시 후 다시 시도해 주세요."
+        conversation_service.log_conversation(
+            session_id=payload.session_id,
+            visitor_id=visitor.get("id", payload.session_id),
+            question=payload.question,
+            answer=fallback,
+            category=category,
+            is_blocked=True,
+        )
+        return schemas.ChatResponse(
+            session_id=payload.session_id,
+            answer=fallback,
+            blocked=True,
+            reason=fallback,
+            category=category,
+            citations=[],
+        )
+
     conversation_service.log_conversation(
         session_id=payload.session_id,
         visitor_id=visitor.get("id", payload.session_id),
