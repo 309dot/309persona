@@ -128,14 +128,27 @@
         "8",
         "9"
       ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 11,
+      "title": "7일 퍼널 데이터 기반 전환 개선안 확정",
+      "description": "funnel_report 결과로 winner variant와 다음 실험 2개를 확정한다.",
+      "details": "first-message conversion / focus→submit 구간 중심으로 우선순위 결정",
+      "testStrategy": "의사결정 문서에 baseline, winner, next action 포함",
+      "priority": "high",
+      "dependencies": [
+        "10"
+      ],
       "status": "pending",
       "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T12:56:20.656144Z",
-    "taskCount": 10,
-    "completedCount": 9
+    "lastModified": "2026-03-08T12:58:27.339348Z",
+    "taskCount": 11,
+    "completedCount": 10
   }
 }

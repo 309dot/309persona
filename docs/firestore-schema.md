@@ -29,6 +29,20 @@
 
 - dashboard에서 최근 질문/카테고리 분포를 계산합니다.
 
+## personaFunnelEvents
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `event` | string | 퍼널 이벤트명 (`landing_view`, `input_focus`, `first_submit` 등) |
+| `sessionId` | string | 방문 세션 식별자 |
+| `visitRef` | string | 유입 ref |
+| `variant` | string | 실험 분기값 (`on`/`off`) |
+| `path` | string | 페이지 경로 |
+| `createdAt` | timestamp | Firestore 서버 타임스탬프 |
+
+- 질문 전환 실험의 baseline/variant 비교 분석에 사용합니다.
+- 7일 단위 리포트는 `backend/scripts/funnel_report.py`로 생성합니다.
+
 ## analytics (선택)
 
 현재 버전은 실시간 계산으로 충분하므로 별도의 `analytics` 컬렉션을 사용하지 않습니다. 추후 대량 데이터가 쌓이면 Cloud Functions를 통해 ref/day/category별 집계를 `analytics/{stat}` 문서에 적재하는 방식을 고려합니다.
