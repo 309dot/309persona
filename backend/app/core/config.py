@@ -61,6 +61,10 @@ class Settings(BaseSettings):
             "https://309designlab.com",
         ]
     )
+    allowed_origin_regex: str = Field(
+        default=r"^https://([a-z0-9-]+\.)?309designlab\.com$|^http://(localhost|127\.0\.0\.1)(:\d+)?$",
+        description="Regex fallback for CORS origins",
+    )
     blocked_message: str = Field(
         default="이 서비스는 309의 경력 관련 질문만 응답합니다."
     )

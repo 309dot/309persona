@@ -195,12 +195,38 @@
       ],
       "status": "pending",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 16,
+      "title": "CORS/Firestore 콘솔 에러 안정화",
+      "description": "www 도메인 CORS 허용 안정화 및 클라이언트 Firestore write 에러 노이즈 제거",
+      "details": "allow_origin_regex 추가, 프론트 Firestore telemetry 쓰기 기본 비활성",
+      "testStrategy": "브라우저 콘솔 CORS/permissions 에러 재현되지 않는지 확인",
+      "priority": "high",
+      "dependencies": [
+        "15"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 17,
+      "title": "Render 배포 env CORS 정합성 확인",
+      "description": "onrender 환경변수(ALLOWED_ORIGINS/REGEX, VITE flag)를 실제 배포값과 동기화",
+      "details": "배포 후 브라우저 콘솔 CORS/permission 에러 재확인",
+      "testStrategy": "/api health + 브라우저 네트워크 요청 200/4xx 확인",
+      "priority": "high",
+      "dependencies": [
+        "16"
+      ],
+      "status": "pending",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T13:16:33.803884Z",
-    "taskCount": 15,
-    "completedCount": 13
+    "lastModified": "2026-03-08T13:22:55.077080Z",
+    "taskCount": 17,
+    "completedCount": 14
   }
 }

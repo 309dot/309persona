@@ -36,6 +36,8 @@ const CONTEXT_HINT =
   '\n\n(맥락: 이 질문은 309 성백곤의 프로덕트/UX/협업/경력과 관련된 내용입니다. 해당 범위에서 답변해 주세요.)';
 const CONTEXT_KEYWORDS = ['프로덕트', 'UX', '경력', '프로젝트', '협업', '리더십', '디자인', '경험', '채용', '작업 방식'];
 const QUESTION_FIRST_EXPERIMENT = String(import.meta.env.VITE_EXPERIMENT_QUESTION_FIRST ?? 'true') === 'true';
+const ENABLE_CLIENT_FIRESTORE_LOGGING =
+  String(import.meta.env.VITE_ENABLE_CLIENT_FIRESTORE_LOGGING ?? 'false') === 'true';
 
 type PersonaThread = {
   id: string;
@@ -555,7 +557,7 @@ export function PersonaChatV2Page() {
 
   const logQuestionToFirestore = useCallback(
     async (questionText: string) => {
-      if (!firestore || !session) return;
+      if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !firestore || !session) return;
       try {
         await addDoc(collection(firestore, 'personaQuestions'), {
           sessionId: session.sessionId,
@@ -574,7 +576,7 @@ export function PersonaChatV2Page() {
 
   const trackFunnelEvent = useCallback(
     async (eventName: string, extra: Record<string, unknown> = {}) => {
-      if (!firestore) return;
+      if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !firestore) return;
       try {
         await addDoc(collection(firestore, 'personaFunnelEvents'), {
           event: eventName,
@@ -596,7 +598,7 @@ export function PersonaChatV2Page() {
   const persistVisitorProfile = useCallback(
     async (nameValue: string, affiliationValue: string, sessionOverride?: SessionInfo | null) => {
       const activeSession = sessionOverride ?? session;
-      if (!firestore || !activeSession) return;
+      if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !firestore || !activeSession) return;
       try {
         await setDoc(
           doc(firestore, 'personaVisitors', activeSession.sessionId),
@@ -629,7 +631,7 @@ export function PersonaChatV2Page() {
           setSession(info);
           setVisitorName(info.visitorName || '채용 담당자');
           setVisitorAffiliation(info.visitorAffiliation || '');
-          if (firestore && (info.visitorName || info.visitorAffiliation)) {
+          if (ENABLE_CLIENT_FIRESTORE_LOGGING && firestore && (info.visitorName || info.visitorAffiliation)) {
             try {
               await setDoc(
                 doc(firestore, 'personaVisitors', info.sessionId),
@@ -659,7 +661,7 @@ export function PersonaChatV2Page() {
   }, []);
 
   useEffect(() => {
-    if (!session || !firestore) return;
+    if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !session || !firestore) return;
     let cancelled = false;
     (async () => {
       try {
