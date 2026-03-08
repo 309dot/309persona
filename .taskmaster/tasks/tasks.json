@@ -226,19 +226,19 @@
       "id": 18,
       "title": "실서비스 브라우저 콘솔 재검증",
       "description": "최신 프론트 배포 반영 후 CORS/Firestore permission 에러가 사라졌는지 확인",
-      "details": "하드 리프레시 후 네트워크/콘솔 확인",
+      "details": "하드 리프레시 후 네트워크/콘솔 확인 | Browser retest found intermittent CORS on /api/chat from currently deployed frontend bundle (index-Br-D3foA). Need latest frontend deploy sync.",
       "testStrategy": "콘솔 에러 0건 또는 허용 가능한 수준 확인",
       "priority": "high",
       "dependencies": [
         "17"
       ],
-      "status": "pending",
+      "status": "in-progress",
       "assignee": "verifier"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T13:26:36.260690Z",
+    "lastModified": "2026-03-08T13:30:37.109571Z",
     "taskCount": 18,
     "completedCount": 15
   }
