@@ -22,9 +22,9 @@ const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
 const INPUT_PLACEHOLDER = '예: 309가 프로젝트 우선순위를 정하는 기준은?';
 const QUICK_QUESTIONS = [
-  '309의 PM 사고방식을 3줄로 요약해줘',
-  '협업 스타일을 실제 사례 중심으로 설명해줘',
-  '면접 전에 물어보면 좋은 질문 5개를 추천해줘',
+  '309가 최근 프로젝트에서 문제를 정의하고 풀어낸 방식은?',
+  '협업할 때 309가 중요하게 보는 기준은 무엇인가요?',
+  '309를 채용할 때 기대할 수 있는 강점 3가지는?',
 ];
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
@@ -211,7 +211,6 @@ function InputPanel({
   usedCount,
   onEditVisitor,
   onInputFocus,
-  onQuickQuestion,
   showIdentityEdit,
 }: {
   name: string;
@@ -222,7 +221,6 @@ function InputPanel({
   usedCount: number;
   onEditVisitor: () => void;
   onInputFocus: () => void;
-  onQuickQuestion: (value: string) => void;
   showIdentityEdit: boolean;
 }) {
   const disabled = !question.trim() || loading;
@@ -243,18 +241,6 @@ function InputPanel({
             }
           }}
         />
-        <div className="flex flex-wrap gap-2">
-          {QUICK_QUESTIONS.map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => onQuickQuestion(q)}
-              className="rounded-full border border-[#E7EBF3] bg-[#F8FAFE] px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-[#EEF3FC]"
-            >
-              {q}
-            </button>
-          ))}
-        </div>
         <div className="flex flex-wrap items-center gap-4">
           <RemainingCounter used={usedCount} />
           {showIdentityEdit ? (
@@ -1051,7 +1037,19 @@ export function PersonaChatV2Page() {
                 </div>
               </div>
             ) : null}
-            <div>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 px-1">
+                {QUICK_QUESTIONS.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => handleQuickQuestion(q)}
+                    className="rounded-full border border-[#E7EBF3] bg-[#F8FAFE] px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-[#EEF3FC]"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
               <InputPanel
                 name={displayName}
                 question={question}
@@ -1061,7 +1059,6 @@ export function PersonaChatV2Page() {
                 usedCount={usedCount}
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
                 onInputFocus={handleInputFocus}
-                onQuickQuestion={handleQuickQuestion}
                 showIdentityEdit={showIdentityEdit}
               />
               <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />

@@ -143,12 +143,25 @@
       ],
       "status": "in-progress",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 12,
+      "title": "예시 질문 버튼 위치/카피 보정",
+      "description": "예시 질문 버튼을 입력창 박스 밖(입력창 위)으로 이동하고 채용/이해도 중심 카피로 교체",
+      "details": "멘토링 뉘앙스 제거, 309 이해/채용 판단용 질문으로 정렬",
+      "testStrategy": "버튼 위치가 입력 박스 외부인지 및 클릭 전송 정상 동작 확인",
+      "priority": "high",
+      "dependencies": [
+        "9"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T13:00:56.328360Z",
-    "taskCount": 11,
-    "completedCount": 10
+    "lastModified": "2026-03-08T13:04:06.829988Z",
+    "taskCount": 12,
+    "completedCount": 11
   }
 }
