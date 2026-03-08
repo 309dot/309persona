@@ -23,12 +23,38 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 3,
+      "title": "qwen3.5 fallback(27b→35b) 자동 재시도",
+      "description": "기본 모델 실패 시 qwen3.5:35b로 자동 재시도하여 응답 안정성을 높인다.",
+      "details": "llm_service에 1회 fallback 호출 체인 추가, 설정값으로 fallback 모델 제어",
+      "testStrategy": "의도적 1차 실패 상황에서 2차 모델 호출 성공 로그 확인",
+      "priority": "high",
+      "dependencies": [
+        "2"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 4,
+      "title": "RAG source citation 응답 노출",
+      "description": "응답에 참고한 지식 소스(문서명/섹션)를 함께 노출한다.",
+      "details": "retrieve 결과 source를 선택해 응답 메타로 반환하고 UI 반영 준비",
+      "testStrategy": "샘플 질문 3개에서 citation이 비어있지 않은지 확인",
+      "priority": "medium",
+      "dependencies": [
+        "1"
+      ],
+      "status": "pending",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T12:23:47.800451Z",
-    "taskCount": 2,
-    "completedCount": 2
+    "lastModified": "2026-03-08T12:27:12.848014Z",
+    "taskCount": 4,
+    "completedCount": 3
   }
 }

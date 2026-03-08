@@ -60,12 +60,24 @@ def build_user_payload(
     )
 
 
+def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
+    return client.chat.completions.create(
+        model=model,
+        temperature=0.35,
+        max_tokens=600,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_payload},
+        ],
+    )
+
+
 def generate_persona_answer(
     question: str,
     category: Optional[str],
     visitor: Dict[str, str],
 ) -> str:
-    """Call OpenAI with persona/system prompts and the knowledge base."""
+    """Call OpenAI-compatible API with primary model and optional fallback model."""
     client = get_openai_client()
     base_context = build_context_block()
     rag_hits = retrieve_relevant_context(question, top_k=settings.rag_top_k)
@@ -75,21 +87,21 @@ def generate_persona_answer(
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
+    completion = None
+    primary_error: Exception | None = None
     try:
-        completion = client.chat.completions.create(
-            model=settings.openai_model,
-            temperature=0.35,
-            max_tokens=600,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": user_payload,
-                },
-            ],
-        )
-    except Exception as exc:  # pragma: no cover - upstream error
-        raise RuntimeError(f"OpenAI API error: {exc}") from exc
+        completion = _complete_with_model(client, settings.openai_model, system_prompt, user_payload)
+    except Exception as exc:  # pragma: no cover
+        primary_error = exc
+        fallback = (settings.openai_fallback_model or "").strip()
+        if not fallback or fallback == settings.openai_model:
+            raise RuntimeError(f"OpenAI API error (primary): {exc}") from exc
+        try:
+            completion = _complete_with_model(client, fallback, system_prompt, user_payload)
+        except Exception as fallback_exc:  # pragma: no cover
+            raise RuntimeError(
+                f"OpenAI API error (primary={settings.openai_model}, fallback={fallback}): {primary_error} | {fallback_exc}"
+            ) from fallback_exc
 
     message = completion.choices[0].message
     return message.content or settings.blocked_message

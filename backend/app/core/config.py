@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     environment: str = Field(default="local")
     openai_api_key: str = Field(default="", description="LLM API Key (OpenAI or OpenAI-compatible)")
     openai_model: str = Field(default="qwen3.5:27b")
+    openai_fallback_model: str = Field(default="qwen3.5:35b")
     openai_base_url: str = Field(
         default="http://127.0.0.1:11434/v1",
         description="OpenAI-compatible base URL (e.g. Ollama /v1)",
