@@ -158,7 +158,7 @@ def build_rag_chunks() -> List[Tuple[str, str]]:
     return chunks
 
 
-def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
+def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:
     """Simple vector-like retrieval with cosine similarity over token counters."""
     q_vec = _to_vec(query)
     scored: List[Tuple[float, str, str]] = []
@@ -169,12 +169,17 @@ def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
 
     scored.sort(key=lambda x: x[0], reverse=True)
     selected = scored[: max(1, top_k)]
-    if not selected:
-        return ""
+    return [
+        {"source": source, "score": f"{score:.3f}", "text": text[:700].strip()}
+        for score, source, text in selected
+    ]
 
-    lines = []
-    for score, source, text in selected:
-        lines.append(f"- [{source}] (score={score:.3f}) {text[:700].strip()}")
+
+def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
+    chunks = retrieve_relevant_chunks(query, top_k=top_k)
+    if not chunks:
+        return ""
+    lines = [f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in chunks]
     return "\n".join(lines)
 
 

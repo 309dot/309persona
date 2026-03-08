@@ -34,6 +34,7 @@ class ChatResponse(BaseModel):
     blocked: bool = False
     reason: Optional[str] = None
     category: Optional[str] = None
+    citations: List[str] = Field(default_factory=list)
 
 
 class StatPoint(BaseModel):

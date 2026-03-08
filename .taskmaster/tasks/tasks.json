@@ -47,14 +47,27 @@
       "dependencies": [
         "1"
       ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 5,
+      "title": "프론트엔드에 citation 표시 UI 추가",
+      "description": "chat 응답의 citations 배열을 답변 하단에 표시한다.",
+      "details": "출처 라벨/리스트 형태로 렌더링, 비어있으면 숨김",
+      "testStrategy": "응답에 citations 있을 때만 UI 노출 확인",
+      "priority": "medium",
+      "dependencies": [
+        "4"
+      ],
       "status": "pending",
       "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T12:27:12.848014Z",
-    "taskCount": 4,
-    "completedCount": 3
+    "lastModified": "2026-03-08T12:30:54.066368Z",
+    "taskCount": 5,
+    "completedCount": 4
   }
 }

@@ -60,7 +60,7 @@ def ask_question(payload: schemas.ChatRequest):
             category=category,
         )
 
-    answer = llm_service.generate_persona_answer(payload.question, category, visitor)
+    answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
     conversation_service.log_conversation(
         session_id=payload.session_id,
         visitor_id=visitor.get("id", payload.session_id),
@@ -76,6 +76,7 @@ def ask_question(payload: schemas.ChatRequest):
         blocked=False,
         reason=None,
         category=category,
+        citations=citations,
     )
 
 

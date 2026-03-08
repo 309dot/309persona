@@ -9,7 +9,7 @@ from typing import Dict, Optional
 from openai import OpenAI
 
 from ..core.config import settings
-from .knowledge_base import build_context_block, retrieve_relevant_context
+from .knowledge_base import build_context_block, retrieve_relevant_chunks
 
 _openai_client: Optional[OpenAI] = None
 
@@ -76,11 +76,14 @@ def generate_persona_answer(
     question: str,
     category: Optional[str],
     visitor: Dict[str, str],
-) -> str:
+) -> tuple[str, list[str]]:
     """Call OpenAI-compatible API with primary model and optional fallback model."""
     client = get_openai_client()
     base_context = build_context_block()
-    rag_hits = retrieve_relevant_context(question, top_k=settings.rag_top_k)
+    rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
+    rag_hits = "\n".join(
+        f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in rag_chunks
+    )
     knowledge_block = (
         f"{base_context[:8000]}\n\n=== RAG RETRIEVED CONTEXT ===\n{rag_hits}" if rag_hits else base_context[:8000]
     )
@@ -104,6 +107,7 @@ def generate_persona_answer(
             ) from fallback_exc
 
     message = completion.choices[0].message
-    return message.content or settings.blocked_message
+    citations = [c["source"] for c in rag_chunks][:5]
+    return (message.content or settings.blocked_message), citations
 
 
