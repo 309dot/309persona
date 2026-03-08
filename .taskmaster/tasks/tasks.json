@@ -213,20 +213,33 @@
       "id": 17,
       "title": "Render 배포 env CORS 정합성 확인",
       "description": "onrender 환경변수(ALLOWED_ORIGINS/REGEX, VITE flag)를 실제 배포값과 동기화",
-      "details": "배포 후 브라우저 콘솔 CORS/permission 에러 재확인",
+      "details": "배포 후 브라우저 콘솔 CORS/permission 에러 재확인 | Verified CORS preflight for www/root/app origins returns allow-origin",
       "testStrategy": "/api health + 브라우저 네트워크 요청 200/4xx 확인",
       "priority": "high",
       "dependencies": [
         "16"
       ],
-      "status": "pending",
+      "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 18,
+      "title": "실서비스 브라우저 콘솔 재검증",
+      "description": "최신 프론트 배포 반영 후 CORS/Firestore permission 에러가 사라졌는지 확인",
+      "details": "하드 리프레시 후 네트워크/콘솔 확인",
+      "testStrategy": "콘솔 에러 0건 또는 허용 가능한 수준 확인",
+      "priority": "high",
+      "dependencies": [
+        "17"
+      ],
+      "status": "pending",
+      "assignee": "verifier"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T13:22:55.077080Z",
-    "taskCount": 17,
-    "completedCount": 14
+    "lastModified": "2026-03-08T13:26:36.260690Z",
+    "taskCount": 18,
+    "completedCount": 15
   }
 }

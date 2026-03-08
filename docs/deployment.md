@@ -40,6 +40,23 @@
 - OpenAI 모델/비용 모니터링 설정
 - Secret Manager 또는 Vercel/Cloud Run Secrets로 민감 정보 관리
 
+### CORS / 콘솔 에러 안정화 (2026-03)
+
+- Backend env 권장값:
+  - `ALLOWED_ORIGINS=https://www.309designlab.com,https://309designlab.com`
+  - `ALLOWED_ORIGIN_REGEX=^https://([a-z0-9-]+\.)?309designlab\.com$|^http://(localhost|127\.0\.0\.1)(:\d+)?$`
+- Frontend env 권장값:
+  - `VITE_ENABLE_CLIENT_FIRESTORE_LOGGING=false`
+
+검증 예시:
+```bash
+curl -i -X OPTIONS 'https://three09persona.onrender.com/api/visitors' \
+  -H 'Origin: https://www.309designlab.com' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: content-type'
+```
+- 기대 결과: `access-control-allow-origin`가 요청 Origin과 동일하게 반환
+
 ## Staging (Docker Compose)
 
 1. `npm run build`로 `frontend/dist`를 준비합니다.
