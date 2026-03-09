@@ -55,6 +55,16 @@ def build_user_payload(
         )
     )
     category_text = f"질문 카테고리: {category or 'general'}"
+    q = question.lower()
+    if any(k in q for k in ["협업", "커뮤니케이션", "갈등"]):
+        schema = "## 협업 스타일\n## 구체적 상황\n## 결과와 교훈"
+    elif any(k in q for k in ["우선순위", "전략", "트레이드오프"]):
+        schema = "## 판단 프레임워크\n## 적용 사례\n## 트레이드오프"
+    elif any(k in q for k in ["채용", "강점", "경력"]):
+        schema = "## 핵심 강점\n## 근거 사례\n## 팀에 기대할 수 있는 점"
+    else:
+        schema = "## 맥락\n## 문제 정의 과정\n## 해결과 결과"
+
     return (
         f"{category_text}\n"
         f"방문자 정보: {visitor_meta or '익명 방문자'}\n"
@@ -62,13 +72,10 @@ def build_user_payload(
         "작성 규칙:\n"
         "- 이 질문은 309의 경력/프로젝트 범위 내 질문으로 간주하고 답변한다.\n"
         "- 차단 문구(예: '이 서비스는 309의 경력 관련 질문만 응답합니다.')를 그대로 반복하지 않는다.\n"
-        "- 답변은 반드시 아래 마크다운 구조를 우선 사용한다.\n"
-        "  ## 핵심요약\n"
-        "  ## 사례 (PAR)\n"
-        "  ## 채용 관점 기대효과\n"
+        f"- 아래 구조를 사용한다: {schema}\n"
         "- 말투는 '했습니다/입니다'보다 자연스러운 '했어요/그래요' 톤을 우선 사용한다.\n"
-        "- 번호 리스트(1.,2.) 또는 불릿(-)을 적절히 사용한다.\n"
-        "- 6~10문장 범위로 충분히 설명하되 장황하지 않게 작성한다."
+        "- 이력서/포트폴리오 기반 사례를 최소 2개 포함한다.\n"
+        "- 7~12문장 범위로 구체적으로 작성한다."
     )
 
 
@@ -223,10 +230,6 @@ def generate_persona_answer(
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
-    if (settings.answer_quality_mode or "balanced").lower() == "quality":
-        citations = [c["source"] for c in rag_chunks][:5]
-        return _build_rag_fallback_answer(question, rag_chunks), citations
-
     if settings.use_openclaw_agent:
         try:
             answer = _complete_with_openclaw_agent(system_prompt, user_payload)
@@ -263,8 +266,11 @@ def generate_persona_answer(
     if any(p in answer for p in bad_phrases):
         answer = _build_rag_fallback_answer(question, rag_chunks)
 
-    repetitive_phrase = "디자인 관점과 제품 전략 관점을 함께 보면서 방향성과 실행력을 동시에 끌어올리는"
-    if repetitive_phrase in answer:
+    repetitive_phrases = [
+        "디자인 관점과 제품 전략 관점을 함께 보면서 방향성과 실행력을 동시에 끌어올리는",
+        "입사 후에도 불확실한 요구사항을 빠르게 정리하고",
+    ]
+    if sum(1 for p in repetitive_phrases if p in answer) >= 2:
         answer = _build_rag_fallback_answer(question, rag_chunks)
 
     if _is_low_quality_answer(answer):
