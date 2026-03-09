@@ -541,6 +541,7 @@ export function PersonaChatV2Page() {
   const [dockVisible, setDockVisible] = useState(false);
   const [ctaVisible, setCtaVisible] = useState(false);
   const [threads, setThreads] = useState<PersonaThread[]>([]);
+  const [usedQuickQuestions, setUsedQuickQuestions] = useState<Set<string>>(new Set());
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
@@ -900,6 +901,11 @@ export function PersonaChatV2Page() {
   };
 
   const handleQuickQuestion = (value: string) => {
+    setUsedQuickQuestions((prev) => {
+      const next = new Set(prev);
+      next.add(value);
+      return next;
+    });
     setQuestion(value);
     void trackFunnelEvent('quick_question_clicked', { value });
     void handleSubmit('quick', value);
@@ -1041,7 +1047,7 @@ export function PersonaChatV2Page() {
             ) : null}
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2 px-1">
-                {QUICK_QUESTIONS.map((q) => (
+                {QUICK_QUESTIONS.filter((q) => !usedQuickQuestions.has(q)).map((q) => (
                   <button
                     key={q}
                     type="button"
