@@ -71,7 +71,7 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
     return client.chat.completions.create(
         model=model,
         temperature=0.35,
-        max_tokens=220,
+        max_tokens=160,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},

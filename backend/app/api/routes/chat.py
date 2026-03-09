@@ -70,22 +70,22 @@ def ask_question(payload: schemas.ChatRequest):
             answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
     except Exception as exc:
         logger.exception("persona answer generation failed: %s", exc)
-        fallback = "지금 답변 엔진 연결이 잠시 불안정합니다. 잠시 후 다시 시도해 주세요."
+        answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
         conversation_service.log_conversation(
             session_id=payload.session_id,
             visitor_id=visitor.get("id", payload.session_id),
             question=payload.question,
-            answer=fallback,
+            answer=answer,
             category=category,
-            is_blocked=True,
+            is_blocked=False,
         )
         return schemas.ChatResponse(
             session_id=payload.session_id,
-            answer=fallback,
-            blocked=True,
-            reason=fallback,
+            answer=answer,
+            blocked=False,
+            reason=None,
             category=category,
-            citations=[],
+            citations=citations,
         )
 
     if "경력 관련 질문만 응답" in (answer or ""):
