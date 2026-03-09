@@ -1,5 +1,7 @@
 """Chat endpoints for question/answer workflow."""
 
+import logging
+
 from fastapi import APIRouter, HTTPException, status
 
 from .. import schemas
@@ -13,6 +15,7 @@ from ...services import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=schemas.ChatResponse)
@@ -62,7 +65,8 @@ def ask_question(payload: schemas.ChatRequest):
 
     try:
         answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
-    except Exception:
+    except Exception as exc:
+        logger.exception("persona answer generation failed: %s", exc)
         fallback = "지금 답변 엔진 연결이 잠시 불안정합니다. 잠시 후 다시 시도해 주세요."
         conversation_service.log_conversation(
             session_id=payload.session_id,

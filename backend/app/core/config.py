@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     app_name: str = "309 Interview Agent API"
     environment: str = Field(default="local")
     openai_api_key: str = Field(default="", description="LLM API Key (OpenAI or OpenAI-compatible)")
-    openai_model: str = Field(default="qwen3.5:27b")
-    openai_fallback_model: str = Field(default="qwen3.5:35b")
+    openai_model: str = Field(default="qwen3.5:32b-instruct-q4_K_M")
+    openai_fallback_model: str = Field(default="qwen3.5:14b-instruct-q4_K_M")
     openai_base_url: str = Field(
         default="http://127.0.0.1:11434/v1",
         description="OpenAI-compatible base URL (e.g. Ollama /v1)",
