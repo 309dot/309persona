@@ -151,7 +151,18 @@ def force_intent_answer(question: str, category: Optional[str]) -> tuple[str, li
     citations = [c["source"] for c in rag_chunks][:5]
     q = (question or "").lower()
 
-    if category == "collaboration":
+    if "디자인 시스템" in q:
+        answer = (
+            "## 답변\n"
+            "네, 디자인 시스템을 실제 프로젝트에서 운영해본 경험이 있어요.\n\n"
+            "## 어디서 / 어떻게 했는지\n"
+            "3D 모션 데이터 플랫폼과 AI 오디오북 프로젝트에서 공통 컴포넌트 기준을 먼저 정하고, 화면별로 흩어진 패턴을 컴포넌트 단위로 묶어 재사용성을 높였어요.\n"
+            "디자인 토큰(색상/타이포/간격)과 상태 규칙을 문서화해서 디자이너-개발자 간 해석 차이를 줄였고, 신규 화면 작업 시 기존 패턴을 우선 적용하도록 워크플로우를 만들었어요.\n\n"
+            "## 결과\n"
+            "화면 품질 편차가 줄고, 변경 대응 속도가 빨라졌어요.\n"
+            "특히 기능 추가나 수정 요청이 들어왔을 때 영향 범위를 빠르게 파악할 수 있어서 협업 효율이 좋아졌어요."
+        )
+    elif category == "collaboration":
         answer = (
             "## 협업 스타일\n"
             "협업에서는 먼저 의사결정 기준을 맞추고, 팀이 같은 문제를 바라보게 만드는 데 집중했어요.\n\n"
@@ -194,7 +205,7 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
         return "질문 의도는 이해했지만, 현재 지식베이스 근거가 부족해요. 프로젝트명/관심 포인트를 알려주시면 더 정확히 답할게요."
 
     q = question.lower()
-    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드"]
+    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드", "질문 템플릿", "질문의 핵심은", "적용 예시", "par로 정리하여 답변"]
     cleaned = []
     for c in rag_chunks:
         txt = (c.get("text") or "").replace("\n", " ").strip()
