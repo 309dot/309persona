@@ -141,38 +141,67 @@ def build_rag_rescue_answer(question: str, category: Optional[str] = None) -> tu
 
 def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     if not rag_chunks:
-        return "질문 의도는 이해했지만, 현재 지식베이스 근거가 부족합니다. 프로젝트명/관심 포인트를 알려주시면 정확히 답변하겠습니다."
-    # Deterministic rescue summary to avoid policy/meta contamination in user-facing answers
-    joined = "프로젝트 문제정의, 실행 흐름 단순화, 협업 의사결정 개선 사례"
+        return "질문 의도는 이해했지만, 현재 지식베이스 근거가 부족해요. 프로젝트명/관심 포인트를 알려주시면 더 정확히 답할게요."
+
     q = question.lower()
-    project_line = "3D 모션 데이터 플랫폼에서 업로드-판매-정산 흐름을 재설계해 사용자 마찰을 줄인 경험"
-    if "협업" in q or "커뮤니케이션" in q:
-        project_line = "다기능 팀과 협업하며 의사결정 프레임을 통일해 전달 손실을 줄인 경험"
+    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드"]
+    cleaned = []
+    for c in rag_chunks:
+        txt = (c.get("text") or "").replace("\n", " ").strip()
+        low = txt.lower()
+        if not txt or any(b in low for b in banned):
+            continue
+        cleaned.append(txt)
+
+    evidence_1 = cleaned[0][:120] if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
+    evidence_2 = cleaned[1][:120] if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
+
+    if "협업" in q or "커뮤니케이션" in q or "갈등" in q:
+        summary = "협업 이슈에서는 먼저 의사결정 기준을 맞추고, 커뮤니케이션 비용을 줄이는 접근이 강점이에요."
+        style_line = "특히 역할 경계가 겹치는 구간에서 쟁점을 문서화해 팀 해석을 한 방향으로 맞췄어요."
+        case_line = "다기능 팀과 일할 때 우선순위 기준(사용자 영향/비즈니스 영향/개발 난이도)을 명시해 합의 속도를 끌어올렸어요."
+        impact = "결과적으로 회의 횟수 대비 결정 품질이 높아지고, 실행으로 넘어가는 리드타임이 줄었어요."
+        hiring = "협업 밀도가 높은 조직에서 커뮤니케이션 마찰을 줄이고, 합의-실행 전환을 빠르게 만드는 역할을 기대할 수 있어요."
     elif "우선순위" in q or "전략" in q:
-        project_line = "AI 오디오북 프로젝트에서 기능 우선순위를 재정의해 실행 속도를 높인 경험"
+        summary = "우선순위 질문에서는 사용자 가치와 실행 난이도를 동시에 보는 균형 감각이 강점이에요."
+        style_line = "아이디어 자체보다 '지금 풀어야 하는 문제'를 먼저 고정한 뒤 로드맵을 설계하는 편이에요."
+        case_line = "AI 오디오북 프로젝트에서 기능을 문제 크기·사용자 임팩트·개발 비용 기준으로 재정렬해 실행 순서를 다시 짰어요."
+        impact = "핵심 기능 출시가 앞당겨졌고, 팀 집중도가 올라가면서 릴리즈 품질도 안정됐어요."
+        hiring = "초기 제품이나 방향 전환 구간에서, 제한된 리소스로도 우선순위 정렬과 실행 속도를 동시에 만들 수 있어요."
+    else:
+        summary = "질문 맥락에서 309의 강점은 복잡한 요구사항을 구조화하고 실행 가능한 플로우로 빠르게 전환하는 점이에요."
+        style_line = "문제를 정의할 때 사용자 흐름과 비즈니스 목표를 같은 프레임에 올려 판단하는 편이에요."
+        case_line = "3D 모션 데이터 플랫폼에서 업로드-판매-정산 흐름을 재설계해 사용자 마찰과 내부 핸드오프 비용을 줄였어요."
+        impact = "문제정의 → 실행 → 검증 루프를 짧게 돌리면서 의사결정 품질과 속도를 함께 올렸어요."
+        hiring = "불확실한 요구사항이 많은 환경에서도, 제품 방향을 실행 가능한 태스크로 빠르게 전환하는 역할을 할 수 있어요."
 
     return (
         "## 핵심요약\n"
-        "309의 강점은 복잡한 요구사항을 빠르게 구조화하고, 팀이 실행 가능한 흐름으로 합의하게 만드는 점이에요.\n"
-        "디자인 관점과 제품 전략 관점을 함께 보면서 방향성과 실행력을 동시에 끌어올리는 스타일이에요.\n\n"
+        f"{summary}\n"
+        f"{style_line}\n\n"
         "## 사례 (PAR)\n"
-        f"- 근거: {joined}\n"
-        f"- 사례: {project_line}.\n"
-        "- Action: 문제정의 → 실행 플로우 설계 → 검증 루프를 짧게 운영했어요.\n"
-        "- Result: 의사결정 속도와 실행 일관성이 개선됐어요.\n\n"
+        f"- Problem: {evidence_1}\n"
+        f"- Action: {case_line}\n"
+        f"- Result: {impact}\n"
+        f"- 추가 근거: {evidence_2}\n\n"
         "## 채용 관점 기대효과\n"
-        "입사 후에도 불확실한 요구사항을 빠르게 정리하고, 사용자/비즈니스/개발 관점을 연결해 출시 가능한 제품 결정으로 이어지게 만들 수 있어요."
+        f"{hiring}"
     )
 
 
 def _is_low_quality_answer(answer: str) -> bool:
     if not answer:
         return True
-    checks = [
-        "프로젝트 문제정의, 실행 흐름 단순화, 협업 의사결정 개선 사례",
-        "채용 관점 기대효과",
+    if len(answer.strip()) < 120:
+        return True
+    if "## 핵심요약" in answer and "## 사례 (PAR)" not in answer:
+        return True
+    repetitive_markers = [
+        "디자인 관점과 제품 전략 관점을 함께 보면서",
+        "입사 후에도 불확실한 요구사항을 빠르게 정리하고",
     ]
-    return any(c in answer for c in checks) and len(answer) < 380
+    marker_hits = sum(1 for m in repetitive_markers if m in answer)
+    return marker_hits >= 2 and len(answer) < 520
 
 
 def generate_persona_answer(
@@ -193,6 +222,10 @@ def generate_persona_answer(
     )
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
+
+    if (settings.answer_quality_mode or "balanced").lower() == "quality":
+        citations = [c["source"] for c in rag_chunks][:5]
+        return _build_rag_fallback_answer(question, rag_chunks), citations
 
     if settings.use_openclaw_agent:
         try:
@@ -230,8 +263,16 @@ def generate_persona_answer(
     if any(p in answer for p in bad_phrases):
         answer = _build_rag_fallback_answer(question, rag_chunks)
 
-    if (settings.answer_quality_mode or "balanced").lower() == "quality" and _is_low_quality_answer(answer):
-        retry_payload = user_payload + "\n\n추가 지시: 답변 중복을 피하고, 이력/포트폴리오 기반 사례를 최소 2개로 구체화해 주세요."
+    repetitive_phrase = "디자인 관점과 제품 전략 관점을 함께 보면서 방향성과 실행력을 동시에 끌어올리는"
+    if repetitive_phrase in answer:
+        answer = _build_rag_fallback_answer(question, rag_chunks)
+
+    if _is_low_quality_answer(answer):
+        answer = _build_rag_fallback_answer(question, rag_chunks)
+
+    is_rescue_style = "## 사례 (PAR)\n- Problem:" in answer
+    if (settings.answer_quality_mode or "balanced").lower() == "quality" and _is_low_quality_answer(answer) and not is_rescue_style:
+        retry_payload = user_payload + "\n\n추가 지시: 직전 답변과 표현이 겹치지 않게 작성하고, 질문의 핵심 키워드를 직접 언급해 주세요. 이력/포트폴리오 기반 사례를 최소 2개로 구체화해 주세요."
         retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
         retry_text = (retry.choices[0].message.content or "").strip()
         if retry_text:
