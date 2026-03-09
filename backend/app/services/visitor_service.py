@@ -18,11 +18,12 @@ def create_visitor(payload: Dict[str, str]) -> Dict[str, str]:
     """Persist visitor metadata and return the session descriptor."""
     session_id = str(uuid4())
 
+    clean = lambda value: (value or "").strip()
     record = {
-        "visitor_name": payload.get("visitor_name", "").strip(),
-        "visitor_affiliation": payload.get("visitor_affiliation", "").strip(),
-        "visit_ref": payload.get("visit_ref", "").strip(),
-        "referrer": payload.get("referrer", "").strip(),
+        "visitor_name": clean(payload.get("visitor_name", "")),
+        "visitor_affiliation": clean(payload.get("visitor_affiliation", "")),
+        "visit_ref": clean(payload.get("visit_ref", "")),
+        "referrer": clean(payload.get("referrer", "")),
         "session_id": session_id,
         "created_at": firestore.SERVER_TIMESTAMP,
     }

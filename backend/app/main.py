@@ -1,11 +1,15 @@
 """FastAPI entrypoint."""
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.router import api_router
 from .core.config import settings
 from .core.firebase import get_firestore_client
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.app_name,
@@ -24,8 +28,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    # Ensure firebase initializes at boot to catch credential errors early.
-    get_firestore_client()
+    # Try Firebase early, but don't crash local deployment when credentials are absent.
+    try:
+        get_firestore_client()
+    except Exception as exc:
+        logger.warning("Firebase init skipped at startup: %s", exc)
 
 
 @app.get("/health", tags=["health"])
