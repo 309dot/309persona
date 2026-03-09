@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     )
     openclaw_answer_timeout_seconds: int = Field(default=70)
     rag_top_k: int = Field(default=4, description="Top K chunks to retrieve for RAG")
+    rag_mode: str = Field(default="lexical", description="lexical | hybrid")
+    rag_vector_weight: float = Field(default=0.7)
+    rag_lexical_weight: float = Field(default=0.3)
+    rag_embedding_model: str = Field(default="text-embedding-3-small")
+    database_url: Optional[str] = Field(default=None)
     knowledge_pack_path: str = Field(
         default="../knowledge_base/309_knowledge_pack.json",
         description="Path to the 309 knowledge base JSON file",

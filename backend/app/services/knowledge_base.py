@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from ..core.config import settings
+from .vector_retrieval import retrieve_vector_chunks
 
 
 @lru_cache
@@ -158,14 +159,12 @@ def build_rag_chunks() -> List[Tuple[str, str]]:
     return chunks
 
 
-def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:
-    """Simple vector-like retrieval with light intent boosting over token similarity."""
+def _retrieve_lexical_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:
     q_vec = _to_vec(query)
     lowered = query.lower()
     scored: List[Tuple[float, str, str]] = []
     for source, text in build_rag_chunks():
         score = _cosine(q_vec, _to_vec(text))
-        # Intent boost for hiring/project questions to surface stronger evidence first
         if any(k in lowered for k in ["프로젝트", "문제", "성과", "impact", "case", "협업", "채용", "강점"]):
             if source.startswith("project:"):
                 score += 0.08
@@ -180,6 +179,51 @@ def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
         {"source": source, "score": f"{score:.3f}", "text": text[:700].strip()}
         for score, source, text in selected
     ]
+
+
+def _hybrid_merge(lexical: List[Dict[str, str]], vector: List[Dict[str, str]], top_k: int) -> List[Dict[str, str]]:
+    merged: Dict[str, Dict[str, str]] = {}
+    for item in lexical:
+        key = item.get("text", "")[:120]
+        score = float(item.get("score", "0") or 0)
+        merged[key] = {
+            "source": item.get("source", "lexical"),
+            "score": f"{settings.rag_lexical_weight * score:.3f}",
+            "text": item.get("text", ""),
+        }
+
+    for item in vector:
+        key = item.get("text", "")[:120]
+        score = float(item.get("score", "0") or 0)
+        if key in merged:
+            prev = float(merged[key]["score"])
+            merged[key]["score"] = f"{prev + settings.rag_vector_weight * score:.3f}"
+            merged[key]["source"] = f"{merged[key]['source']}+{item.get('source','vector')}"
+        else:
+            merged[key] = {
+                "source": item.get("source", "vector"),
+                "score": f"{settings.rag_vector_weight * score:.3f}",
+                "text": item.get("text", ""),
+            }
+
+    sorted_items = sorted(merged.values(), key=lambda x: float(x.get("score", "0")), reverse=True)
+    return sorted_items[: max(1, top_k)]
+
+
+def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:
+    """Retrieve relevant chunks with lexical or hybrid mode."""
+    lexical = _retrieve_lexical_chunks(query, top_k=max(top_k, 8))
+    if settings.rag_mode != "hybrid":
+        return lexical[: max(1, top_k)]
+
+    try:
+        vector = retrieve_vector_chunks(query, top_k=max(top_k, 8))
+    except Exception:
+        vector = []
+
+    if not vector:
+        return lexical[: max(1, top_k)]
+    return _hybrid_merge(lexical, vector, top_k=top_k)
 
 
 def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
