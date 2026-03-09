@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import json
 from pathlib import Path
+import subprocess
 from typing import Dict, Optional
 
 from openai import OpenAI
@@ -64,7 +66,7 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
     return client.chat.completions.create(
         model=model,
         temperature=0.35,
-        max_tokens=600,
+        max_tokens=220,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},
@@ -72,13 +74,59 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
     )
 
 
+def _complete_with_openclaw_agent(system_prompt: str, user_payload: str) -> str:
+    prompt = (
+        "당신은 309persona 답변 전용 에이전트다. 아래 system prompt와 user payload를 따라 짧고 정확하게 답하라. "
+        "가능하면 4~6문장 이내로 요약하라.\n\n"
+        f"[SYSTEM PROMPT]\n{system_prompt}\n\n"
+        f"[USER PAYLOAD]\n{user_payload}\n"
+    )
+    result = subprocess.run(
+        [
+            "openclaw",
+            "agent",
+            "--agent",
+            settings.openclaw_answer_agent_id,
+            "--message",
+            prompt,
+            "--json",
+            "--thinking",
+            "off",
+            "--timeout",
+            str(settings.openclaw_answer_timeout_seconds),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=settings.openclaw_answer_timeout_seconds,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "openclaw agent failed")
+    output = (result.stdout or "").strip()
+    if not output:
+        raise RuntimeError("empty answer from openclaw agent")
+    try:
+        payload = json.loads(output)
+        text = (
+            payload.get("response")
+            or payload.get("message")
+            or payload.get("text")
+            or (payload.get("result", {}).get("payloads", [{}])[0].get("text") if isinstance(payload.get("result"), dict) else "")
+            or ""
+        )
+        if text:
+            return str(text).strip()
+    except Exception:
+        pass
+    return output
+
+
 def generate_persona_answer(
     question: str,
     category: Optional[str],
     visitor: Dict[str, str],
 ) -> tuple[str, list[str]]:
-    """Call OpenAI-compatible API with primary model and optional fallback model."""
-    client = get_openai_client()
+    """Generate persona answer via OpenClaw agent first, then OpenAI-compatible fallback."""
     base_context = build_context_block()
     rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
     rag_hits = "\n".join(
@@ -90,6 +138,15 @@ def generate_persona_answer(
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
+    if settings.use_openclaw_agent:
+        try:
+            answer = _complete_with_openclaw_agent(system_prompt, user_payload)
+            citations = [c["source"] for c in rag_chunks][:5]
+            return answer, citations
+        except Exception:
+            pass
+
+    client = get_openai_client()
     completion = None
     primary_error: Exception | None = None
     try:

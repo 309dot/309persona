@@ -42,7 +42,16 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:11434/v1",
         description="OpenAI-compatible base URL (e.g. Ollama /v1)",
     )
-    rag_top_k: int = Field(default=6, description="Top K chunks to retrieve for RAG")
+    use_openclaw_agent: bool = Field(
+        default=True,
+        description="Route persona answers through OpenClaw answer agent",
+    )
+    openclaw_answer_agent_id: str = Field(
+        default="persona-answer-local",
+        description="OpenClaw agent id for persona answers",
+    )
+    openclaw_answer_timeout_seconds: int = Field(default=70)
+    rag_top_k: int = Field(default=4, description="Top K chunks to retrieve for RAG")
     knowledge_pack_path: str = Field(
         default="../knowledge_base/309_knowledge_pack.json",
         description="Path to the 309 knowledge base JSON file",
