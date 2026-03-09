@@ -38,7 +38,7 @@ def log_conversation(
             }
         )
     except Exception as exc:
-        logger.exception("Failed to persist conversation log: %s", exc)
+        logger.warning("Failed to persist conversation log: %s", exc)
 
 
 def fetch_recent_conversations(limit: Optional[int] = None) -> List[Dict]:

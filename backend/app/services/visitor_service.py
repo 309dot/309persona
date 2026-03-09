@@ -33,7 +33,7 @@ def create_visitor(payload: Dict[str, str]) -> Dict[str, str]:
         doc_ref = client.collection("visitors").document(session_id)
         doc_ref.set(record)
     except Exception as exc:
-        logger.exception("Failed to persist visitor in Firestore, using ephemeral session: %s", exc)
+        logger.warning("Failed to persist visitor in Firestore, using ephemeral session: %s", exc)
         _ephemeral_visitors[session_id] = {
             "id": session_id,
             "visitor_name": record["visitor_name"],
@@ -63,6 +63,6 @@ def get_visitor_by_session(session_id: str) -> Optional[Dict[str, str]]:
         data["id"] = doc.id
         return data
     except Exception as exc:
-        logger.exception("Failed to fetch visitor from Firestore: %s", exc)
+        logger.warning("Failed to fetch visitor from Firestore: %s", exc)
         return _ephemeral_visitors.get(session_id)
 

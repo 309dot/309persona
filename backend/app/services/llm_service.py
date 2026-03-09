@@ -209,7 +209,7 @@ def generate_persona_answer(
     message = completion.choices[0].message
     answer = (message.content or "").strip()
     if not answer:
-        raise RuntimeError("empty model output")
+        return build_rag_rescue_answer(question, category)
     if "경력 관련 질문만 응답" in answer or settings.blocked_message in answer:
         answer = _build_rag_fallback_answer(question, rag_chunks)
 
