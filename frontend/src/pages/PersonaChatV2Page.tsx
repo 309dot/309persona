@@ -1002,6 +1002,7 @@ export function PersonaChatV2Page() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
+      <style>{`@keyframes dotPulseMove {0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}`}</style>
       <main
         ref={contentRef}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10"
@@ -1111,16 +1112,16 @@ export function PersonaChatV2Page() {
           ) : null}
 
           {showLoadingBubble && loading ? (
-            <div className="flex items-start gap-3">
+            <div className="sticky bottom-28 z-10 flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
               </div>
-              <div className="flex items-center gap-2 text-[13px] font-medium text-slate-500">
+              <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[13px] font-medium text-slate-500 shadow-sm backdrop-blur">
                 <span>답변을 정리하고 있어요</span>
                 <span className="flex gap-1">
-                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-slate-500 animate-bounce [animation-duration:700ms]" style={{ animationDelay: '0ms' }} />
-                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-slate-500 animate-bounce [animation-duration:700ms]" style={{ animationDelay: '120ms' }} />
-                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-slate-500 animate-bounce [animation-duration:700ms]" style={{ animationDelay: '240ms' }} />
+                  <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '0ms' }} />
+                  <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '120ms' }} />
+                  <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '240ms' }} />
                 </span>
               </div>
             </div>
