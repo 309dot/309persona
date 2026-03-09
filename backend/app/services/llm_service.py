@@ -141,15 +141,22 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
         return "질문 의도는 이해했지만, 현재 지식베이스 근거가 부족합니다. 프로젝트명/관심 포인트를 알려주시면 정확히 답변하겠습니다."
     # Deterministic rescue summary to avoid policy/meta contamination in user-facing answers
     joined = "프로젝트 문제정의, 실행 흐름 단순화, 협업 의사결정 개선 사례"
+    q = question.lower()
+    project_line = "3D 모션 데이터 플랫폼에서 업로드-판매-정산 흐름을 재설계해 사용자 마찰을 줄인 경험"
+    if "협업" in q or "커뮤니케이션" in q:
+        project_line = "다기능 팀과 협업하며 의사결정 프레임을 통일해 전달 손실을 줄인 경험"
+    elif "우선순위" in q or "전략" in q:
+        project_line = "AI 오디오북 프로젝트에서 기능 우선순위를 재정의해 실행 속도를 높인 경험"
+
     return (
         "## 핵심요약\n"
-        "채용 관점에서 309의 강점은 복잡한 문제를 빠르게 구조화하고, 팀이 실행 가능한 흐름으로 합의하도록 만드는 점이에요.\n"
-        "디자인 관점(60%)과 제품 전략 관점(40%)을 같이 가져가서, 방향성과 실행력을 동시에 끌어올리는 스타일이에요.\n\n"
+        "309의 강점은 복잡한 요구사항을 빠르게 구조화하고, 팀이 실행 가능한 흐름으로 합의하게 만드는 점이에요.\n"
+        "디자인 관점과 제품 전략 관점을 함께 보면서 방향성과 실행력을 동시에 끌어올리는 스타일이에요.\n\n"
         "## 사례 (PAR)\n"
         f"- 근거: {joined}\n"
-        "- 3D 모션 데이터 플랫폼에서는 업로드-판매-정산 흐름을 다시 설계해서 사용자 마찰을 줄였고, 팀 의사결정 속도를 높였어요.\n"
-        "- AI 오디오북 프로젝트에서는 제작 파이프라인을 단순화해 반복 작업 부담을 줄이고, 기능 우선순위를 명확히 정리했어요.\n"
-        "- 공통적으로 문제정의 → 실행 플로우 설계 → 결과 검증 루프를 짧게 돌렸다는 점이 강점이에요.\n\n"
+        f"- 사례: {project_line}.\n"
+        "- Action: 문제정의 → 실행 플로우 설계 → 검증 루프를 짧게 운영했어요.\n"
+        "- Result: 의사결정 속도와 실행 일관성이 개선됐어요.\n\n"
         "## 채용 관점 기대효과\n"
         "입사 후에도 불확실한 요구사항을 빠르게 정리하고, 사용자/비즈니스/개발 관점을 연결해 출시 가능한 제품 결정으로 이어지게 만들 수 있어요."
     )
@@ -162,8 +169,6 @@ def generate_persona_answer(
 ) -> tuple[str, list[str]]:
     """Generate persona answer via OpenClaw agent first, then OpenAI-compatible fallback."""
     lowered_q = question.lower()
-    if any(k in lowered_q for k in ["채용", "강점", "사례 기반"]):
-        return build_rag_rescue_answer(question, category)
 
     base_context = build_context_block()
     rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
