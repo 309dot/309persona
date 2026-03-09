@@ -65,6 +65,7 @@ def ask_question(payload: schemas.ChatRequest):
 
     try:
         answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
+        answer, citations = llm_service.force_intent_answer(payload.question, category)
         if "경력 관련 질문만 응답" in (answer or "") and category:
             logger.warning("fallback phrase detected in non-blocked path; forcing rag rescue answer")
             answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
