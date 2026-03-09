@@ -73,10 +73,13 @@ def build_user_payload(
 
 
 def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
+    quality = (settings.answer_quality_mode or "balanced").lower()
+    temperature = 0.45 if quality == "quality" else 0.35
+    max_tokens = 420 if quality == "quality" else 260
     return client.chat.completions.create(
         model=model,
-        temperature=0.35,
-        max_tokens=260,
+        temperature=temperature,
+        max_tokens=max_tokens,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},
@@ -162,6 +165,16 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     )
 
 
+def _is_low_quality_answer(answer: str) -> bool:
+    if not answer:
+        return True
+    checks = [
+        "프로젝트 문제정의, 실행 흐름 단순화, 협업 의사결정 개선 사례",
+        "채용 관점 기대효과",
+    ]
+    return any(c in answer for c in checks) and len(answer) < 380
+
+
 def generate_persona_answer(
     question: str,
     category: Optional[str],
@@ -216,6 +229,13 @@ def generate_persona_answer(
     bad_phrases = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 AI"]
     if any(p in answer for p in bad_phrases):
         answer = _build_rag_fallback_answer(question, rag_chunks)
+
+    if (settings.answer_quality_mode or "balanced").lower() == "quality" and _is_low_quality_answer(answer):
+        retry_payload = user_payload + "\n\n추가 지시: 답변 중복을 피하고, 이력/포트폴리오 기반 사례를 최소 2개로 구체화해 주세요."
+        retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
+        retry_text = (retry.choices[0].message.content or "").strip()
+        if retry_text:
+            answer = retry_text
 
     citations = [c["source"] for c in rag_chunks][:5]
     return answer, citations
