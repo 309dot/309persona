@@ -37,7 +37,8 @@ def to_chunk_id(source: str, text: str) -> str:
 
 
 def chunk_doc_id(source: str) -> str:
-    return source.split(":", 1)[0]
+    # keep source-level granularity to avoid collisions (e.g. pack:summary vs pack:values)
+    return source.replace(' ', '_')
 
 
 def source_type_from(source: str) -> str:
