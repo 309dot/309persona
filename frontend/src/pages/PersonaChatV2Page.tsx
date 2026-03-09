@@ -46,6 +46,7 @@ type PersonaThread = {
   answer?: string;
   answerAt?: string;
   blocked?: boolean;
+  inferredCaption?: string;
 };
 
 type AnswerBlock =
@@ -530,13 +531,6 @@ function VisitorInfoModal({
             <h3 className="text-2xl font-bold text-[#0F1324]">잠깐, 자기소개 좀 부탁드릴게요 ☕</h3>
             <p className="mt-1 text-sm text-slate-500">이름과 소속을 알려주시면 질문 맥락에 맞춰 더 정확하게 답변드릴 수 있어요. (선택)</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-200"
-          >
-            닫기
-          </button>
         </div>
         <div className="mt-4 space-y-4">
           <label className="block text-sm font-semibold text-slate-700" htmlFor="visitor-name">
@@ -574,7 +568,7 @@ function VisitorInfoModal({
             type="submit"
             className="rounded-full bg-[#0F1324] px-5 py-2 text-sm font-semibold text-white hover:bg-black"
           >
-            알려줄게요
+            저장
           </button>
         </div>
       </form>
@@ -593,13 +587,12 @@ export function PersonaChatV2Page() {
   const [dockVisible, setDockVisible] = useState(false);
   const [ctaVisible, setCtaVisible] = useState(false);
   const [threads, setThreads] = useState<PersonaThread[]>([]);
-  const [usedQuickQuestions, setUsedQuickQuestions] = useState<Set<string>>(new Set());
+  const [quickQuestionConsumed, setQuickQuestionConsumed] = useState(false);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const [showProfileNudge, setShowProfileNudge] = useState(false);
-  const [inferredHint, setInferredHint] = useState<{ role?: string; purpose?: string } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const landingTrackedRef = useRef(false);
@@ -762,6 +755,12 @@ export function PersonaChatV2Page() {
   }, [threads, showLoadingBubble, scrollToBottom]);
 
   useEffect(() => {
+    if (!loading) return;
+    const timer = setInterval(() => scrollToBottom('auto'), 250);
+    return () => clearInterval(timer);
+  }, [loading, scrollToBottom]);
+
+  useEffect(() => {
     const container = contentRef.current;
     if (!container || typeof ResizeObserver === 'undefined') return;
 
@@ -886,9 +885,9 @@ export function PersonaChatV2Page() {
     const inferred = inferVisitorProfile(trimmed);
     const nextName = inferred.name ?? visitorName;
     const nextAffiliation = inferred.affiliation ?? visitorAffiliation;
-    if (inferred.role || inferred.purpose) {
-      setInferredHint({ role: inferred.role ?? undefined, purpose: inferred.purpose ?? undefined });
-    }
+    const inferredCaption = inferred.role || inferred.purpose
+      ? `질문에서 유추한 맥락: ${inferred.role ? `역할 ${inferred.role}` : ''}${inferred.role && inferred.purpose ? ' · ' : ''}${inferred.purpose ? `목적 ${inferred.purpose}` : ''}`
+      : undefined;
     if (nextName !== visitorName || nextAffiliation !== visitorAffiliation) {
       setVisitorName(nextName);
       setVisitorAffiliation(nextAffiliation);
@@ -897,7 +896,7 @@ export function PersonaChatV2Page() {
 
     const threadId = uuid();
     const questionAt = new Date().toISOString();
-    setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt }]);
+    setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt, inferredCaption }]);
     setUsedCount((prev) => Math.min(TOTAL_QUESTIONS, prev + 1));
     setQuestion('');
     setShowLoadingBubble(true);
@@ -965,11 +964,7 @@ export function PersonaChatV2Page() {
   };
 
   const handleQuickQuestion = (value: string) => {
-    setUsedQuickQuestions((prev) => {
-      const next = new Set(prev);
-      next.add(value);
-      return next;
-    });
+    setQuickQuestionConsumed(true);
     setQuestion(value);
     void trackFunnelEvent('quick_question_clicked', { value });
     void handleSubmit('quick', value);
@@ -1054,13 +1049,43 @@ export function PersonaChatV2Page() {
                           <span className="font-semibold text-slate-900">309</span>
                           <span>{formatTimeLabel(thread.answerAt || thread.questionAt)}</span>
                         </div>
-                          <FormattedAnswer text={thread.answer} />
+                        {thread.inferredCaption ? (
+                          <p className="text-[11px] text-slate-500">{thread.inferredCaption}</p>
+                        ) : null}
+                        <FormattedAnswer text={thread.answer} />
                       </div>
                     </div>
                   ) : null}
                   </div>
                 );
               })}
+            </div>
+          ) : null}
+
+          {showProfileNudge ? (
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+                <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+              </div>
+              <div className="w-full max-w-[540px] rounded-2xl border border-[#E7EBF3] bg-[#F8FAFE] px-4 py-3 text-[13px] leading-5 text-[#334155]">
+                <p>혹시 실례가 안 된다면 이름/소속을 알려주실 수 있을까요? 맥락에 맞춰 더 정확히 답변드릴 수 있어요 😊</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowVisitorInfoModal(true)}
+                    className="rounded-full bg-[#0F1324] px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    입력하기
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileNudge(false)}
+                    className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                  >
+                    다음에 할게요
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -1111,46 +1136,18 @@ export function PersonaChatV2Page() {
               </div>
             ) : null}
             <div className="space-y-3">
-              <div className="flex flex-wrap gap-2 px-1">
-                {QUICK_QUESTIONS.filter((q) => !usedQuickQuestions.has(q)).map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => handleQuickQuestion(q)}
-                    className="rounded-full border border-[#E7EBF3] bg-[#F8FAFE] px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-[#EEF3FC]"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-              {showProfileNudge ? (
-                <div className="rounded-2xl border border-[#E7EBF3] bg-[#F8FAFE] px-4 py-3 text-[13px] leading-5 text-[#334155]">
-                  <p>
-                    혹시 실례가 안 된다면 이름/소속을 알려주실 수 있을까요? 맥락에 맞춰 더 정확히 답변드릴 수 있어요 😊
-                  </p>
-                  <div className="mt-2 flex gap-2">
+              {!quickQuestionConsumed ? (
+                <div className="flex flex-wrap gap-2 px-1">
+                  {QUICK_QUESTIONS.map((q) => (
                     <button
+                      key={q}
                       type="button"
-                      onClick={() => setShowVisitorInfoModal(true)}
-                      className="rounded-full bg-[#0F1324] px-3 py-1.5 text-xs font-semibold text-white"
+                      onClick={() => handleQuickQuestion(q)}
+                      className="rounded-full border border-[#E7EBF3] bg-[#F8FAFE] px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-[#EEF3FC]"
                     >
-                      입력하기
+                      {q}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowProfileNudge(false)}
-                      className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                    >
-                      다음에 할게요
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {inferredHint ? (
-                <div className="rounded-xl bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
-                  질문에서 유추한 맥락: {inferredHint.role ? `역할 ${inferredHint.role}` : ''}
-                  {inferredHint.role && inferredHint.purpose ? ' · ' : ''}
-                  {inferredHint.purpose ? `목적 ${inferredHint.purpose}` : ''}
+                  ))}
                 </div>
               ) : null}
               <InputPanel
