@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -10,6 +11,8 @@ from firebase_admin import firestore
 
 from ..core.config import settings
 from ..core.firebase import get_firestore_client
+
+logger = logging.getLogger(__name__)
 
 
 def log_conversation(
@@ -21,18 +24,21 @@ def log_conversation(
     is_blocked: bool,
 ) -> None:
     """Persist a conversation entry."""
-    client = get_firestore_client()
-    client.collection("conversations").add(
-        {
-            "session_id": session_id,
-            "visitor_id": visitor_id,
-            "question": question,
-            "answer": answer,
-            "category": category,
-            "is_blocked": is_blocked,
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        }
-    )
+    try:
+        client = get_firestore_client()
+        client.collection("conversations").add(
+            {
+                "session_id": session_id,
+                "visitor_id": visitor_id,
+                "question": question,
+                "answer": answer,
+                "category": category,
+                "is_blocked": is_blocked,
+                "timestamp": firestore.SERVER_TIMESTAMP,
+            }
+        )
+    except Exception as exc:
+        logger.exception("Failed to persist conversation log: %s", exc)
 
 
 def fetch_recent_conversations(limit: Optional[int] = None) -> List[Dict]:
