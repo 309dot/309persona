@@ -43,7 +43,7 @@ class Settings(BaseSettings):
         description="OpenAI-compatible base URL (e.g. Ollama /v1)",
     )
     use_openclaw_agent: bool = Field(
-        default=True,
+        default=False,
         description="Route persona answers through OpenClaw answer agent",
     )
     openclaw_answer_agent_id: str = Field(

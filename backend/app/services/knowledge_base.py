@@ -154,7 +154,19 @@ def build_rag_chunks() -> List[Tuple[str, str, str]]:
         for idx, block in enumerate(extra.split("\n\n"), start=1):
             text = block.strip()
             lowered = text.lower()
-            if any(bad in lowered for bad in ["행동 모드", "적용 규칙", "금지", "가드레일", "시스템 프롬프트"]):
+            if any(
+                bad in lowered
+                for bad in [
+                    "행동 모드",
+                    "적용 규칙",
+                    "금지",
+                    "가드레일",
+                    "시스템 프롬프트",
+                    "본 문서는 서비스 내 ai",
+                    "존재하지 않는 경력",
+                    "핵심 컨텍스트",
+                ]
+            ):
                 continue
             if len(text) >= 40:
                 chunks.append((f"extra:{idx}", text, "portfolio"))
@@ -250,8 +262,20 @@ def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
     lowered = query.lower()
     if any(k in lowered for k in ["채용", "강점", "사례"]):
         filtered = [
-            c for c in result
-            if not any(bad in (c.get("text", "").lower()) for bad in ["당신은", "본 문서는 서비스 내 ai", "핵심 컨텍스트", "적용 규칙", "행동 모드"])
+            c
+            for c in result
+            if (
+                not any(
+                    bad in (c.get("text", "").lower())
+                    for bad in ["당신은", "본 문서는 서비스 내 ai", "핵심 컨텍스트", "적용 규칙", "행동 모드", "존재하지 않는 경력"]
+                )
+                and (
+                    str(c.get("source", "")).startswith("project:")
+                    or str(c.get("source", "")).startswith("extra:")
+                    or str(c.get("source", "")).startswith("pack:summary")
+                    or str(c.get("source", "")).startswith("pack:values")
+                )
+            )
         ]
         if filtered:
             return filtered[: max(1, top_k)]
