@@ -1,12 +1,21 @@
+import { Activity, BarChart3, Globe2, ListChecks, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AdminLogin } from '../components/AdminLogin';
-import { Button } from '../components/Button';
-import { PageShell } from '../components/PageShell';
-import { StatCard } from '../components/StatCard';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { getConversationLogs, getDashboardStats } from '../services/api';
 import type { ConversationRecord, DashboardStats } from '../types/api';
+import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+
+function metricValue(stats: DashboardStats | null, key: 'ref' | 'referrer' | 'category') {
+  if (!stats) return '-';
+  if (key === 'ref') return stats.ref_stats?.length ? `${stats.ref_stats[0].label} (${stats.ref_stats[0].value})` : '-';
+  if (key === 'referrer')
+    return stats.referrer_stats?.length ? `${stats.referrer_stats[0].label} (${stats.referrer_stats[0].value})` : '-';
+  return stats.question_categories?.length ? `${stats.question_categories[0].label} (${stats.question_categories[0].value})` : '-';
+}
 
 export function DashboardPage() {
   const auth = useAdminAuth();
@@ -18,21 +27,6 @@ export function DashboardPage() {
   const totalVisitors = useMemo(() => {
     if (!stats) return 0;
     return stats.daily_visits.reduce((sum, item) => sum + item.value, 0);
-  }, [stats]);
-
-  const popularRef = useMemo(() => {
-    if (!stats?.ref_stats?.length) return '-';
-    return `${stats.ref_stats[0].label} (${stats.ref_stats[0].value})`;
-  }, [stats]);
-
-  const popularReferrer = useMemo(() => {
-    if (!stats?.referrer_stats?.length) return '-';
-    return `${stats.referrer_stats[0].label} (${stats.referrer_stats[0].value})`;
-  }, [stats]);
-
-  const popularCategory = useMemo(() => {
-    if (!stats?.question_categories?.length) return '-';
-    return `${stats.question_categories[0].label} (${stats.question_categories[0].value})`;
   }, [stats]);
 
   const fetchData = async () => {
@@ -55,9 +49,8 @@ export function DashboardPage() {
   };
 
   useEffect(() => {
-    if (auth.user) {
-      fetchData();
-    } else {
+    if (auth.user) fetchData();
+    else {
       setStats(null);
       setLogs([]);
     }
@@ -66,61 +59,80 @@ export function DashboardPage() {
 
   if (!auth.supported) {
     return (
-      <PageShell title="관리자 대시보드" subtitle="Firebase 설정이 필요합니다.">
-        <div className="glass-panel rounded-3xl p-6 text-center text-slate-600">
-          <p>
-            Firebase 환경 변수(VITE_FIREBASE_API_KEY 등)가 설정되지 않아 대시보드를 사용할 수
-            없습니다.
-          </p>
-        </div>
-      </PageShell>
+      <div className="mx-auto min-h-screen max-w-6xl px-4 py-8 md:px-8">
+        <Card className="p-6 text-center text-slate-600">
+          Firebase 환경 변수(VITE_FIREBASE_API_KEY 등)가 설정되지 않아 대시보드를 사용할 수 없습니다.
+        </Card>
+      </div>
     );
   }
 
   if (auth.loading) {
     return (
-      <PageShell title="관리자 대시보드">
-        <div className="glass-panel rounded-3xl p-6 text-center text-slate-600">
-          로딩 중입니다...
-        </div>
-      </PageShell>
+      <div className="mx-auto min-h-screen max-w-6xl px-4 py-8 md:px-8">
+        <Card className="p-6 text-center text-slate-600">로딩 중입니다...</Card>
+      </div>
     );
   }
 
   if (!auth.user) {
     return (
-      <PageShell title="관리자 대시보드" subtitle="관리자 계정으로 로그인해 주세요.">
+      <div className="mx-auto min-h-screen max-w-6xl px-4 py-8 md:px-8">
+        <div className="mb-6 rounded-xl bg-slate-900 px-6 py-5 text-white">
+          <p className="text-xs uppercase tracking-widest text-slate-300">309 Interview Agent</p>
+          <h1 className="text-2xl font-semibold">관리자 대시보드</h1>
+          <p className="mt-1 text-sm text-slate-300">관리자 계정으로 로그인해 주세요.</p>
+        </div>
         <AdminLogin onSubmit={auth.signIn} loading={auth.loading} error={auth.error} />
-      </PageShell>
+      </div>
     );
   }
 
   return (
-    <PageShell
-      title="관리자 대시보드"
-      subtitle={`${auth.user.email}님, 방문자 현황을 확인할 수 있습니다.`}
-      actions={
-        <Button variant="secondary" onClick={auth.signOut}>
-          로그아웃
-        </Button>
-      }
-    >
-      <div className="flex flex-wrap gap-4">
-        <StatCard label="누적 방문자" value={totalVisitors} />
-        <StatCard label="주요 유입 경로 (Ref)" value={popularRef} />
-        <StatCard label="주요 유입 사이트" value={popularReferrer} />
-        <StatCard label="많이 묻는 카테고리" value={popularCategory} />
-      </div>
-      {error ? <p className="text-sm text-rose-500">{error}</p> : null}
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="glass-panel rounded-3xl p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">일별 방문</h3>
-            <Button variant="ghost" onClick={fetchData} loading={loadingData}>
-              새로고침
+    <div className="mx-auto min-h-screen max-w-6xl space-y-5 px-4 py-8 md:px-8">
+      <div className="rounded-xl bg-slate-900 px-6 py-5 text-white">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-slate-300">309 Interview Agent</p>
+            <h1 className="text-2xl font-semibold">관리자 대시보드</h1>
+            <p className="mt-1 text-sm text-slate-300">{auth.user.email}님, 운영 지표를 확인해요.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={fetchData} loading={loadingData}>
+              <RefreshCw className="mr-1 h-4 w-4" /> 새로고침
+            </Button>
+            <Button variant="ghost" className="text-white hover:bg-slate-800" onClick={auth.signOut}>
+              로그아웃
             </Button>
           </div>
-          <div className="mt-4 space-y-2">
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Activity className="h-4 w-4" /> 누적 방문자</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold">{totalVisitors}</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Globe2 className="h-4 w-4" /> 주요 Ref</CardTitle></CardHeader>
+          <CardContent><p className="text-sm font-medium">{metricValue(stats, 'ref')}</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> 주요 유입 사이트</CardTitle></CardHeader>
+          <CardContent><p className="text-sm font-medium">{metricValue(stats, 'referrer')}</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" /> 자주 묻는 카테고리</CardTitle></CardHeader>
+          <CardContent><p className="text-sm font-medium">{metricValue(stats, 'category')}</p></CardContent>
+        </Card>
+      </div>
+
+      {error ? <p className="text-sm text-rose-500">{error}</p> : null}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>일별 방문</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
             {stats?.daily_visits.length ? (
               stats.daily_visits.map((point) => (
                 <div key={point.label} className="flex items-center justify-between text-sm">
@@ -131,65 +143,56 @@ export function DashboardPage() {
             ) : (
               <p className="text-sm text-slate-500">아직 데이터가 없습니다.</p>
             )}
-          </div>
-        </div>
-        <div className="glass-panel rounded-3xl p-6">
-          <h3 className="text-base font-semibold text-slate-900">유입 사이트별 통계</h3>
-          <div className="mt-4 space-y-2">
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>유입 사이트별 통계</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
             {stats?.referrer_stats?.length ? (
               stats.referrer_stats.map((point) => (
                 <div key={point.label} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500 truncate">{point.label}</span>
+                  <span className="truncate text-slate-500">{point.label}</span>
                   <span className="font-semibold text-slate-900">{point.value}명</span>
                 </div>
               ))
             ) : (
               <p className="text-sm text-slate-500">아직 데이터가 없습니다.</p>
             )}
-          </div>
-        </div>
-        <div className="glass-panel rounded-3xl p-6">
-          <h3 className="text-base font-semibold text-slate-900">최근 질문</h3>
-          <div className="mt-4 space-y-3">
-            {logs.length ? (
-              logs.map((log) => (
-                <div
-                  key={log.id}
-                  className="rounded-2xl border border-slate-100 bg-white/80 p-4 text-sm shadow-sm"
-                >
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>{log.category ?? 'general'}</span>
-                    <span>
-                      {log.timestamp
-                        ? new Date(log.timestamp).toLocaleString('ko-KR', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '방금'}
-                    </span>
-                  </div>
-                  <p className="mt-2 font-medium text-slate-900">{log.question}</p>
-                  {log.answer ? (
-                    <p className="mt-1 text-sm text-slate-600">
-                      {log.answer.length > 140 ? `${log.answer.slice(0, 140)}…` : log.answer}
-                    </p>
-                  ) : null}
-                  {log.is_blocked ? (
-                    <span className="mt-2 inline-flex rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-600">
-                      차단됨
-                    </span>
-                  ) : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>최근 질문 로그</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {logs.length ? (
+            logs.map((log) => (
+              <div key={log.id} className="rounded-lg border border-slate-200 p-3">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <Badge variant={log.is_blocked ? 'danger' : 'default'}>{log.category ?? 'general'}</Badge>
+                  <span>
+                    {log.timestamp
+                      ? new Date(log.timestamp).toLocaleString('ko-KR', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '방금'}
+                  </span>
                 </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-500">아직 로그가 없습니다.</p>
-            )}
-          </div>
-        </div>
-      </section>
-    </PageShell>
+                <p className="mt-2 text-sm font-medium text-slate-900">{log.question}</p>
+                {log.answer ? (
+                  <p className="mt-1 text-sm text-slate-600">{log.answer.length > 180 ? `${log.answer.slice(0, 180)}…` : log.answer}</p>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-slate-500">아직 로그가 없습니다.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
-
