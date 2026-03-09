@@ -26,7 +26,9 @@ load_dotenv(ROOT_DIR / ".env.local")
 
 from app.services.knowledge_base import build_rag_chunks  # noqa: E402
 
-EMBED_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
+EMBED_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "nomic-embed-text")
+EMBED_BASE_URL = os.getenv("RAG_EMBEDDING_BASE_URL", os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:11434/v1"))
+EMBED_API_KEY = os.getenv("RAG_EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", "ollama") or "ollama")
 
 
 def to_chunk_id(source: str, text: str) -> str:
@@ -53,7 +55,7 @@ def main() -> None:
     if not db_url:
         raise RuntimeError("DATABASE_URL is required")
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=EMBED_API_KEY, base_url=EMBED_BASE_URL)
     chunks = build_rag_chunks()
 
     with psycopg.connect(db_url) as conn:

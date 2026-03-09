@@ -13,7 +13,9 @@ from openai import OpenAI
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env.local")
 
-EMBED_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "text-embedding-3-small")
+EMBED_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "nomic-embed-text")
+EMBED_BASE_URL = os.getenv("RAG_EMBEDDING_BASE_URL", os.getenv("OPENAI_BASE_URL", "http://127.0.0.1:11434/v1"))
+EMBED_API_KEY = os.getenv("RAG_EMBEDDING_API_KEY", os.getenv("OPENAI_API_KEY", "ollama") or "ollama")
 
 
 def main() -> None:
@@ -22,7 +24,7 @@ def main() -> None:
         raise RuntimeError("DATABASE_URL is required")
 
     query = os.getenv("RAG_SMOKE_QUERY", "309가 최근 프로젝트에서 문제를 정의한 방식")
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=EMBED_API_KEY, base_url=EMBED_BASE_URL)
     emb = client.embeddings.create(model=EMBED_MODEL, input=query).data[0].embedding
     emb_literal = "[" + ",".join(str(v) for v in emb) + "]"
 

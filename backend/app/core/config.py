@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     rag_mode: str = Field(default="lexical", description="lexical | hybrid")
     rag_vector_weight: float = Field(default=0.7)
     rag_lexical_weight: float = Field(default=0.3)
-    rag_embedding_model: str = Field(default="text-embedding-3-small")
+    rag_embedding_model: str = Field(default="nomic-embed-text")
     database_url: Optional[str] = Field(default=None)
     knowledge_pack_path: str = Field(
         default="../knowledge_base/309_knowledge_pack.json",

@@ -25,10 +25,10 @@ CREATE TABLE IF NOT EXISTS rag_chunks (
   UNIQUE (doc_id, chunk_index)
 );
 
--- text-embedding-3-small = 1536 dims
+-- nomic-embed-text (ollama) = 768 dims
 CREATE TABLE IF NOT EXISTS rag_chunk_embeddings (
   chunk_id TEXT PRIMARY KEY REFERENCES rag_chunks(chunk_id) ON DELETE CASCADE,
-  embedding vector(1536) NOT NULL,
+  embedding vector(768) NOT NULL,
   embedding_model TEXT NOT NULL,
   embedded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

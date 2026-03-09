@@ -18,9 +18,12 @@ cd backend
 pip install -r requirements.txt
 ```
 
-## 3) Build embeddings index
+## 3) Build embeddings index (local Ollama)
 ```bash
-export OPENAI_API_KEY='...'
+ollama pull nomic-embed-text
+export RAG_EMBEDDING_MODEL=nomic-embed-text
+export RAG_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+export RAG_EMBEDDING_API_KEY=ollama
 python backend/scripts/vector_index_build.py
 ```
 

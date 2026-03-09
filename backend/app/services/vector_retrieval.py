@@ -11,10 +11,10 @@ from ..core.config import settings
 
 
 def _client() -> OpenAI:
-    # Vector retrieval uses real embedding model (not ollama chat endpoint)
-    if not settings.openai_api_key or settings.openai_api_key == "ollama":
-        raise RuntimeError("OPENAI_API_KEY is required for vector retrieval")
-    return OpenAI(api_key=settings.openai_api_key)
+    return OpenAI(
+        api_key=(settings.openai_api_key or "ollama"),
+        base_url=(settings.openai_base_url or "http://127.0.0.1:11434/v1"),
+    )
 
 
 def retrieve_vector_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:

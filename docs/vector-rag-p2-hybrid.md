@@ -12,13 +12,14 @@
 ## Safe behavior
 - If `rag_mode=hybrid` but vector query fails (missing DB/key, etc), system falls back to lexical retrieval automatically.
 
-## Enable hybrid mode
+## Enable hybrid mode (local embedding)
 Set env:
 ```bash
 RAG_MODE=hybrid
 DATABASE_URL=postgresql://...
-OPENAI_API_KEY=...
-RAG_EMBEDDING_MODEL=text-embedding-3-small
+RAG_EMBEDDING_MODEL=nomic-embed-text
+RAG_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+RAG_EMBEDDING_API_KEY=ollama
 RAG_VECTOR_WEIGHT=0.7
 RAG_LEXICAL_WEIGHT=0.3
 ```
