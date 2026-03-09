@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     """Environment driven configuration."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env.local",
         env_file_encoding="utf-8",
         extra="ignore",
         json_loads=lenient_json_loads,
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     rag_lexical_weight: float = Field(default=0.3)
     rag_embedding_model: str = Field(default="nomic-embed-text")
     database_url: Optional[str] = Field(default=None)
-    answer_quality_mode: str = Field(default="balanced", description="fast | balanced | quality")
+    answer_quality_mode: str = Field(default="quality", description="fast | balanced | quality")
     knowledge_pack_path: str = Field(
         default="../knowledge_base/309_knowledge_pack.json",
         description="Path to the 309 knowledge base JSON file",

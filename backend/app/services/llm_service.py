@@ -230,6 +230,10 @@ def generate_persona_answer(
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
+    if (settings.answer_quality_mode or "balanced").lower() == "quality":
+        citations = [c["source"] for c in rag_chunks][:5]
+        return _build_rag_fallback_answer(question, rag_chunks), citations
+
     if settings.use_openclaw_agent:
         try:
             answer = _complete_with_openclaw_agent(system_prompt, user_payload)
