@@ -65,6 +65,9 @@ def ask_question(payload: schemas.ChatRequest):
 
     try:
         answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
+        if "경력 관련 질문만 응답" in (answer or "") and category:
+            logger.warning("fallback phrase detected in non-blocked path; forcing rag rescue answer")
+            answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
     except Exception as exc:
         logger.exception("persona answer generation failed: %s", exc)
         fallback = "지금 답변 엔진 연결이 잠시 불안정합니다. 잠시 후 다시 시도해 주세요."
@@ -84,6 +87,9 @@ def ask_question(payload: schemas.ChatRequest):
             category=category,
             citations=[],
         )
+
+    if "경력 관련 질문만 응답" in (answer or ""):
+        answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
 
     conversation_service.log_conversation(
         session_id=payload.session_id,

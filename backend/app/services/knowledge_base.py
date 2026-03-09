@@ -159,11 +159,18 @@ def build_rag_chunks() -> List[Tuple[str, str]]:
 
 
 def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:
-    """Simple vector-like retrieval with cosine similarity over token counters."""
+    """Simple vector-like retrieval with light intent boosting over token similarity."""
     q_vec = _to_vec(query)
+    lowered = query.lower()
     scored: List[Tuple[float, str, str]] = []
     for source, text in build_rag_chunks():
         score = _cosine(q_vec, _to_vec(text))
+        # Intent boost for hiring/project questions to surface stronger evidence first
+        if any(k in lowered for k in ["프로젝트", "문제", "성과", "impact", "case", "협업", "채용", "강점"]):
+            if source.startswith("project:"):
+                score += 0.08
+            if source.startswith("pack:summary") or source.startswith("pack:values"):
+                score += 0.03
         if score > 0:
             scored.append((score, source, text))
 

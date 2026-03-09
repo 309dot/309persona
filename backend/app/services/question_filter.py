@@ -30,11 +30,11 @@ BANNED_PATTERNS = [
 ]
 
 QUESTION_CATEGORIES = {
-    "career": ["경력", "career", "이력", "resume", "프로필", "background"],
-    "projects": ["프로젝트", "case study", "product", "feature", "project"],
-    "collaboration": ["협업", "communication", "team", "stakeholder"],
-    "process": ["프로세스", "workflow", "방법론", "process"],
-    "decision": ["의사결정", "decision", "trade-off"],
+    "career": ["경력", "career", "이력", "resume", "프로필", "background", "강점", "강점 3가지", "핵심 역량"],
+    "projects": ["프로젝트", "case study", "product", "feature", "project", "문제 정의", "문제를", "풀어낸", "성과", "임팩트"],
+    "collaboration": ["협업", "communication", "team", "stakeholder", "커뮤니케이션", "조율", "갈등"],
+    "process": ["프로세스", "workflow", "방법론", "process", "우선순위", "실행 방식"],
+    "decision": ["의사결정", "decision", "trade-off", "트레이드오프", "판단 기준", "기준"],
 }
 
 

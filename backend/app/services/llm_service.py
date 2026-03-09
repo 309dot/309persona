@@ -58,7 +58,12 @@ def build_user_payload(
     return (
         f"{category_text}\n"
         f"방문자 정보: {visitor_meta or '익명 방문자'}\n"
-        f"질문: {question.strip()}"
+        f"질문: {question.strip()}\n\n"
+        "작성 규칙:\n"
+        "- 이 질문은 309의 경력/프로젝트 범위 내 질문으로 간주하고 답변한다.\n"
+        "- 차단 문구(예: '이 서비스는 309의 경력 관련 질문만 응답합니다.')를 그대로 반복하지 않는다.\n"
+        "- 핵심요약 2~3문장 + 실제 사례 1개(PAR) + 채용관점 기대효과 1문장으로 답한다.\n"
+        "- 최대 6문장 이내로 간결하게 작성한다."
     )
 
 
@@ -121,6 +126,27 @@ def _complete_with_openclaw_agent(system_prompt: str, user_payload: str) -> str:
     return output
 
 
+def build_rag_rescue_answer(question: str, category: Optional[str] = None) -> tuple[str, list[str]]:
+    rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
+    return _build_rag_fallback_answer(question, rag_chunks), [c["source"] for c in rag_chunks][:5]
+
+
+def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
+    if not rag_chunks:
+        return "질문 의도는 이해했지만, 현재 지식베이스 근거가 부족합니다. 프로젝트명/관심 포인트를 알려주시면 정확히 답변하겠습니다."
+    bullets = []
+    for c in rag_chunks[:2]:
+        txt = (c.get("text") or "").replace("\n", " ").strip()
+        if txt:
+            bullets.append(txt[:140])
+    joined = " / ".join(bullets)
+    return (
+        "핵심요약: 최근 프로젝트는 문제를 구조화하고 실행 흐름을 단순화해 성과를 만든 접근이 일관됩니다. "
+        f"근거: {joined}. "
+        "채용 관점: 복잡한 요구사항을 빠르게 정리해 실행 가능한 제품 전략으로 전환하는 역량을 기대할 수 있습니다."
+    )
+
+
 def generate_persona_answer(
     question: str,
     category: Optional[str],
@@ -164,7 +190,12 @@ def generate_persona_answer(
             ) from fallback_exc
 
     message = completion.choices[0].message
+    answer = (message.content or "").strip()
+    if not answer:
+        raise RuntimeError("empty model output")
+    if "경력 관련 질문만 응답" in answer or settings.blocked_message in answer:
+        answer = _build_rag_fallback_answer(question, rag_chunks)
     citations = [c["source"] for c in rag_chunks][:5]
-    return (message.content or settings.blocked_message), citations
+    return answer, citations
 
 
