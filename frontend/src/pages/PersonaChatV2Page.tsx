@@ -49,9 +49,10 @@ type PersonaThread = {
 };
 
 type AnswerBlock =
-  | { type: 'heading'; text: string }
+  | { type: 'heading'; level: 1 | 2 | 3; text: string }
   | { type: 'paragraph'; text: string }
-  | { type: 'list'; items: string[] };
+  | { type: 'list'; ordered?: boolean; items: string[] }
+  | { type: 'divider' };
 
 function TypingText({
   text,
@@ -276,11 +277,13 @@ function parseAnswerBlocks(text: string): AnswerBlock[] {
   const lines = text.split('\n');
   const blocks: AnswerBlock[] = [];
   let listBuffer: string[] = [];
+  let orderedList = false;
 
   const flushList = () => {
     if (listBuffer.length) {
-      blocks.push({ type: 'list', items: listBuffer });
+      blocks.push({ type: 'list', ordered: orderedList, items: listBuffer });
       listBuffer = [];
+      orderedList = false;
     }
   };
 
@@ -290,15 +293,38 @@ function parseAnswerBlocks(text: string): AnswerBlock[] {
       flushList();
       return;
     }
+    if (/^---+$/.test(line)) {
+      flushList();
+      blocks.push({ type: 'divider' });
+      return;
+    }
+    if (line.startsWith('# ')) {
+      flushList();
+      blocks.push({ type: 'heading', level: 1, text: line.replace(/^#\s*/, '') });
+      return;
+    }
+    if (line.startsWith('## ')) {
+      flushList();
+      blocks.push({ type: 'heading', level: 2, text: line.replace(/^##\s*/, '') });
+      return;
+    }
     if (line.startsWith('### ')) {
       flushList();
-      blocks.push({ type: 'heading', text: line.replace(/^###\s*/, '') });
+      blocks.push({ type: 'heading', level: 3, text: line.replace(/^###\s*/, '') });
       return;
     }
     if (line.startsWith('- ')) {
+      if (!listBuffer.length) orderedList = false;
       listBuffer.push(line.replace(/^-+\s*/, ''));
       return;
     }
+    const orderedMatch = line.match(/^\d+\.\s+(.+)$/);
+    if (orderedMatch) {
+      if (!listBuffer.length) orderedList = true;
+      listBuffer.push(orderedMatch[1]);
+      return;
+    }
+
     flushList();
     blocks.push({ type: 'paragraph', text: line });
   });
@@ -311,13 +337,20 @@ function parseAnswerBlocks(text: string): AnswerBlock[] {
 }
 
 function renderInlineNodes(text: string) {
-  const segments = text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+  const segments = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
   return segments.map((segment, index) => {
     if (segment.startsWith('**') && segment.endsWith('**')) {
       return (
         <strong key={`strong-${index}`} className="font-semibold text-[#0F1324]">
           {segment.slice(2, -2)}
         </strong>
+      );
+    }
+    if (segment.startsWith('*') && segment.endsWith('*')) {
+      return (
+        <em key={`em-${index}`} className="italic text-[#334155]">
+          {segment.slice(1, -1)}
+        </em>
       );
     }
     return <span key={`text-${index}`}>{segment}</span>;
@@ -330,13 +363,28 @@ function FormattedAnswer({ text }: { text: string }) {
     <div className="space-y-3 text-[14px] leading-6 text-[#0F1324]">
       {blocks.map((block, index) => {
         if (block.type === 'heading') {
+          const classes =
+            block.level === 1
+              ? 'text-[18px] font-extrabold text-[#0F1324]'
+              : block.level === 2
+                ? 'text-[16px] font-bold text-[#0F1324]'
+                : 'text-[15px] font-bold text-[#0F1324]';
           return (
-            <p key={`heading-${index}`} className="text-[15px] font-bold text-[#0F1324]">
+            <p key={`heading-${index}`} className={classes}>
               {renderInlineNodes(block.text)}
             </p>
           );
         }
         if (block.type === 'list') {
+          if (block.ordered) {
+            return (
+              <ol key={`olist-${index}`} className="list-decimal pl-5 text-[14px] leading-6 text-[#0F1324]">
+                {block.items.map((item, itemIndex) => (
+                  <li key={`olist-item-${index}-${itemIndex}`}>{renderInlineNodes(item)}</li>
+                ))}
+              </ol>
+            );
+          }
           return (
             <ul key={`list-${index}`} className="list-disc pl-5 text-[14px] leading-6 text-[#0F1324]">
               {block.items.map((item, itemIndex) => (
@@ -344,6 +392,9 @@ function FormattedAnswer({ text }: { text: string }) {
               ))}
             </ul>
           );
+        }
+        if (block.type === 'divider') {
+          return <hr key={`divider-${index}`} className="border-slate-200" />;
         }
         return (
           <p key={`paragraph-${index}`} className="text-[14px] leading-6 text-[#0F1324]">
@@ -475,8 +526,9 @@ function VisitorInfoModal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-slate-500">Visitor Info</p>
-            <h3 className="text-2xl font-bold text-[#0F1324]">회사/이름 업데이트</h3>
+            <p className="text-sm font-semibold text-slate-500">309 coffee chat</p>
+            <h3 className="text-2xl font-bold text-[#0F1324]">잠깐, 자기소개 좀 부탁드릴게요 ☕</h3>
+            <p className="mt-1 text-sm text-slate-500">이름과 소속을 알려주시면 질문 맥락에 맞춰 더 정확하게 답변드릴 수 있어요. (선택)</p>
           </div>
           <button
             type="button"
@@ -516,13 +568,13 @@ function VisitorInfoModal({
             onClick={onClose}
             className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300"
           >
-            취소
+            다음에 할게요
           </button>
           <button
             type="submit"
             className="rounded-full bg-[#0F1324] px-5 py-2 text-sm font-semibold text-white hover:bg-black"
           >
-            저장
+            알려줄게요
           </button>
         </div>
       </form>
@@ -546,6 +598,8 @@ export function PersonaChatV2Page() {
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
+  const [showProfileNudge, setShowProfileNudge] = useState(false);
+  const [inferredHint, setInferredHint] = useState<{ role?: string; purpose?: string } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const landingTrackedRef = useRef(false);
@@ -808,9 +862,16 @@ export function PersonaChatV2Page() {
       }
     }
 
+    const roleHints = ['pm', '프로덕트 매니저', 'product manager', '디자이너', 'designer', '개발자', 'engineer', '리크루터', 'hr', '채용 담당'];
+    const purposeHints = ['채용', '면접', '협업', '프로젝트', '파트너십', '외주', '검토'];
+    const role = roleHints.find((k) => normalized.toLowerCase().includes(k));
+    const purpose = purposeHints.find((k) => normalized.toLowerCase().includes(k));
+
     return {
       name: nameCandidate,
       affiliation: affiliationCandidate,
+      role,
+      purpose,
     };
   };
 
@@ -825,6 +886,9 @@ export function PersonaChatV2Page() {
     const inferred = inferVisitorProfile(trimmed);
     const nextName = inferred.name ?? visitorName;
     const nextAffiliation = inferred.affiliation ?? visitorAffiliation;
+    if (inferred.role || inferred.purpose) {
+      setInferredHint({ role: inferred.role ?? undefined, purpose: inferred.purpose ?? undefined });
+    }
     if (nextName !== visitorName || nextAffiliation !== visitorAffiliation) {
       setVisitorName(nextName);
       setVisitorAffiliation(nextAffiliation);
@@ -870,7 +934,7 @@ export function PersonaChatV2Page() {
       if (usedCount === 0) {
         void trackFunnelEvent('first_answer_rendered', { source });
         if (QUESTION_FIRST_EXPERIMENT) {
-          setTimeout(() => setShowVisitorInfoModal(true), 300);
+          setShowProfileNudge(true);
         }
       }
     } catch (error) {
@@ -916,6 +980,7 @@ export function PersonaChatV2Page() {
     setVisitorName(normalizedName);
     setVisitorAffiliation(affiliationValue);
     setShowVisitorInfoModal(false);
+    setShowProfileNudge(false);
     void persistVisitorProfile(normalizedName, affiliationValue);
   };
 
@@ -1058,6 +1123,36 @@ export function PersonaChatV2Page() {
                   </button>
                 ))}
               </div>
+              {showProfileNudge ? (
+                <div className="rounded-2xl border border-[#E7EBF3] bg-[#F8FAFE] px-4 py-3 text-[13px] leading-5 text-[#334155]">
+                  <p>
+                    혹시 실례가 안 된다면 이름/소속을 알려주실 수 있을까요? 맥락에 맞춰 더 정확히 답변드릴 수 있어요 😊
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowVisitorInfoModal(true)}
+                      className="rounded-full bg-[#0F1324] px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      입력하기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileNudge(false)}
+                      className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                    >
+                      다음에 할게요
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {inferredHint ? (
+                <div className="rounded-xl bg-slate-50 px-3 py-2 text-[12px] text-slate-600">
+                  질문에서 유추한 맥락: {inferredHint.role ? `역할 ${inferredHint.role}` : ''}
+                  {inferredHint.role && inferredHint.purpose ? ' · ' : ''}
+                  {inferredHint.purpose ? `목적 ${inferredHint.purpose}` : ''}
+                </div>
+              ) : null}
               <InputPanel
                 name={displayName}
                 question={question}
