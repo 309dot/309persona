@@ -66,8 +66,9 @@ def build_user_payload(
         "  ## 핵심요약\n"
         "  ## 사례 (PAR)\n"
         "  ## 채용 관점 기대효과\n"
+        "- 말투는 '했습니다/입니다'보다 자연스러운 '했어요/그래요' 톤을 우선 사용한다.\n"
         "- 번호 리스트(1.,2.) 또는 불릿(-)을 적절히 사용한다.\n"
-        "- 최대 6문장 이내로 간결하게 작성한다."
+        "- 6~10문장 범위로 충분히 설명하되 장황하지 않게 작성한다."
     )
 
 
@@ -75,7 +76,7 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
     return client.chat.completions.create(
         model=model,
         temperature=0.35,
-        max_tokens=160,
+        max_tokens=260,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},
@@ -142,13 +143,15 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     joined = "프로젝트 문제정의, 실행 흐름 단순화, 협업 의사결정 개선 사례"
     return (
         "## 핵심요약\n"
-        "최근 프로젝트는 문제를 구조화하고 실행 흐름을 단순화해 성과를 만든 접근이 일관됩니다.\n\n"
+        "채용 관점에서 309의 강점은 복잡한 문제를 빠르게 구조화하고, 팀이 실행 가능한 흐름으로 합의하도록 만드는 점이에요.\n"
+        "디자인 관점(60%)과 제품 전략 관점(40%)을 같이 가져가서, 방향성과 실행력을 동시에 끌어올리는 스타일이에요.\n\n"
         "## 사례 (PAR)\n"
         f"- 근거: {joined}\n"
-        "- Action: 요구사항을 흐름 중심으로 재정의하고 실행 단계를 줄였습니다.\n"
-        "- Result: 의사결정 속도와 전달력이 개선되었습니다.\n\n"
+        "- 3D 모션 데이터 플랫폼에서는 업로드-판매-정산 흐름을 다시 설계해서 사용자 마찰을 줄였고, 팀 의사결정 속도를 높였어요.\n"
+        "- AI 오디오북 프로젝트에서는 제작 파이프라인을 단순화해 반복 작업 부담을 줄이고, 기능 우선순위를 명확히 정리했어요.\n"
+        "- 공통적으로 문제정의 → 실행 플로우 설계 → 결과 검증 루프를 짧게 돌렸다는 점이 강점이에요.\n\n"
         "## 채용 관점 기대효과\n"
-        "복잡한 요구사항을 빠르게 정리해 실행 가능한 제품 전략으로 전환하는 역량을 기대할 수 있습니다."
+        "입사 후에도 불확실한 요구사항을 빠르게 정리하고, 사용자/비즈니스/개발 관점을 연결해 출시 가능한 제품 결정으로 이어지게 만들 수 있어요."
     )
 
 
@@ -207,16 +210,7 @@ def generate_persona_answer(
 
     bad_phrases = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 AI"]
     if any(p in answer for p in bad_phrases):
-        answer = (
-            "## 핵심요약\n"
-            "채용 관점에서 309의 강점은 문제를 빠르게 구조화하고, 실행 가능한 제품 흐름으로 전환하는 능력이에요.\n\n"
-            "## 사례 (PAR)\n"
-            "1. Problem: 복잡한 요구사항이 많아 우선순위가 흔들리는 상황이 있었어요.\n"
-            "2. Action: 핵심 사용자 흐름과 비즈니스 목표를 기준으로 의사결정 프레임을 재정의했어요.\n"
-            "3. Result: 팀 커뮤니케이션 효율과 실행 속도가 개선됐어요.\n\n"
-            "## 채용 관점 기대효과\n"
-            "입사 후에도 불확실한 요구사항을 빠르게 정리하고, 팀이 실행 가능한 수준으로 합의하도록 만드는 역할을 기대할 수 있어요."
-        )
+        answer = _build_rag_fallback_answer(question, rag_chunks)
 
     citations = [c["source"] for c in rag_chunks][:5]
     return answer, citations

@@ -407,6 +407,26 @@ function FormattedAnswer({ text }: { text: string }) {
   );
 }
 
+function AnimatedFormattedAnswer({ text }: { text: string }) {
+  const [visible, setVisible] = useState('');
+
+  useEffect(() => {
+    let idx = 0;
+    const timer = setInterval(() => {
+      idx += 5;
+      if (idx >= text.length) {
+        setVisible(text);
+        clearInterval(timer);
+        return;
+      }
+      setVisible(text.slice(0, idx));
+    }, 12);
+    return () => clearInterval(timer);
+  }, [text]);
+
+  return <FormattedAnswer text={visible || text} />;
+}
+
 function PersonaLegalNotice({ onOpen }: { onOpen: () => void }) {
   return (
     <p className="mt-4 text-center text-[11px] font-medium text-[#0F1324] opacity-60">
@@ -1052,7 +1072,7 @@ export function PersonaChatV2Page() {
                         {thread.inferredCaption ? (
                           <p className="text-[11px] text-slate-500">{thread.inferredCaption}</p>
                         ) : null}
-                        <FormattedAnswer text={thread.answer} />
+                        <AnimatedFormattedAnswer text={thread.answer} />
                       </div>
                     </div>
                   ) : null}
