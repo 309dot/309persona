@@ -61,9 +61,8 @@ def main() -> None:
 
     with psycopg.connect(db_url) as conn:
         with conn.cursor() as cur:
-            for source, text in chunks:
+            for source, text, source_type in chunks:
                 doc_id = chunk_doc_id(source)
-                source_type = source_type_from(source)
                 cur.execute(
                     """
                     INSERT INTO rag_documents (doc_id, source_type, title, version)

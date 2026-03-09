@@ -30,7 +30,6 @@ def load_knowledge_pack() -> Dict[str, Any]:
 def build_context_block() -> str:
     """Format the knowledge pack into a prompt-friendly block."""
     pack = load_knowledge_pack()
-    extra_documents = load_extra_documents()
 
     summary = pack.get("summary", "")
     collaboration = pack.get("collaboration_style", "")
@@ -72,7 +71,6 @@ def build_context_block() -> str:
         f"=== PROJECT HIGHLIGHTS ===\n{highlights}",
         f"=== QA TEMPLATES ===\n{qa_templates_text}" if qa_templates_text else "",
         f"=== GUARDRAILS ===\n{guardrails_text}" if guardrails_text else "",
-        extra_documents,
     ]
 
     return "\n\n".join(filter(None, sections))
@@ -127,19 +125,21 @@ def _cosine(a: Counter, b: Counter) -> float:
 
 
 @lru_cache
-def build_rag_chunks() -> List[Tuple[str, str]]:
-    """Return (source, text) chunks from the knowledge pack and markdown docs."""
+def build_rag_chunks() -> List[Tuple[str, str, str]]:
+    """Return (source, text, source_type) chunks from the knowledge pack and markdown docs."""
     pack = load_knowledge_pack()
-    chunks: List[Tuple[str, str]] = []
+    chunks: List[Tuple[str, str, str]] = []
 
     for key in ["summary", "collaboration_style", "values", "speaking_style", "guardrails"]:
         value = pack.get(key)
         if isinstance(value, str) and value.strip():
-            chunks.append((f"pack:{key}", value.strip()))
+            source_type = "guardrail" if key == "guardrails" else "profile"
+            chunks.append((f"pack:{key}", value.strip(), source_type))
         elif isinstance(value, list):
             text = "\n".join(str(v).strip() for v in value if str(v).strip())
             if text:
-                chunks.append((f"pack:{key}", text))
+                source_type = "guardrail" if key == "guardrails" else "profile"
+                chunks.append((f"pack:{key}", text, source_type))
 
     for project in pack.get("projects", []) if isinstance(pack.get("projects"), list) else []:
         title = str(project.get("title", "project")).strip()
@@ -147,14 +147,17 @@ def build_rag_chunks() -> List[Tuple[str, str]]:
         detail = str(project.get("description", "")).strip()
         merged = "\n".join([x for x in [title, impact, detail] if x])
         if merged:
-            chunks.append((f"project:{title}", merged))
+            chunks.append((f"project:{title}", merged, "project"))
 
     extra = load_extra_documents(limit_chars=120000)
     if extra:
         for idx, block in enumerate(extra.split("\n\n"), start=1):
             text = block.strip()
+            lowered = text.lower()
+            if any(bad in lowered for bad in ["행동 모드", "적용 규칙", "금지", "가드레일", "시스템 프롬프트"]):
+                continue
             if len(text) >= 40:
-                chunks.append((f"extra:{idx}", text))
+                chunks.append((f"extra:{idx}", text, "portfolio"))
 
     return chunks
 
@@ -163,13 +166,17 @@ def _retrieve_lexical_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
     q_vec = _to_vec(query)
     lowered = query.lower()
     scored: List[Tuple[float, str, str]] = []
-    for source, text in build_rag_chunks():
+    for source, text, source_type in build_rag_chunks():
         score = _cosine(q_vec, _to_vec(text))
         if any(k in lowered for k in ["프로젝트", "문제", "성과", "impact", "case", "협업", "채용", "강점"]):
-            if source.startswith("project:"):
-                score += 0.08
+            if source_type == "project":
+                score += 0.12
+            if source_type == "portfolio":
+                score += 0.05
             if source.startswith("pack:summary") or source.startswith("pack:values"):
                 score += 0.03
+            if source_type == "guardrail":
+                score -= 0.15
         if score > 0:
             scored.append((score, source, text))
 
@@ -181,9 +188,25 @@ def _retrieve_lexical_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
     ]
 
 
+def _is_low_value_chunk_text(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(
+        bad in lowered
+        for bad in [
+            "존재하지 않는 경력",
+            "시스템 프롬프트",
+            "가드레일",
+            "이 서비스는 309의 경력 관련 질문만",
+            "핵심 컨텍스트",
+        ]
+    )
+
+
 def _hybrid_merge(lexical: List[Dict[str, str]], vector: List[Dict[str, str]], top_k: int) -> List[Dict[str, str]]:
     merged: Dict[str, Dict[str, str]] = {}
     for item in lexical:
+        if _is_low_value_chunk_text(item.get("text", "")):
+            continue
         key = item.get("text", "")[:120]
         score = float(item.get("score", "0") or 0)
         merged[key] = {
@@ -193,6 +216,8 @@ def _hybrid_merge(lexical: List[Dict[str, str]], vector: List[Dict[str, str]], t
         }
 
     for item in vector:
+        if _is_low_value_chunk_text(item.get("text", "")):
+            continue
         key = item.get("text", "")[:120]
         score = float(item.get("score", "0") or 0)
         if key in merged:
@@ -214,16 +239,23 @@ def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
     """Retrieve relevant chunks with lexical or hybrid mode."""
     lexical = _retrieve_lexical_chunks(query, top_k=max(top_k, 8))
     if settings.rag_mode != "hybrid":
-        return lexical[: max(1, top_k)]
+        result = lexical[: max(1, top_k)]
+    else:
+        try:
+            vector = retrieve_vector_chunks(query, top_k=max(top_k, 8))
+        except Exception:
+            vector = []
+        result = lexical[: max(1, top_k)] if not vector else _hybrid_merge(lexical, vector, top_k=top_k)
 
-    try:
-        vector = retrieve_vector_chunks(query, top_k=max(top_k, 8))
-    except Exception:
-        vector = []
-
-    if not vector:
-        return lexical[: max(1, top_k)]
-    return _hybrid_merge(lexical, vector, top_k=top_k)
+    lowered = query.lower()
+    if any(k in lowered for k in ["채용", "강점", "사례"]):
+        filtered = [
+            c for c in result
+            if not any(bad in (c.get("text", "").lower()) for bad in ["당신은", "본 문서는 서비스 내 ai", "핵심 컨텍스트", "적용 규칙", "행동 모드"])
+        ]
+        if filtered:
+            return filtered[: max(1, top_k)]
+    return result
 
 
 def retrieve_relevant_context(query: str, top_k: int = 6) -> str:

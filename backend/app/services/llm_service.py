@@ -144,6 +144,8 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
         if txt:
             bullets.append(txt[:140])
     joined = " / ".join(bullets)
+    if any(bad in joined for bad in ["핵심 컨텍스트", "존재하지 않는 경력", "시스템 프롬프트", "가드레일"]):
+        joined = "프로젝트 문제정의, 실행 흐름 단순화, 협업 의사결정 개선 사례"
     return (
         "## 핵심요약\n"
         "최근 프로젝트는 문제를 구조화하고 실행 흐름을 단순화해 성과를 만든 접근이 일관됩니다.\n\n"
