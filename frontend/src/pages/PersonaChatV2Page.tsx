@@ -411,20 +411,21 @@ function AnimatedFormattedAnswer({ text }: { text: string }) {
   const [visible, setVisible] = useState('');
 
   useEffect(() => {
+    setVisible('');
     let idx = 0;
     const timer = setInterval(() => {
-      idx += 5;
+      idx += 6;
       if (idx >= text.length) {
         setVisible(text);
         clearInterval(timer);
         return;
       }
       setVisible(text.slice(0, idx));
-    }, 12);
+    }, 10);
     return () => clearInterval(timer);
   }, [text]);
 
-  return <FormattedAnswer text={visible || text} />;
+  return <FormattedAnswer text={visible} />;
 }
 
 function PersonaLegalNotice({ onOpen }: { onOpen: () => void }) {
@@ -1082,7 +1083,7 @@ export function PersonaChatV2Page() {
             </div>
           ) : null}
 
-          {showProfileNudge ? (
+          {showProfileNudge && !loading ? (
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
@@ -1117,9 +1118,9 @@ export function PersonaChatV2Page() {
               <div className="flex items-center gap-2 text-[13px] font-medium text-slate-500">
                 <span>답변을 정리하고 있어요</span>
                 <span className="flex gap-1">
-                  <span className="inline-block h-[2px] w-[2px] rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="inline-block h-[2px] w-[2px] rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '120ms' }} />
-                  <span className="inline-block h-[2px] w-[2px] rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '240ms' }} />
+                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-slate-500 animate-bounce [animation-duration:700ms]" style={{ animationDelay: '0ms' }} />
+                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-slate-500 animate-bounce [animation-duration:700ms]" style={{ animationDelay: '120ms' }} />
+                  <span className="inline-block h-[6px] w-[6px] rounded-full bg-slate-500 animate-bounce [animation-duration:700ms]" style={{ animationDelay: '240ms' }} />
                 </span>
               </div>
             </div>
