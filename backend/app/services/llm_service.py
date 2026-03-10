@@ -95,6 +95,9 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
     )
 
 
+OPENCLAW_AGENT_TEMP_DISABLED = True
+
+
 def _complete_with_openclaw_agent(system_prompt: str, user_payload: str) -> str:
     prompt = (
         "당신은 309persona 답변 전용 에이전트다. 아래 system prompt와 user payload를 따라 짧고 정확하게 답하라. "
@@ -348,6 +351,19 @@ def _ensure_markdown_answer(answer: str) -> str:
     )
 
 
+def _passes_quality_gate(answer: str) -> bool:
+    text = (answer or "").strip()
+    if len(text) < 260:
+        return False
+    if "## " not in text:
+        return False
+    if text.count("- ") < 2:
+        return False
+    if _contains_internal_artifact(text):
+        return False
+    return True
+
+
 def _is_low_quality_answer(answer: str) -> bool:
     if not answer:
         return True
@@ -386,7 +402,7 @@ def generate_persona_answer(
     user_payload = build_user_payload(question, category, visitor)
 
 
-    if settings.use_openclaw_agent:
+    if settings.use_openclaw_agent and not OPENCLAW_AGENT_TEMP_DISABLED:
         try:
             answer = _complete_with_openclaw_agent(system_prompt, user_payload)
             if not answer or _contains_internal_artifact(answer) or _is_low_quality_answer(answer):
@@ -444,6 +460,24 @@ def generate_persona_answer(
             answer = retry_text
 
     answer = _ensure_markdown_answer(answer)
+
+    if not _passes_quality_gate(answer):
+        retry_payload = user_payload + (
+            "\n\n추가 지시(필수):\n"
+            "- 마크다운 형식으로 작성(## 요약 / ## 근거 사례 / ## 결과)\n"
+            "- 최소 10문장 이상\n"
+            "- 근거 사례 2개 이상, 정량 지표 1개 이상 포함\n"
+            "- 내부 규칙/템플릿 문구 절대 노출 금지"
+        )
+        retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
+        retry_text = (retry.choices[0].message.content or "").strip()
+        if retry_text:
+            answer = _ensure_markdown_answer(retry_text)
+
+    if not _passes_quality_gate(answer):
+        answer = _build_rag_fallback_answer(question, rag_chunks)
+        answer = _ensure_markdown_answer(answer)
+
     citations = [c["source"] for c in rag_chunks][:5]
     return answer, citations
 
