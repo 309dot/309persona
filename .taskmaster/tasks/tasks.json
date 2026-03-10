@@ -135,7 +135,7 @@
       "id": 11,
       "title": "7일 퍼널 데이터 기반 전환 개선안 확정",
       "description": "funnel_report 결과로 winner variant와 다음 실험 2개를 확정한다.",
-      "details": "first-message conversion / focus→submit 구간 중심으로 우선순위 결정 | BLOCKER: Firebase credentials missing for funnel report execution. See docs/funnel-report-2026-03-08.md",
+      "details": "first-message conversion / focus→submit 구간 중심으로 우선순위 결정 | BLOCKER: Firebase credentials missing for funnel report execution. See docs/funnel-report-2026-03-08.md | 2026-03-10 로컬 winner 스크립트 재실행 시 Firebase serviceAccountKey 부재로 실행 불가 확인",
       "testStrategy": "의사결정 문서에 baseline, winner, next action 포함",
       "priority": "high",
       "dependencies": [
@@ -226,13 +226,13 @@
       "id": 18,
       "title": "실서비스 브라우저 콘솔 재검증",
       "description": "최신 프론트 배포 반영 후 CORS/Firestore permission 에러가 사라졌는지 확인",
-      "details": "하드 리프레시 후 네트워크/콘솔 확인 | Browser retest found intermittent CORS on /api/chat from currently deployed frontend bundle (index-Br-D3foA). Need latest frontend deploy sync. | live bundle still old (index-Br-D3foA.js), redeploy required",
+      "details": "하드 리프레시 후 네트워크/콘솔 확인 | Browser retest found intermittent CORS on /api/chat from currently deployed frontend bundle (index-Br-D3foA). Need latest frontend deploy sync. | live bundle still old (index-Br-D3foA.js), redeploy required | 2026-03-10 재검증: www.309designlab.com/persona에서 질문 전송 후 브라우저 콘솔 error 0건, /api/chat 응답 정상 확인",
       "testStrategy": "콘솔 에러 0건 또는 허용 가능한 수준 확인",
       "priority": "high",
       "dependencies": [
         "17"
       ],
-      "status": "in-progress",
+      "status": "done",
       "assignee": "verifier"
     },
     {
@@ -252,21 +252,21 @@
       "id": 20,
       "title": "프론트 최신 번들 배포 반영 확인 및 캐시 무효화",
       "description": "main 최신 커밋 반영 번들이 www.309designlab.com에 서빙되는지 확인",
-      "details": "필요시 플랫폼에서 redeploy + CDN cache purge",
+      "details": "필요시 플랫폼에서 redeploy + CDN cache purge | GitHub main(ea99c5c) 푸시 완료. 운영 페이지 script hash=index-CmFrQtBa.js 확인 및 하드리프레시 후 콘솔 에러 미재현",
       "testStrategy": "script hash가 최신 빌드로 변경되고 콘솔 CORS 에러 미재현",
       "priority": "high",
       "dependencies": [
         "18",
         "19"
       ],
-      "status": "pending",
+      "status": "done",
       "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-08T13:33:37.309067Z",
+    "lastModified": "2026-03-10T03:22:21.436556Z",
     "taskCount": 20,
-    "completedCount": 16
+    "completedCount": 18
   }
 }
