@@ -1,0 +1,9 @@
+{
+  "type": "failure",
+  "project": "309persona",
+  "topic": "answer generation style",
+  "symptom": "반복 도입문과 작위적 리스트 포맷으로 답변이 부실하게 보임",
+  "cause": "fallback 포맷 강제와 템플릿형 문장 재사용",
+  "fix": "문단형 우선 + opener dedupe + memory-type routing + context composer",
+  "prevention": "latest_failure를 composer에 주입하고 재시도 프롬프트에 반복 금지 규칙 유지"
+}

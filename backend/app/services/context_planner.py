@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass
@@ -9,6 +14,7 @@ class RetrievalPlan:
     memory_sources: list[str]
     output_mode: str
     need_actionable_steps: bool
+    project_pack: str
 
 
 def classify_intent(question: str) -> str:
@@ -24,17 +30,45 @@ def classify_intent(question: str) -> str:
     return "general_analysis"
 
 
+def infer_project_pack(question: str) -> str:
+    q = (question or "").lower()
+    if "design library" in q or "designlibrary" in q:
+        return "309designlibrary"
+    if "309agent" in q or "openclaw" in q:
+        return "309agent"
+    return "309persona"
+
+
 def build_retrieval_plan(question: str) -> RetrievalPlan:
     intent = classify_intent(question)
+    project_pack = infer_project_pack(question)
     if intent == "decision_reasoning":
-        return RetrievalPlan(intent, ["project", "decision", "working"], "narrative", True)
+        return RetrievalPlan(intent, ["project", "decision", "working"], "narrative", True, project_pack)
     if intent == "next_actions":
-        return RetrievalPlan(intent, ["working", "project", "decision"], "actionable", True)
+        return RetrievalPlan(intent, ["working", "project", "decision"], "actionable", True, project_pack)
     if intent == "interview_answering":
-        return RetrievalPlan(intent, ["identity", "project", "reference"], "concise_structured", True)
+        return RetrievalPlan(intent, ["identity", "project", "reference"], "concise_structured", True, project_pack)
     if intent == "setup_reference":
-        return RetrievalPlan(intent, ["reference", "project", "working"], "instructional", True)
-    return RetrievalPlan(intent, ["project", "working", "reference"], "narrative", False)
+        return RetrievalPlan(intent, ["reference", "project", "working"], "instructional", True, project_pack)
+    return RetrievalPlan(intent, ["project", "working", "reference"], "narrative", False, project_pack)
+
+
+def _load_latest_record(kind: str, project_pack: str) -> str:
+    folder = ROOT / "memory" / ("decisions" if kind == "decision" else "failures")
+    if not folder.exists():
+        return ""
+    files = sorted([p for p in folder.glob("*.json") if p.name != "schema.json"], reverse=True)
+    for p in files:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if str(data.get("project", "")).lower() not in {project_pack.lower(), "309persona", ""}:
+            continue
+        if kind == "decision":
+            return f"{data.get('topic','')}: {data.get('decision','')} (reason: {data.get('reason','')})".strip()
+        return f"{data.get('topic','')}: {data.get('symptom','')} -> {data.get('fix','')}".strip()
+    return ""
 
 
 def compose_context_sections(plan: RetrievalPlan, rag_chunks: list[dict]) -> str:
@@ -63,6 +97,14 @@ def compose_context_sections(plan: RetrievalPlan, rag_chunks: list[dict]) -> str
             ordered.append(f"[{src}] {by_type[src][0][:220]}")
     if by_type.get("failure"):
         ordered.append(f"[failure] {by_type['failure'][0][:220]}")
+
+    latest_decision = _load_latest_record("decision", plan.project_pack)
+    if latest_decision:
+        ordered.append(f"[latest_decision] {latest_decision[:220]}")
+
+    latest_failure = _load_latest_record("failure", plan.project_pack)
+    if latest_failure:
+        ordered.append(f"[latest_failure] {latest_failure[:220]}")
 
     if not ordered:
         return ""

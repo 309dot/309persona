@@ -417,12 +417,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 33,
+      "title": "Context composer v2: latest decision/failure 주입 + project pack 라우팅",
+      "description": "planner에서 project pack을 추론하고, composer가 최신 decision/failure 기록을 컨텍스트에 포함한다.",
+      "details": "context_planner에 infer_project_pack/_load_latest_record 추가, llm_service retrieval query에 project pack bias 적용",
+      "testStrategy": "py_compile 및 smoke test 통과, retrieval plan block에 project_pack/decision/failure 포함 확인",
+      "priority": "high",
+      "dependencies": [
+        "32"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T13:33:24.861272Z",
-    "taskCount": 32,
-    "completedCount": 29
+    "lastModified": "2026-03-10T13:35:36.233625Z",
+    "taskCount": 33,
+    "completedCount": 30
   }
 }

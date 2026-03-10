@@ -173,9 +173,10 @@ def generate_persona_answer(
     lowered_q = question.lower()
 
     base_context = build_context_block()
-    rag_chunks = retrieve_relevant_chunks(question, top_k=max(settings.rag_top_k, 8))
-    rag_chunks = rerank_chunks(question, rag_chunks, settings.rag_top_k)
     plan = build_retrieval_plan(question)
+    retrieval_query = f"[{plan.project_pack}] {question}"
+    rag_chunks = retrieve_relevant_chunks(retrieval_query, top_k=max(settings.rag_top_k, 8))
+    rag_chunks = rerank_chunks(question, rag_chunks, settings.rag_top_k)
 
     rag_hits = "\n".join(
         f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in rag_chunks
@@ -184,6 +185,7 @@ def generate_persona_answer(
     plan_block = (
         f"\n\n=== RETRIEVAL PLAN ===\n"
         f"intent: {plan.intent}\n"
+        f"project_pack: {plan.project_pack}\n"
         f"output_mode: {plan.output_mode}\n"
         f"need_actionable_steps: {plan.need_actionable_steps}\n"
         f"memory_sources: {', '.join(plan.memory_sources)}\n"
