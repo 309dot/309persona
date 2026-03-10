@@ -13,7 +13,7 @@ import iconResume from '@assets/icons/icon-resume.svg';
 import iconSend from '@assets/icons/send-arrow.svg';
 import logoFull from '@assets/icons/logo.svg';
 
-import { createVisitor, sendQuestion } from '../services/api';
+import { createVisitor, sendQuestion, trackFunnelEvent as trackFunnelEventApi } from '../services/api';
 import { firestore } from '../lib/firebase';
 import { formatVisitorName } from '../lib/formatName';
 import type { SessionInfo } from '../types/api';
@@ -173,8 +173,9 @@ function enrichQuestionContext(questionText: string) {
   return `${questionText}${CONTEXT_HINT}`;
 }
 
-function ProposalCard() {
+function ProposalCard({ onClick }: { onClick?: () => void }) {
   const handleProposalClick = () => {
+    onClick?.();
     window.location.href = 'mailto:hello@309designlab.com?subject=309%20Interview%20Agent%20Inquiry';
   };
 
@@ -645,17 +646,18 @@ export function PersonaChatV2Page() {
 
   const trackFunnelEvent = useCallback(
     async (eventName: string, extra: Record<string, unknown> = {}) => {
-      if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !firestore) return;
+      if (!session?.sessionId) return;
       try {
-        await addDoc(collection(firestore, 'personaFunnelEvents'), {
+        await trackFunnelEventApi({
+          sessionId: session.sessionId,
           event: eventName,
-          sessionId: session?.sessionId ?? null,
-          visitorName,
-          visitorAffiliation,
-          visitRef: session?.visitRef ?? '',
-          path: window.location.pathname,
-          ...extra,
-          createdAt: serverTimestamp(),
+          properties: {
+            visitorName,
+            visitorAffiliation,
+            visitRef: session.visitRef ?? '',
+            path: window.location.pathname,
+            ...extra,
+          },
         });
       } catch (error) {
         console.error('[Persona] 퍼널 이벤트 기록 실패', error);
@@ -917,16 +919,20 @@ export function PersonaChatV2Page() {
 
     const threadId = uuid();
     const questionAt = new Date().toISOString();
+    const nextUsedCount = Math.min(TOTAL_QUESTIONS, usedCount + 1);
     setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt, inferredCaption }]);
-    setUsedCount((prev) => Math.min(TOTAL_QUESTIONS, prev + 1));
+    setUsedCount(nextUsedCount);
     setQuestion('');
     setShowLoadingBubble(true);
     setLoading(true);
     scrollToBottom();
     void logQuestionToFirestore(trimmed);
-    void trackFunnelEvent('question_submitted', { source, usedCount: usedCount + 1 });
+    void trackFunnelEvent('question_submitted', { source, usedCount: nextUsedCount });
     if (usedCount === 0) {
       void trackFunnelEvent('first_submit', { source });
+    }
+    if (nextUsedCount === TOTAL_QUESTIONS) {
+      void trackFunnelEvent('five_questions_reached', { usedCount: nextUsedCount });
     }
 
     try {
@@ -981,7 +987,7 @@ export function PersonaChatV2Page() {
   const handleInputFocus = () => {
     if (inputFocusTrackedRef.current) return;
     inputFocusTrackedRef.current = true;
-    void trackFunnelEvent('input_focus');
+    void trackFunnelEvent('chat_input_started');
   };
 
   const handleQuickQuestion = (value: string) => {
@@ -998,6 +1004,10 @@ export function PersonaChatV2Page() {
     setShowVisitorInfoModal(false);
     setShowProfileNudge(false);
     void persistVisitorProfile(normalizedName, affiliationValue);
+    void trackFunnelEvent('profile_submitted', {
+      has_name: Boolean(nameValue?.trim()),
+      has_affiliation: Boolean(affiliationValue?.trim()),
+    });
   };
 
   return (
@@ -1136,7 +1146,7 @@ export function PersonaChatV2Page() {
           <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
             {ctaVisible ? (
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <ProposalCard />
+                <ProposalCard onClick={() => void trackFunnelEvent('proposal_email_sent')} />
                 <div className="flex items-center gap-4 text-[13px] font-semibold text-[#0F1324]">
                   <a
                     href={PORTFOLIO_URL}

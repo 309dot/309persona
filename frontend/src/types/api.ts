@@ -47,6 +47,20 @@ export interface StatPoint {
   value: number;
 }
 
+export interface FunnelStepStat {
+  key: string;
+  label: string;
+  value: number;
+  conversion_from_prev?: number | null;
+}
+
+export interface DashboardKpis {
+  total_sessions: number;
+  avg_questions_per_session: number;
+  blocked_rate: number;
+  readiness_rate: number;
+}
+
 export interface DashboardStats {
   ref_stats: StatPoint[];
   referrer_stats: StatPoint[];
@@ -54,6 +68,8 @@ export interface DashboardStats {
   daily_visits: StatPoint[];
   latest_visitors: VisitorRecord[];
   recent_questions: ConversationRecord[];
+  funnel_steps: FunnelStepStat[];
+  kpis: DashboardKpis;
 }
 
 export interface VisitorRecord {

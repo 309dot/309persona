@@ -114,22 +114,41 @@ export function DashboardPage() {
           <CardContent><p className="text-2xl font-bold">{totalVisitors}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Globe2 className="h-4 w-4" /> 주요 Ref</CardTitle></CardHeader>
-          <CardContent><p className="text-sm font-medium">{metricValue(stats, 'ref')}</p></CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> 평균 질문 수/세션</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold">{stats?.kpis?.avg_questions_per_session ?? 0}</p></CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4" /> 주요 유입 사이트</CardTitle></CardHeader>
-          <CardContent><p className="text-sm font-medium">{metricValue(stats, 'referrer')}</p></CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" /> 준비도 비율</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold">{stats?.kpis?.readiness_rate ?? 0}%</p></CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><ListChecks className="h-4 w-4" /> 자주 묻는 카테고리</CardTitle></CardHeader>
-          <CardContent><p className="text-sm font-medium">{metricValue(stats, 'category')}</p></CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Globe2 className="h-4 w-4" /> 차단 응답 비율</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold">{stats?.kpis?.blocked_rate ?? 0}%</p></CardContent>
         </Card>
       </div>
 
       {error ? <p className="text-sm text-rose-500">{error}</p> : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>핵심 퍼널 (입력 → 프로필 → 5질문 → 제안메일)</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {stats?.funnel_steps?.length ? (
+              stats.funnel_steps.map((step) => (
+                <div key={step.key} className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">{step.label}</span>
+                  <span className="font-semibold text-slate-900">
+                    {step.value}
+                    {typeof step.conversion_from_prev === 'number' ? ` · ${step.conversion_from_prev}%` : ''}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">아직 퍼널 이벤트 데이터가 없습니다.</p>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader><CardTitle>일별 방문</CardTitle></CardHeader>
           <CardContent className="space-y-2">
@@ -159,6 +178,14 @@ export function DashboardPage() {
             ) : (
               <p className="text-sm text-slate-500">아직 데이터가 없습니다.</p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>요약 인사이트</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <p><span className="text-slate-500">주요 Ref</span> · <span className="font-semibold">{metricValue(stats, 'ref')}</span></p>
+            <p><span className="text-slate-500">주요 카테고리</span> · <span className="font-semibold">{metricValue(stats, 'category')}</span></p>
           </CardContent>
         </Card>
       </div>

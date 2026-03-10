@@ -62,6 +62,20 @@ class ConversationRecord(BaseModel):
     timestamp: Optional[datetime] = None
 
 
+class FunnelStepStat(BaseModel):
+    key: str
+    label: str
+    value: int
+    conversion_from_prev: Optional[float] = None
+
+
+class DashboardKpis(BaseModel):
+    total_sessions: int = 0
+    avg_questions_per_session: float = 0.0
+    blocked_rate: float = 0.0
+    readiness_rate: float = 0.0
+
+
 class DashboardStats(BaseModel):
     ref_stats: List[StatPoint]
     referrer_stats: List[StatPoint]
@@ -69,5 +83,13 @@ class DashboardStats(BaseModel):
     daily_visits: List[StatPoint]
     latest_visitors: List[VisitorRecord]
     recent_questions: List[ConversationRecord]
+    funnel_steps: List[FunnelStepStat] = Field(default_factory=list)
+    kpis: DashboardKpis = Field(default_factory=DashboardKpis)
+
+
+class FunnelEventCreate(BaseModel):
+    session_id: str = Field(..., min_length=8)
+    event: str = Field(..., min_length=2)
+    properties: dict = Field(default_factory=dict)
 
 

@@ -261,12 +261,38 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 21,
+      "title": "전문 대시보드 업그레이드 + 핵심 퍼널(입력>프로필>5질문>제안메일) 구축",
+      "description": "기존 관리자 대시보드에 KPI/퍼널/운영지표를 추가하고, 사용자 플로우 이벤트를 서버 수집 기반으로 연결한다.",
+      "details": "backend funnel event endpoint 추가, dashboard stats 확장, frontend DashboardPage 시각화 반영, PersonaChatV2 이벤트 트래킹 연동 | 완료: backend /events/funnel 수집 추가, dashboard KPI+funnel API 확장, frontend 대시보드 퍼널/전문 KPI 카드 반영, persona 퍼널 이벤트(입력/프로필/5질문/제안메일) 연동.",
+      "testStrategy": "실서비스/로컬에서 단계 이벤트 기록 후 /dashboard/stats의 funnel 값 반영 및 UI 카드 확인",
+      "priority": "high",
+      "dependencies": [
+        "20"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 22,
+      "title": "대시보드 v1 코호트/실험 탭 설계 착수",
+      "description": "MVP 퍼널 이후 코호트/실험 분석 탭 기획 및 스키마 확장",
+      "details": "A/B 승자판정/코호트 리텐션 지표 추가를 위한 요구사항 정리",
+      "testStrategy": "기획 문서와 API 스펙 초안 리뷰 완료",
+      "priority": "medium",
+      "dependencies": [
+        "21"
+      ],
+      "status": "pending",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T08:57:14.694797Z",
-    "taskCount": 20,
-    "completedCount": 18
+    "lastModified": "2026-03-10T09:07:54.093800Z",
+    "taskCount": 22,
+    "completedCount": 19
   }
 }

@@ -107,3 +107,18 @@ export async function getConversationLogs(
   });
 }
 
+export async function trackFunnelEvent(payload: {
+  sessionId: string;
+  event: string;
+  properties?: Record<string, unknown>;
+}): Promise<void> {
+  await request<{ ok: boolean }>(`/events/funnel`, {
+    method: 'POST',
+    body: JSON.stringify({
+      session_id: payload.sessionId,
+      event: payload.event,
+      properties: payload.properties ?? {},
+    }),
+  });
+}
+
