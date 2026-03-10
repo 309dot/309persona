@@ -24,9 +24,8 @@ def test_internal_artifact_detection() -> None:
 
 def test_markdown_enforcement() -> None:
     raw = "디자인 시스템 경험이 있습니다"
-    md = ensure_markdown_answer(raw)
-    assert "## 요약" in md
-    assert "## 핵심 포인트" in md
+    normalized = ensure_markdown_answer(raw)
+    assert normalized == raw
 
 
 def test_fallback_shape() -> None:
@@ -43,10 +42,9 @@ def test_fallback_shape() -> None:
         },
     ]
     answer = build_rag_fallback_answer("디자인 시스템 구축 경험 알려줘", chunks)
-    assert "## 요약" in answer
-    assert "## 근거 사례" in answer
-    assert "## 결과" in answer
     assert "Resume Context" not in answer
+    assert "페이히어" in answer or "디자인 시스템" in answer
+    assert len(answer) > 120
 
 
 def test_quality_gate() -> None:

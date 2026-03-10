@@ -20,26 +20,12 @@ def contains_internal_artifact(text: str) -> bool:
 
 def ensure_markdown_answer(answer: str) -> str:
     text = (answer or "").strip()
-    if not text:
-        return text
-    if "## " in text or text.startswith("- "):
-        return text
-    return (
-        "## 요약\n"
-        f"{text}\n\n"
-        "## 핵심 포인트\n"
-        "- 질문 의도와 직접 연결된 사례를 중심으로 답했어요.\n"
-        "- 필요하면 다음 답변에서 수치/성과 중심으로 더 깊게 풀어줄 수 있어요."
-    )
+    return text
 
 
 def passes_quality_gate(answer: str) -> bool:
     text = (answer or "").strip()
-    if len(text) < 380:
-        return False
-    if "## " not in text:
-        return False
-    if text.count("- ") < 2:
+    if len(text) < 280:
         return False
     if contains_internal_artifact(text):
         return False

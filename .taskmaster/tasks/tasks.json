@@ -378,12 +378,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 30,
+      "title": "답변 스타일 자연화(작위적 리스트 포맷 완화)",
+      "description": "강제 마크다운/리스트 중심 출력에서 문단형 서술 중심으로 품질 정책을 전환",
+      "details": "answer_quality gate 완화, rag_fallback 문단형 응답으로 재작성, retry 지시문에서 리스트 강제 제거",
+      "testStrategy": "answer_quality_smoke_test 통과 및 내부 아티팩트 미노출 확인",
+      "priority": "high",
+      "dependencies": [
+        "29"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T12:03:18.244958Z",
-    "taskCount": 29,
-    "completedCount": 26
+    "lastModified": "2026-03-10T12:14:11.632015Z",
+    "taskCount": 30,
+    "completedCount": 27
   }
 }
