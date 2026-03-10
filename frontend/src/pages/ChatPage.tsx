@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
@@ -121,7 +121,7 @@ export function ChatPage() {
     }
   }, [location, navigate]);
 
-  const handleAsk = async (questionOverride?: string) => {
+  const handleAsk = useCallback(async (questionOverride?: string) => {
     if (!session) {
       setShowVisitorModal(true);
       return;
@@ -158,7 +158,7 @@ export function ChatPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [appendMessage, input, session]);
 
   useEffect(() => {
     if (session && incomingQuestion) {
@@ -166,7 +166,7 @@ export function ChatPage() {
       setIncomingQuestion(null);
       setInput('');
     }
-  }, [session, incomingQuestion]);
+  }, [session, incomingQuestion, handleAsk]);
 
   useEffect(() => {
     const lastAgentMessage = [...messages].reverse().find((message) => message.role === 'agent');

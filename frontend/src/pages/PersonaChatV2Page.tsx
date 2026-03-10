@@ -631,7 +631,7 @@ export function PersonaChatV2Page() {
     return () => {
       cancelled = true;
     };
-  }, [session, firestore]);
+  }, [session]);
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
