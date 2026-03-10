@@ -272,7 +272,14 @@ def _contains_internal_artifact(text: str) -> bool:
 
 def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     if not rag_chunks:
-        return "질문 의도는 이해했지만 현재 지식베이스 근거가 부족해요. 프로젝트명이나 상황을 조금만 더 주시면 정확도를 높여서 답할게요."
+        return (
+            "## 요약\n"
+            "질문 의도는 이해했지만 현재 지식베이스 근거가 부족해요.\n\n"
+            "## 확인이 필요한 정보\n"
+            "- 프로젝트명 또는 도메인\n"
+            "- 궁금한 관점(협업/전략/성과/디자인 시스템)\n"
+            "- 원하는 답변 깊이(짧게/자세히)"
+        )
 
     q = question.lower()
     banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드", "질문 템플릿", "resume context", "rag retrieved context", "problem-action-result", "par)"]
@@ -284,24 +291,60 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
             continue
         cleaned.append(txt)
 
-    evidence_1 = _compact_evidence(cleaned[0]) if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
-    evidence_2 = _compact_evidence(cleaned[1]) if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
+    evidence_1 = _compact_evidence(cleaned[0], 110) if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
+    evidence_2 = _compact_evidence(cleaned[1], 110) if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
 
     if "협업" in q or "커뮤니케이션" in q or "갈등" in q:
         return (
-            f"협업 질문이라면 핵심은 기준을 먼저 맞추는 방식이에요. {evidence_1} 같은 상황에서 저는 우선순위 기준을 합의하고, 역할과 결정을 바로 실행 단위로 나눠 조율했어요. "
-            f"그 결과 해석 차이와 재작업이 줄었고, 결정에서 실행으로 넘어가는 속도가 안정적으로 빨라졌어요. 추가 근거로 {evidence_2}도 같은 패턴을 보여줘요."
+            "## 요약\n"
+            "협업 질문의 핵심은 역할보다 먼저 기준을 맞추는 실행 방식이에요.\n\n"
+            "## 근거 사례\n"
+            f"- 사례 1: {evidence_1}\n"
+            f"- 사례 2: {evidence_2}\n"
+            "- 제가 한 행동: 우선순위 기준을 합의하고, 결정 사항을 실행 단위로 나눠 담당/일정을 즉시 고정했어요.\n\n"
+            "## 결과\n"
+            "- 재작업과 해석 차이를 줄였고\n"
+            "- 결정에서 실행으로 넘어가는 리드타임을 안정적으로 단축했어요."
         )
 
     if "우선순위" in q or "전략" in q or "트레이드오프" in q:
         return (
-            f"우선순위 판단은 사용자 임팩트·비즈니스 효과·구현 복잡도를 같이 보면서 정해요. {evidence_1} 같은 맥락에서 매력적인 부가 기능보다 핵심 흐름을 먼저 고정했고, "
-            f"실행 과정에서 검증 루프를 짧게 가져가 릴리즈 리스크를 줄였어요. 비슷한 접근은 {evidence_2}에서도 반복됐어요."
+            "## 요약\n"
+            "우선순위는 사용자 임팩트, 비즈니스 효과, 구현 복잡도를 함께 보고 결정했어요.\n\n"
+            "## 근거 사례\n"
+            f"- 사례 1: {evidence_1}\n"
+            f"- 사례 2: {evidence_2}\n"
+            "- 제가 한 행동: 핵심 시나리오를 먼저 고정하고 부가 기능은 뒤로 배치해 리스크를 낮췄어요.\n\n"
+            "## 결과\n"
+            "- 출시 지연 가능성을 줄였고\n"
+            "- 품질 저하 없이 실행 속도를 높였어요."
         )
 
     return (
-        f"질문과 가장 맞는 근거는 {evidence_1} 쪽이에요. 이 맥락에서 문제를 구조화하고 우선순위를 재정렬해 실행 흐름을 단순화했어요. "
-        f"또 {evidence_2} 사례에서도 같은 방식으로 결과를 냈고, 공통적으로 속도와 품질을 같이 개선했다는 점이 확인돼요."
+        "## 요약\n"
+        "질문 의도와 가장 가까운 근거를 기준으로, 문제 정의→실행→결과 흐름으로 정리해 답할게요.\n\n"
+        "## 근거 사례\n"
+        f"- 사례 1: {evidence_1}\n"
+        f"- 사례 2: {evidence_2}\n"
+        "- 제가 한 행동: 핵심 흐름을 단순화하고 의사결정 기준을 팀 공통 언어로 맞췄어요.\n\n"
+        "## 결과\n"
+        "- 속도와 품질을 동시에 개선했고\n"
+        "- 변경 대응 시 영향 범위를 더 빠르게 파악할 수 있었어요."
+    )
+
+
+def _ensure_markdown_answer(answer: str) -> str:
+    text = (answer or "").strip()
+    if not text:
+        return text
+    if "## " in text or text.startswith("- "):
+        return text
+    return (
+        "## 요약\n"
+        f"{text}\n\n"
+        "## 핵심 포인트\n"
+        "- 질문 의도와 직접 연결된 사례를 중심으로 답했어요.\n"
+        "- 필요하면 다음 답변에서 수치/성과 중심으로 더 깊게 풀어줄 수 있어요."
     )
 
 
@@ -397,6 +440,7 @@ def generate_persona_answer(
         if retry_text:
             answer = retry_text
 
+    answer = _ensure_markdown_answer(answer)
     citations = [c["source"] for c in rag_chunks][:5]
     return answer, citations
 
