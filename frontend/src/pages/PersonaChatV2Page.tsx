@@ -305,24 +305,7 @@ function MarkdownAnswer({ text }: { text: string }) {
 }
 
 function AnimatedFormattedAnswer({ text }: { text: string }) {
-  const [visible, setVisible] = useState('');
-
-  useEffect(() => {
-    setVisible('');
-    let idx = 0;
-    const timer = setInterval(() => {
-      idx += 6;
-      if (idx >= text.length) {
-        setVisible(text);
-        clearInterval(timer);
-        return;
-      }
-      setVisible(text.slice(0, idx));
-    }, 10);
-    return () => clearInterval(timer);
-  }, [text]);
-
-  return <MarkdownAnswer text={visible} />;
+  return <MarkdownAnswer text={text} />;
 }
 
 function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void }) {

@@ -238,17 +238,40 @@ def force_intent_answer(question: str, category: Optional[str]) -> tuple[str, li
     return answer, citations
 
 
+def _sanitize_evidence_text(text: str) -> str:
+    t = (text or "").replace("\n", " ").strip()
+    t = re.sub(r"#+\s*\d+\.?\s*", "", t)
+    t = re.sub(r"#+\s*", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _contains_internal_artifact(text: str) -> bool:
+    low = (text or "").lower()
+    bad_markers = [
+        "resume context",
+        "rag retrieved context",
+        "질문 템플릿",
+        "답변 규칙",
+        "적용 규칙",
+        "행동 모드",
+        "## 8.",
+        "## 5.",
+    ]
+    return any(m in low for m in bad_markers)
+
+
 def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     if not rag_chunks:
         return "질문 의도는 이해했지만 현재 지식베이스 근거가 부족해요. 프로젝트명이나 상황을 조금만 더 주시면 정확도를 높여서 답할게요."
 
     q = question.lower()
-    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드", "질문 템플릿"]
+    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드", "질문 템플릿", "resume context", "rag retrieved context", "problem-action-result", "par)"]
     cleaned = []
     for c in rag_chunks:
-        txt = (c.get("text") or "").replace("\n", " ").strip()
+        txt = _sanitize_evidence_text(c.get("text") or "")
         low = txt.lower()
-        if not txt or any(b in low for b in banned):
+        if not txt or any(b in low for b in banned) or _contains_internal_artifact(txt):
             continue
         cleaned.append(txt)
 
@@ -344,7 +367,7 @@ def generate_persona_answer(
         answer = _build_rag_fallback_answer(question, rag_chunks)
 
     bad_phrases = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 AI"]
-    if any(p in answer for p in bad_phrases):
+    if any(p in answer for p in bad_phrases) or _contains_internal_artifact(answer):
         answer = _build_rag_fallback_answer(question, rag_chunks)
 
     repetitive_phrases = [
