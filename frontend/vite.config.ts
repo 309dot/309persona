@@ -11,4 +11,23 @@ export default defineConfig({
       '@assets': path.resolve(__dirname, './src/assets'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('react-markdown') || id.includes('remark-gfm') || id.includes('unified')) {
+            return 'markdown-vendor';
+          }
+          if (id.includes('firebase')) {
+            return 'firebase-vendor';
+          }
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+            return 'react-vendor';
+          }
+          return 'vendor';
+        },
+      },
+    },
+  },
 });

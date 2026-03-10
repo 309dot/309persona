@@ -365,12 +365,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 29,
+      "title": "Phase 3-2: Rollup manualChunks로 vendor 분리 최적화",
+      "description": "Vite manualChunks 설정으로 react/firebase/markdown 의존성을 분리해 번들 경고를 해소한다.",
+      "details": "vite.config.ts build.rollupOptions.output.manualChunks 추가, bundle warning 제거 확인",
+      "testStrategy": "npm run build 시 500KB chunk warning 미발생 확인",
+      "priority": "medium",
+      "dependencies": [
+        "28"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T12:00:45.357470Z",
-    "taskCount": 28,
-    "completedCount": 25
+    "lastModified": "2026-03-10T12:03:18.244958Z",
+    "taskCount": 29,
+    "completedCount": 26
   }
 }
