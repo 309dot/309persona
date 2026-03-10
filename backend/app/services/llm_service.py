@@ -389,6 +389,9 @@ def generate_persona_answer(
     if settings.use_openclaw_agent:
         try:
             answer = _complete_with_openclaw_agent(system_prompt, user_payload)
+            if not answer or _contains_internal_artifact(answer) or _is_low_quality_answer(answer):
+                answer = _build_rag_fallback_answer(question, rag_chunks)
+            answer = _ensure_markdown_answer(answer)
             citations = [c["source"] for c in rag_chunks][:5]
             return answer, citations
         except Exception:
