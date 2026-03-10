@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type { SessionInfo } from '../types/api';
@@ -14,18 +14,17 @@ const STORAGE_KEY = 'interview-agent-session';
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSessionState] = useState<SessionInfo | null>(null);
-
-  useEffect(() => {
+  const [session, setSessionState] = useState<SessionInfo | null>(() => {
     const cached = localStorage.getItem(STORAGE_KEY);
     if (cached) {
       try {
-        setSessionState(JSON.parse(cached));
+        return JSON.parse(cached);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-  }, []);
+    return null;
+  });
 
   const setSession = (next: SessionInfo) => {
     setSessionState(next);
@@ -49,6 +48,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSessionContext() {
   const ctx = useContext(SessionContext);
   if (!ctx) {

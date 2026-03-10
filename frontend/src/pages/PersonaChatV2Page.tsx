@@ -56,61 +56,17 @@ type PersonaThread = {
 
 function TypingText({
   text,
-  speed = 55,
   onComplete,
 }: {
   text: string;
   speed?: number;
   onComplete?: () => void;
 }) {
-  const [visible, setVisible] = useState('');
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const completedRef = useRef(false);
-  const latestCompleteRef = useRef(onComplete);
-
   useEffect(() => {
-    latestCompleteRef.current = onComplete;
+    onComplete?.();
   }, [onComplete]);
 
-  useEffect(() => {
-    setVisible('');
-    completedRef.current = false;
-    let index = 0;
-
-    const clearExisting = () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-
-    const step = () => {
-      index += 1;
-      setVisible(text.slice(0, index));
-      if (index < text.length) {
-        timeoutRef.current = setTimeout(step, speed);
-      } else if (!completedRef.current) {
-        completedRef.current = true;
-        latestCompleteRef.current?.();
-      }
-    };
-
-    if (text.length === 0) {
-      latestCompleteRef.current?.();
-      return clearExisting;
-    }
-
-    timeoutRef.current = setTimeout(step, speed);
-
-    return clearExisting;
-  }, [text, speed]);
-
-  return (
-    <span className="inline-block">
-      {visible}
-      {visible.length < text.length ? <span className="ml-[1px] inline-block animate-pulse">|</span> : null}
-    </span>
-  );
+  return <span className="inline-block">{text}</span>;
 }
 
 function BrandBadge() {
@@ -392,13 +348,6 @@ function VisitorInfoModal({
   const [localName, setLocalName] = useState(name);
   const [localAffiliation, setLocalAffiliation] = useState(affiliation);
 
-  useEffect(() => {
-    if (open) {
-      setLocalName(name);
-      setLocalAffiliation(affiliation);
-    }
-  }, [open, name, affiliation]);
-
   if (!open) return null;
 
   return (
@@ -476,13 +425,6 @@ function CompletionModal({
 }) {
   const [localName, setLocalName] = useState(name);
   const [localAffiliation, setLocalAffiliation] = useState(affiliation);
-
-  useEffect(() => {
-    if (open) {
-      setLocalName(name);
-      setLocalAffiliation(affiliation);
-    }
-  }, [open, name, affiliation]);
 
   if (!open) return null;
 
@@ -1148,6 +1090,7 @@ export function PersonaChatV2Page() {
       <HeroInfoModal open={showHeroInfoModal} onClose={() => setShowHeroInfoModal(false)} />
       <ConsentModal open={showConsentModal} onClose={() => setShowConsentModal(false)} />
       <VisitorInfoModal
+        key={`visitor-${showVisitorInfoModal ? 'open' : 'closed'}-${visitorName}-${visitorAffiliation}`}
         open={showVisitorInfoModal}
         name={visitorName}
         affiliation={visitorAffiliation}
@@ -1155,6 +1098,7 @@ export function PersonaChatV2Page() {
         onSave={handleVisitorSave}
       />
       <CompletionModal
+        key={`completion-${showCompletionModal ? 'open' : 'closed'}-${visitorName}-${visitorAffiliation}`}
         open={showCompletionModal}
         name={visitorName}
         affiliation={visitorAffiliation}

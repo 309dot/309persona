@@ -344,19 +344,19 @@
       "id": 27,
       "title": "Refactor Phase 2: PersonaChatV2Page 컴포넌트/훅 분리 + lint 에러 해소",
       "description": "1169라인 단일 페이지를 분해하고 react-hooks lint 에러를 제거한다.",
-      "details": "Input/Thread/Modal/Funnel 로직 분리, set-state-in-effect 위반 제거",
+      "details": "Input/Thread/Modal/Funnel 로직 분리, set-state-in-effect 위반 제거 | lint 개선 1차: set-state-in-effect 에러 제거(0 errors, 2 warnings). EntryPage/SessionContext/useChatHistory/PersonaChatV2Page 상태 동기화 로직 정리.",
       "testStrategy": "npm run lint 에러 0, 핵심 사용자 플로우(질문/모달/퍼널) 수동 검증",
       "priority": "high",
       "dependencies": [
         "26"
       ],
-      "status": "pending",
+      "status": "in-progress",
       "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T11:41:26.221155Z",
+    "lastModified": "2026-03-10T11:50:08.066451Z",
     "taskCount": 27,
     "completedCount": 23
   }

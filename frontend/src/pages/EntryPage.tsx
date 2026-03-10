@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Button } from '../components/Button';
@@ -16,28 +16,23 @@ export function EntryPage() {
   const [searchParams] = useSearchParams();
   const defaultRef = searchParams.get('ref') ?? 'direct';
   const { session, setSession } = useSessionContext();
-  const [showVisitorModal, setShowVisitorModal] = useState(!session);
+  const [showVisitorModal, setShowVisitorModal] = useState(() => !session);
   const [heroIntent, setHeroIntent] = useState('');
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
-  const [questionHistory, setQuestionHistory] = useState<string[]>([]);
-
-  useEffect(() => {
-    setShowVisitorModal(!session);
-  }, [session]);
-
-  useEffect(() => {
+  const [questionHistory, setQuestionHistory] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(QUESTION_HISTORY_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          setQuestionHistory(parsed);
+          return parsed;
         }
       }
     } catch {
       // ignore
     }
-  }, []);
+    return [];
+  });
 
   const displayName = useMemo(() => {
     return formatVisitorName(session?.visitorName);
@@ -82,13 +77,6 @@ export function EntryPage() {
     }
     startChat(trimmed);
   };
-
-  useEffect(() => {
-    if (session && pendingQuestion) {
-      startChat(pendingQuestion);
-      setPendingQuestion(null);
-    }
-  }, [session, pendingQuestion, startChat]);
 
   const handleSuggestion = (template: string) => {
     setHeroIntent(template);
@@ -194,6 +182,10 @@ export function EntryPage() {
         onSuccess={(visitorSession) => {
           setSession(visitorSession);
           setShowVisitorModal(false);
+          if (pendingQuestion) {
+            startChat(pendingQuestion);
+            setPendingQuestion(null);
+          }
         }}
       />
       </div>
