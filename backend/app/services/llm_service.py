@@ -14,6 +14,7 @@ from ..core.config import settings
 from .answer_quality import (
     contains_internal_artifact,
     ensure_markdown_answer,
+    evaluate_answer,
     is_low_quality_answer,
     passes_quality_gate,
 )
@@ -260,6 +261,19 @@ def generate_persona_answer(
             answer = retry_text
 
     answer = ensure_markdown_answer(answer)
+
+    eval_score, eval_issues = evaluate_answer(answer)
+    if eval_score < 75:
+        retry_payload = user_payload + (
+            "\n\n추가 지시(품질 보정):\n"
+            f"- 현재 문제: {', '.join(eval_issues) if eval_issues else 'quality_drop'}\n"
+            "- 반복 도입 문장을 바꾸고, 리스트보다 문단형 설명을 우선\n"
+            "- 같은 의미의 문장을 앞뒤로 반복하지 말 것"
+        )
+        retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
+        retry_text = (retry.choices[0].message.content or "").strip()
+        if retry_text:
+            answer = ensure_markdown_answer(retry_text)
 
     if not passes_quality_gate(answer):
         retry_payload = user_payload + (

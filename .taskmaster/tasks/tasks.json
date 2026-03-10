@@ -443,12 +443,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 35,
+      "title": "답변 evaluator 레이어 추가(반복/작위 포맷 자동 감점 재작성)",
+      "description": "응답 직전 품질 점수화로 반복 도입문/리스트 과잉/내부 아티팩트를 감지하고 재생성한다.",
+      "details": "answer_quality.evaluate_answer 도입, llm_service에 eval score<75 재시도 경로 추가, smoke test 갱신",
+      "testStrategy": "answer_quality_smoke_test PASS 및 evaluator가 low score를 반환하는 케이스 검증",
+      "priority": "high",
+      "dependencies": [
+        "34"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T13:36:47.321279Z",
-    "taskCount": 34,
-    "completedCount": 31
+    "lastModified": "2026-03-10T13:42:32.788047Z",
+    "taskCount": 35,
+    "completedCount": 32
   }
 }

@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services.answer_quality import (
     contains_internal_artifact,
     ensure_markdown_answer,
+    evaluate_answer,
     passes_quality_gate,
 )
 from app.services.rag_fallback import build_rag_fallback_answer
@@ -71,11 +72,19 @@ def test_quality_gate() -> None:
     assert passes_quality_gate(good) is True
 
 
+def test_evaluator() -> None:
+    bad = "질문 의도에 가장 가까운 답변입니다. 질문 의도에 가장 가까운 답변입니다. - a - b - c - d - e"
+    score, issues = evaluate_answer(bad)
+    assert score < 75
+    assert issues
+
+
 def main() -> None:
     test_internal_artifact_detection()
     test_markdown_enforcement()
     test_fallback_shape()
     test_quality_gate()
+    test_evaluator()
     print("answer_quality_smoke_test: PASS")
 
 

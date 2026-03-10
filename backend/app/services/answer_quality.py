@@ -32,6 +32,36 @@ def passes_quality_gate(answer: str) -> bool:
     return True
 
 
+def evaluate_answer(answer: str) -> tuple[int, list[str]]:
+    text = (answer or "").strip()
+    score = 100
+    issues: list[str] = []
+
+    if len(text) < 260:
+        score -= 25
+        issues.append("too_short")
+
+    repetitive_openers = [
+        "질문 의도에 가장 가까운",
+        "핵심은 모호한 요구를",
+        "핵심만 말하면",
+    ]
+    opener_hits = sum(1 for p in repetitive_openers if p in text)
+    if opener_hits >= 2:
+        score -= 20
+        issues.append("repetitive_openers")
+
+    if text.count("- ") >= 5:
+        score -= 15
+        issues.append("list_heavy")
+
+    if contains_internal_artifact(text):
+        score -= 40
+        issues.append("internal_artifact")
+
+    return max(score, 0), issues
+
+
 def is_low_quality_answer(answer: str) -> bool:
     if not answer:
         return True
