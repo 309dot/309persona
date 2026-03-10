@@ -5,9 +5,11 @@ import re
 
 def sanitize_evidence_text(text: str) -> str:
     t = (text or "").replace("\n", " ").strip()
+    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
     t = re.sub(r"#+\s*\d+\.?\s*", "", t)
     t = re.sub(r"#+\s*", "", t)
     t = re.sub(r"[•·]+", " ", t)
+    t = re.sub(r"[“”\"']", "", t)
     t = re.sub(r"\s+", " ", t).strip()
     return t
 

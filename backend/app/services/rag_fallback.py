@@ -47,7 +47,8 @@ def build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     banned = [
         "존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai",
         "적용 규칙", "행동 모드", "질문 템플릿", "resume context", "rag retrieved context", "problem-action-result", "par)",
-        "프로젝트 설명 템플릿", "형식:", "구조:", "1)", "2)", "3)", "4)", "5)",
+        "프로젝트 설명 템플릿", "협업 문화 질문 대응 템플릿", "핵심 메시지:", "action", "problem", "result",
+        "형식:", "구조:", "1)", "2)", "3)", "4)", "5)",
     ]
     cleaned = []
     for c in rag_chunks:
