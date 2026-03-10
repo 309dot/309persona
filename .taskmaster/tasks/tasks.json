@@ -352,12 +352,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 28,
+      "title": "Phase 3: 프론트 번들 최적화(마크다운/모달 청크 분리)",
+      "description": "무거운 마크다운 렌더러를 동적 로딩해 초기 번들을 줄인다.",
+      "details": "PersonaResponseAndModals 분리 + react-markdown/remark-gfm 동적 import 적용",
+      "testStrategy": "lint/build 통과 및 메인 번들 크기 감소 확인",
+      "priority": "medium",
+      "dependencies": [
+        "27"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T11:56:26.054740Z",
-    "taskCount": 27,
-    "completedCount": 24
+    "lastModified": "2026-03-10T12:00:45.357470Z",
+    "taskCount": 28,
+    "completedCount": 25
   }
 }

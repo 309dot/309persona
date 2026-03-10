@@ -1,30 +1,32 @@
-import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { useEffect, useState } from 'react';
+import type { ReactElement } from 'react';
 
 function MarkdownAnswer({ text }: { text: string }) {
+  const [markdownMod, setMarkdownMod] = useState<unknown>(null);
+  const [remarkGfm, setRemarkGfm] = useState<unknown>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const [md, gfm] = await Promise.all([import('react-markdown'), import('remark-gfm')]);
+      if (cancelled) return;
+      setMarkdownMod(() => md.default);
+      setRemarkGfm(() => gfm.default);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!markdownMod || !remarkGfm) {
+    return <div className="max-w-none whitespace-pre-wrap text-[14px] leading-6 text-[#0F1324]">{text}</div>;
+  }
+
+  const ReactMarkdown = markdownMod as (props: { children: string; remarkPlugins?: unknown[] }) => ReactElement;
   return (
     <div className="max-w-none text-[14px] leading-6 text-[#0F1324]">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          h1: ({ ...props }) => <h1 className="mt-2 mb-2 text-[16px] font-bold" {...props} />,
-          h2: ({ ...props }) => <h2 className="mt-2 mb-2 text-[15px] font-bold" {...props} />,
-          h3: ({ ...props }) => <h3 className="mt-1 mb-1 text-[14px] font-semibold" {...props} />,
-          p: ({ ...props }) => <p className="my-1 text-[14px] leading-6" {...props} />,
-          ul: ({ ...props }) => <ul className="my-1 list-disc pl-5" {...props} />,
-          ol: ({ ...props }) => <ol className="my-1 list-decimal pl-5" {...props} />,
-          li: ({ ...props }) => <li className="my-0.5" {...props} />,
-          a: ({ ...props }) => <a className="text-[#0B98FF] underline" {...props} />,
-          code: ({ ...props }) => <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]" {...props} />,
-          pre: ({ ...props }) => <pre className="overflow-x-auto rounded-lg bg-slate-100 p-3 text-[12px]" {...props} />,
-          table: ({ ...props }) => <table className="my-2 w-full border-collapse text-[12px]" {...props} />,
-          th: ({ ...props }) => <th className="border border-slate-200 bg-slate-50 px-2 py-1 text-left" {...props} />,
-          td: ({ ...props }) => <td className="border border-slate-200 px-2 py-1" {...props} />,
-        }}
-      >
-        {text}
-      </ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 }
