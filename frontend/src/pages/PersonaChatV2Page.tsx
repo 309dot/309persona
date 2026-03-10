@@ -216,6 +216,7 @@ function InputPanel({
   onEditVisitor,
   onInputFocus,
   showIdentityEdit,
+  maxReached,
 }: {
   name: string;
   question: string;
@@ -226,8 +227,9 @@ function InputPanel({
   onEditVisitor: () => void;
   onInputFocus: () => void;
   showIdentityEdit: boolean;
+  maxReached: boolean;
 }) {
-  const disabled = !question.trim() || loading;
+  const disabled = !question.trim() || loading || maxReached;
 
   return (
     <div className="animate-slide-up w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_12px_30px_rgba(15,19,36,0.14)]">
@@ -235,8 +237,9 @@ function InputPanel({
         <input
           value={question}
           onChange={(e) => onQuestionChange(e.target.value)}
-          placeholder={INPUT_PLACEHOLDER}
-          className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none"
+          placeholder={maxReached ? '질문 5회가 완료되었습니다' : INPUT_PLACEHOLDER}
+          disabled={maxReached}
+          className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none disabled:cursor-not-allowed disabled:text-slate-400"
           onFocus={onInputFocus}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
@@ -276,8 +279,27 @@ function InputPanel({
 
 function MarkdownAnswer({ text }: { text: string }) {
   return (
-    <div className="prose prose-sm max-w-none prose-headings:text-[#0F1324] prose-p:text-[#0F1324] prose-li:text-[#0F1324] prose-strong:text-[#0F1324] prose-a:text-[#0B98FF]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    <div className="max-w-none text-[14px] leading-6 text-[#0F1324]">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ ...props }) => <h1 className="mt-2 mb-2 text-[16px] font-bold" {...props} />,
+          h2: ({ ...props }) => <h2 className="mt-2 mb-2 text-[15px] font-bold" {...props} />,
+          h3: ({ ...props }) => <h3 className="mt-1 mb-1 text-[14px] font-semibold" {...props} />,
+          p: ({ ...props }) => <p className="my-1 text-[14px] leading-6" {...props} />,
+          ul: ({ ...props }) => <ul className="my-1 list-disc pl-5" {...props} />,
+          ol: ({ ...props }) => <ol className="my-1 list-decimal pl-5" {...props} />,
+          li: ({ ...props }) => <li className="my-0.5" {...props} />,
+          a: ({ ...props }) => <a className="text-[#0B98FF] underline" {...props} />,
+          code: ({ ...props }) => <code className="rounded bg-slate-100 px-1 py-0.5 text-[12px]" {...props} />,
+          pre: ({ ...props }) => <pre className="overflow-x-auto rounded-lg bg-slate-100 p-3 text-[12px]" {...props} />,
+          table: ({ ...props }) => <table className="my-2 w-full border-collapse text-[12px]" {...props} />,
+          th: ({ ...props }) => <th className="border border-slate-200 bg-slate-50 px-2 py-1 text-left" {...props} />,
+          td: ({ ...props }) => <td className="border border-slate-200 px-2 py-1" {...props} />,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -456,6 +478,79 @@ function VisitorInfoModal({
   );
 }
 
+function CompletionModal({
+  open,
+  name,
+  affiliation,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  name: string;
+  affiliation: string;
+  onClose: () => void;
+  onSave: (name: string, affiliation: string) => void;
+}) {
+  const [localName, setLocalName] = useState(name);
+  const [localAffiliation, setLocalAffiliation] = useState(affiliation);
+
+  useEffect(() => {
+    if (open) {
+      setLocalName(name);
+      setLocalAffiliation(affiliation);
+    }
+  }, [open, name, affiliation]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/60 px-4">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave(localName.trim(), localAffiliation.trim());
+          onClose();
+        }}
+        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-[0_18px_45px_rgba(15,19,36,0.25)]"
+      >
+        <p className="text-sm font-semibold text-slate-500">5개 질문 완료</p>
+        <h3 className="text-2xl font-bold text-[#0F1324]">마지막으로 프로필과 제안 정보를 남겨주세요</h3>
+        <p className="mt-1 text-sm text-slate-500">이름/소속을 입력하고, 필요하면 바로 제안 메일을 보낼 수 있어요.</p>
+
+        <div className="mt-4 space-y-4">
+          <input
+            value={localName}
+            onChange={(event) => setLocalName(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+            placeholder="이름 또는 이니셜"
+          />
+          <input
+            value={localAffiliation}
+            onChange={(event) => setLocalAffiliation(event.target.value)}
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+            placeholder="회사 / 팀"
+          />
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = 'mailto:hello@309designlab.com?subject=309%20Interview%20Agent%20Inquiry';
+            }}
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+          >
+            나에게 제안하기
+          </button>
+          <button type="submit" className="rounded-full bg-[#0F1324] px-5 py-2 text-sm font-semibold text-white">
+            저장하고 닫기
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function PersonaChatV2Page() {
   const [visitorName, setVisitorName] = useState('채용 담당자');
   const [visitorAffiliation, setVisitorAffiliation] = useState('');
@@ -473,6 +568,7 @@ export function PersonaChatV2Page() {
   const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const [showProfileNudge, setShowProfileNudge] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const landingTrackedRef = useRef(false);
@@ -758,6 +854,10 @@ export function PersonaChatV2Page() {
   const handleSubmit = async (source: 'manual' | 'quick' = 'manual', questionOverride?: string) => {
     const trimmed = (questionOverride ?? question).trim();
     if (!trimmed) return;
+    if (usedCount >= TOTAL_QUESTIONS) {
+      setShowCompletionModal(true);
+      return;
+    }
     if (!session) {
       alert('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
       return;
@@ -791,6 +891,7 @@ export function PersonaChatV2Page() {
     }
     if (nextUsedCount === TOTAL_QUESTIONS) {
       void trackFunnelEvent('five_questions_reached', { usedCount: nextUsedCount });
+      setShowCompletionModal(true);
     }
 
     try {
@@ -849,6 +950,10 @@ export function PersonaChatV2Page() {
   };
 
   const handleQuickQuestion = (value: string) => {
+    if (usedCount >= TOTAL_QUESTIONS) {
+      setShowCompletionModal(true);
+      return;
+    }
     setQuickQuestionConsumed(true);
     setQuestion(value);
     void trackFunnelEvent('quick_question_clicked', { value });
@@ -1050,6 +1155,7 @@ export function PersonaChatV2Page() {
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
                 onInputFocus={handleInputFocus}
                 showIdentityEdit={showIdentityEdit}
+                maxReached={usedCount >= TOTAL_QUESTIONS}
               />
 
             </div>
@@ -1063,6 +1169,13 @@ export function PersonaChatV2Page() {
         name={visitorName}
         affiliation={visitorAffiliation}
         onClose={() => setShowVisitorInfoModal(false)}
+        onSave={handleVisitorSave}
+      />
+      <CompletionModal
+        open={showCompletionModal}
+        name={visitorName}
+        affiliation={visitorAffiliation}
+        onClose={() => setShowCompletionModal(false)}
         onSave={handleVisitorSave}
       />
     </div>
