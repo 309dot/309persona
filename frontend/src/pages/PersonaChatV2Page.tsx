@@ -22,9 +22,11 @@ const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
 const INPUT_PLACEHOLDER = '예: 309가 프로젝트 우선순위를 정하는 기준은?';
 const QUICK_QUESTIONS = [
-  '309가 최근 프로젝트에서 문제를 정의하고 풀어낸 방식은?',
-  '협업할 때 309가 중요하게 보는 기준은 무엇인가요?',
-  '309를 채용할 때 기대할 수 있는 강점 3가지는?',
+  '최근 2년 안에 가장 임팩트 컸던 프로젝트 2개만 핵심으로 설명해줘',
+  '디자인 시스템 구축에서 실제로 성과를 낸 방식과 수치를 알려줘',
+  '협업 갈등이 생겼을 때 309가 조율한 실제 사례를 말해줘',
+  '우선순위가 충돌할 때 어떤 기준으로 결정했는지 예시로 설명해줘',
+  '채용 관점에서 리스크와 강점을 균형 있게 평가해줘',
 ];
 const TOTAL_QUESTIONS = 5;
 const PORTFOLIO_URL =
@@ -427,22 +429,6 @@ function AnimatedFormattedAnswer({ text }: { text: string }) {
   }, [text]);
 
   return <FormattedAnswer text={visible} />;
-}
-
-function PersonaLegalNotice({ onOpen }: { onOpen: () => void }) {
-  return (
-    <p className="mt-4 text-center text-[11px] font-medium text-[#0F1324] opacity-60">
-      채팅을 시작하게 되는 경우{' '}
-      <button
-        type="button"
-        onClick={onOpen}
-        className="underline decoration-dotted underline-offset-4 hover:opacity-100"
-      >
-        개인정보 이용 동의 약관
-      </button>
-      에 동의로 간주됩니다.
-    </p>
-  );
 }
 
 function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -1122,11 +1108,11 @@ export function PersonaChatV2Page() {
           ) : null}
 
           {showLoadingBubble && loading ? (
-            <div className="sticky bottom-28 z-10 flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+            <div className="mt-2 flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[13px] font-medium text-slate-500 shadow-sm backdrop-blur">
+              <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[13px] font-medium text-slate-500 backdrop-blur">
                 <span>답변을 정리하고 있어요</span>
                 <span className="flex gap-1">
                   <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '0ms' }} />
@@ -1193,7 +1179,7 @@ export function PersonaChatV2Page() {
                 onInputFocus={handleInputFocus}
                 showIdentityEdit={showIdentityEdit}
               />
-              <PersonaLegalNotice onOpen={() => setShowConsentModal(true)} />
+
             </div>
           </div>
         </div>
