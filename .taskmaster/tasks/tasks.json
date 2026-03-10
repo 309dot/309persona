@@ -300,12 +300,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 24,
+      "title": "질문 로그 기반 alias 자동 보강 1차",
+      "description": "최근 질문 로그에서 미매핑 표현을 추출해 topic alias를 보강한다.",
+      "details": "conversations 33건 분석, career_summary topic 추가 및 project_experience/career alias 확장, 분석 문서 작성",
+      "testStrategy": "샘플 문장(자기소개/경력요약/최근프로젝트) topic 매핑 확인",
+      "priority": "medium",
+      "dependencies": [
+        "23"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T09:27:56.287874Z",
-    "taskCount": 23,
-    "completedCount": 20
+    "lastModified": "2026-03-10T09:30:06.648708Z",
+    "taskCount": 24,
+    "completedCount": 21
   }
 }

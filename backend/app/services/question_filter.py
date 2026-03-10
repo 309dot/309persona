@@ -43,6 +43,7 @@ TOPIC_TO_CATEGORY = {
     "collaboration": "collaboration",
     "prioritization": "decision",
     "project_experience": "projects",
+    "career_summary": "career",
 }
 
 
