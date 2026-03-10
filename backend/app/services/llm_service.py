@@ -246,6 +246,7 @@ def generate_persona_answer(
     if not passes_quality_gate(answer):
         retry_payload = user_payload + (
             "\n\n추가 지시(필수):\n"
+            "- 이전 답변 도입 문장을 반복하지 말 것(문장 재사용 금지)\n"
             "- 리스트를 남발하지 말고, 자연스러운 문단형 설명을 우선\n"
             "- 질문 맥락을 첫 2문장 안에서 분명히 잡을 것\n"
             "- 근거 사례 2개 이상, 정량 지표 1개 이상 포함\n"
