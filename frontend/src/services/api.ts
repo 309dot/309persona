@@ -107,18 +107,30 @@ export async function getConversationLogs(
   });
 }
 
+let funnelEndpointAvailable = true;
+
 export async function trackFunnelEvent(payload: {
   sessionId: string;
   event: string;
   properties?: Record<string, unknown>;
 }): Promise<void> {
-  await request<{ ok: boolean }>(`/events/funnel`, {
-    method: 'POST',
-    body: JSON.stringify({
-      session_id: payload.sessionId,
-      event: payload.event,
-      properties: payload.properties ?? {},
-    }),
-  });
+  if (!funnelEndpointAvailable) return;
+  try {
+    await request<{ ok: boolean }>(`/events/funnel`, {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: payload.sessionId,
+        event: payload.event,
+        properties: payload.properties ?? {},
+      }),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes('404') || message.includes('Not Found')) {
+      funnelEndpointAvailable = false;
+      return;
+    }
+    throw error;
+  }
 }
 
