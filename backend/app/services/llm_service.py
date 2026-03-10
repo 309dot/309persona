@@ -242,8 +242,16 @@ def _sanitize_evidence_text(text: str) -> str:
     t = (text or "").replace("\n", " ").strip()
     t = re.sub(r"#+\s*\d+\.?\s*", "", t)
     t = re.sub(r"#+\s*", "", t)
+    t = re.sub(r"[•·]+", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
     return t
+
+
+def _compact_evidence(text: str, max_chars: int = 88) -> str:
+    cleaned = _sanitize_evidence_text(text)
+    first_sentence = re.split(r"(?<=[.!?。])\s+", cleaned)[0]
+    compact = (first_sentence or cleaned).strip()
+    return compact[:max_chars].rstrip()
 
 
 def _contains_internal_artifact(text: str) -> bool:
@@ -275,8 +283,8 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
             continue
         cleaned.append(txt)
 
-    evidence_1 = cleaned[0][:140] if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
-    evidence_2 = cleaned[1][:140] if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
+    evidence_1 = _compact_evidence(cleaned[0]) if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
+    evidence_2 = _compact_evidence(cleaned[1]) if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
 
     if "협업" in q or "커뮤니케이션" in q or "갈등" in q:
         return (
