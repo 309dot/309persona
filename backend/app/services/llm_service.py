@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 import json
 from pathlib import Path
+import re
 import subprocess
 from typing import Dict, Optional
 
