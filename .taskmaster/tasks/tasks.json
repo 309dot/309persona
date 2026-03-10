@@ -404,12 +404,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 32,
+      "title": "Working memory 자동 업데이트 루틴 추가",
+      "description": "최근 커밋/현재 목표/열린 이슈를 memory/working/today.md에 갱신하는 스크립트 추가",
+      "details": "backend/scripts/update_working_memory.py 추가 및 today.md 자동 생성 확인",
+      "testStrategy": "스크립트 실행 후 today.md에 recent_changes 섹션과 현재 목표가 반영되는지 확인",
+      "priority": "medium",
+      "dependencies": [
+        "31"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T13:31:12.416643Z",
-    "taskCount": 31,
-    "completedCount": 28
+    "lastModified": "2026-03-10T13:32:13.563387Z",
+    "taskCount": 32,
+    "completedCount": 29
   }
 }
