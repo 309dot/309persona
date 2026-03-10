@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconEdit from '@assets/icons/name-edit.svg';
@@ -51,11 +53,6 @@ type PersonaThread = {
   inferredCaption?: string;
 };
 
-type AnswerBlock =
-  | { type: 'heading'; level: 1 | 2 | 3; text: string }
-  | { type: 'paragraph'; text: string }
-  | { type: 'list'; ordered?: boolean; items: string[] }
-  | { type: 'divider' };
 
 function TypingText({
   text,
@@ -277,135 +274,10 @@ function InputPanel({
   );
 }
 
-function parseAnswerBlocks(text: string): AnswerBlock[] {
-  const lines = text.split('\n');
-  const blocks: AnswerBlock[] = [];
-  let listBuffer: string[] = [];
-  let orderedList = false;
-
-  const flushList = () => {
-    if (listBuffer.length) {
-      blocks.push({ type: 'list', ordered: orderedList, items: listBuffer });
-      listBuffer = [];
-      orderedList = false;
-    }
-  };
-
-  lines.forEach((rawLine) => {
-    const line = rawLine.trim();
-    if (!line) {
-      flushList();
-      return;
-    }
-    if (/^---+$/.test(line)) {
-      flushList();
-      blocks.push({ type: 'divider' });
-      return;
-    }
-    if (line.startsWith('# ')) {
-      flushList();
-      blocks.push({ type: 'heading', level: 1, text: line.replace(/^#\s*/, '') });
-      return;
-    }
-    if (line.startsWith('## ')) {
-      flushList();
-      blocks.push({ type: 'heading', level: 2, text: line.replace(/^##\s*/, '') });
-      return;
-    }
-    if (line.startsWith('### ')) {
-      flushList();
-      blocks.push({ type: 'heading', level: 3, text: line.replace(/^###\s*/, '') });
-      return;
-    }
-    if (line.startsWith('- ')) {
-      if (!listBuffer.length) orderedList = false;
-      listBuffer.push(line.replace(/^-+\s*/, ''));
-      return;
-    }
-    const orderedMatch = line.match(/^\d+\.\s+(.+)$/);
-    if (orderedMatch) {
-      if (!listBuffer.length) orderedList = true;
-      listBuffer.push(orderedMatch[1]);
-      return;
-    }
-
-    flushList();
-    blocks.push({ type: 'paragraph', text: line });
-  });
-
-  flushList();
-  if (!blocks.length) {
-    return [{ type: 'paragraph', text }];
-  }
-  return blocks;
-}
-
-function renderInlineNodes(text: string) {
-  const segments = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
-  return segments.map((segment, index) => {
-    if (segment.startsWith('**') && segment.endsWith('**')) {
-      return (
-        <strong key={`strong-${index}`} className="font-semibold text-[#0F1324]">
-          {segment.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (segment.startsWith('*') && segment.endsWith('*')) {
-      return (
-        <em key={`em-${index}`} className="italic text-[#334155]">
-          {segment.slice(1, -1)}
-        </em>
-      );
-    }
-    return <span key={`text-${index}`}>{segment}</span>;
-  });
-}
-
-function FormattedAnswer({ text }: { text: string }) {
-  const blocks = useMemo(() => parseAnswerBlocks(text), [text]);
+function MarkdownAnswer({ text }: { text: string }) {
   return (
-    <div className="space-y-3 text-[14px] leading-6 text-[#0F1324]">
-      {blocks.map((block, index) => {
-        if (block.type === 'heading') {
-          const classes =
-            block.level === 1
-              ? 'text-[18px] font-extrabold text-[#0F1324]'
-              : block.level === 2
-                ? 'text-[16px] font-bold text-[#0F1324]'
-                : 'text-[15px] font-bold text-[#0F1324]';
-          return (
-            <p key={`heading-${index}`} className={classes}>
-              {renderInlineNodes(block.text)}
-            </p>
-          );
-        }
-        if (block.type === 'list') {
-          if (block.ordered) {
-            return (
-              <ol key={`olist-${index}`} className="list-decimal pl-5 text-[14px] leading-6 text-[#0F1324]">
-                {block.items.map((item, itemIndex) => (
-                  <li key={`olist-item-${index}-${itemIndex}`}>{renderInlineNodes(item)}</li>
-                ))}
-              </ol>
-            );
-          }
-          return (
-            <ul key={`list-${index}`} className="list-disc pl-5 text-[14px] leading-6 text-[#0F1324]">
-              {block.items.map((item, itemIndex) => (
-                <li key={`list-item-${index}-${itemIndex}`}>{renderInlineNodes(item)}</li>
-              ))}
-            </ul>
-          );
-        }
-        if (block.type === 'divider') {
-          return <hr key={`divider-${index}`} className="border-slate-200" />;
-        }
-        return (
-          <p key={`paragraph-${index}`} className="text-[14px] leading-6 text-[#0F1324]">
-            {renderInlineNodes(block.text)}
-          </p>
-        );
-      })}
+    <div className="prose prose-sm max-w-none prose-headings:text-[#0F1324] prose-p:text-[#0F1324] prose-li:text-[#0F1324] prose-strong:text-[#0F1324] prose-a:text-[#0B98FF]">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 }
@@ -428,7 +300,7 @@ function AnimatedFormattedAnswer({ text }: { text: string }) {
     return () => clearInterval(timer);
   }, [text]);
 
-  return <FormattedAnswer text={visible} />;
+  return <MarkdownAnswer text={visible} />;
 }
 
 function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
