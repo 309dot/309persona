@@ -313,12 +313,38 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 25,
+      "title": "309persona 서비스 코드 리뷰 및 리팩토링 계획 수립",
+      "description": "프론트/백엔드 주요 모듈의 복잡도, 품질 리스크, 리팩토링 우선순위를 점검한다.",
+      "details": "lint/build/파일 복잡도 점검, 리스크 분류(P0~P2), 단계별 리팩토링안 문서화",
+      "testStrategy": "리뷰 문서 기준으로 lint 이슈 재현 가능해야 하며 우선순위 액션이 명확해야 함",
+      "priority": "high",
+      "dependencies": [
+        "24"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
+    },
+    {
+      "id": 26,
+      "title": "Refactor Phase 1: llm_service 책임 분리 + 품질 회귀 테스트",
+      "description": "답변 생성/품질게이트/fallback/정제 로직을 분리하고 스냅샷 테스트를 추가한다.",
+      "details": "backend/app/services를 answer_generation, answer_quality, rag_fallback, answer_sanitize로 분할",
+      "testStrategy": "핵심 질문 3종에 대해 내부 아티팩트 노출 없는 마크다운 응답 회귀 테스트 통과",
+      "priority": "high",
+      "dependencies": [
+        "25"
+      ],
+      "status": "pending",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T09:30:06.648708Z",
-    "taskCount": 24,
-    "completedCount": 21
+    "lastModified": "2026-03-10T11:31:17.815881Z",
+    "taskCount": 26,
+    "completedCount": 22
   }
 }
