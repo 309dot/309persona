@@ -55,15 +55,6 @@ def build_user_payload(
         )
     )
     category_text = f"질문 카테고리: {category or 'general'}"
-    q = question.lower()
-    if any(k in q for k in ["협업", "커뮤니케이션", "갈등"]):
-        schema = "## 협업 스타일\n## 구체적 상황\n## 결과와 교훈"
-    elif any(k in q for k in ["우선순위", "전략", "트레이드오프"]):
-        schema = "## 판단 프레임워크\n## 적용 사례\n## 트레이드오프"
-    elif any(k in q for k in ["채용", "강점", "경력"]):
-        schema = "## 핵심 강점\n## 근거 사례\n## 팀에 기대할 수 있는 점"
-    else:
-        schema = "## 맥락\n## 문제 정의 과정\n## 해결과 결과"
 
     return (
         f"{category_text}\n"
@@ -72,10 +63,14 @@ def build_user_payload(
         "작성 규칙:\n"
         "- 이 질문은 309의 경력/프로젝트 범위 내 질문으로 간주하고 답변한다.\n"
         "- 차단 문구(예: '이 서비스는 309의 경력 관련 질문만 응답합니다.')를 그대로 반복하지 않는다.\n"
-        f"- 아래 구조를 사용한다: {schema}\n"
+        "- 고정 템플릿을 강제하지 말고, 질문 의도에 맞게 자연스럽게 구성한다.\n"
+        "- 사례 선택은 최신순 단독 기준이 아니라 연관도·임팩트·설명 가능성을 함께 고려한다.\n"
+        "- 정량 지표를 포함하되, 같은 지표 반복을 피하고 질문별로 지표 유형을 분산한다.\n"
+        "- 행동 동사로 본인 기여를 분명히 쓴다.\n"
+        "- 지원 회사 적용 포인트/입사 후 어필 문장은 쓰지 않는다.\n"
         "- 말투는 '했습니다/입니다'보다 자연스러운 '했어요/그래요' 톤을 우선 사용한다.\n"
         "- 이력서/포트폴리오 기반 사례를 최소 2개 포함한다.\n"
-        "- 7~12문장 범위로 구체적으로 작성한다."
+        "- 6~11문장 범위에서 밀도 있게 작성한다."
     )
 
 
@@ -143,7 +138,45 @@ def _complete_with_openclaw_agent(system_prompt: str, user_payload: str) -> str:
 
 def build_rag_rescue_answer(question: str, category: Optional[str] = None) -> tuple[str, list[str]]:
     rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
-    return _build_rag_fallback_answer(question, rag_chunks), [c["source"] for c in rag_chunks][:5]
+    reranked = _rerank_chunks(question, rag_chunks)
+    return _build_rag_fallback_answer(question, reranked), [c["source"] for c in reranked][:5]
+
+
+def _rerank_chunks(question: str, chunks: list[dict]) -> list[dict]:
+    """Re-rank retrieved chunks by relevance+impact+explainability with light recency bonus."""
+    q = (question or "").lower()
+
+    def score(item: dict) -> float:
+        base = float(item.get("score", "0") or 0)
+        source = str(item.get("source", "")).lower()
+        text = str(item.get("text", "")).lower()
+
+        relevance = 0.0
+        if any(k in q for k in ["협업", "갈등", "커뮤니케이션"]) and any(k in text for k in ["협업", "조율", "팀", "합의"]):
+            relevance += 0.25
+        if any(k in q for k in ["전략", "우선순위", "트레이드오프"]) and any(k in text for k in ["우선", "전략", "의사결정", "리스크"]):
+            relevance += 0.25
+        if any(k in q for k in ["디자인 시스템", "컴포넌트", "토큰"]) and any(k in text for k in ["디자인 시스템", "토큰", "컴포넌트"]):
+            relevance += 0.3
+
+        impact = 0.0
+        if any(k in text for k in ["단축", "%", "개선", "증가", "감소", "리드타임", "오차", "품질"]):
+            impact += 0.2
+
+        explainability = 0.0
+        if any(k in text for k in ["프로젝트", "플랫폼", "솔루션", "대시보드"]):
+            explainability += 0.12
+
+        recency = 0.0
+        if "2024" in text or "2024" in source:
+            recency += 0.08
+        elif "2023" in text or "2023" in source:
+            recency += 0.04
+
+        return base + relevance + impact + explainability + recency
+
+    ranked = sorted(chunks, key=score, reverse=True)
+    return ranked[: max(1, settings.rag_top_k)]
 
 
 def force_intent_answer(question: str, category: Optional[str]) -> tuple[str, list[str]]:
@@ -202,10 +235,10 @@ def force_intent_answer(question: str, category: Optional[str]) -> tuple[str, li
 
 def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
     if not rag_chunks:
-        return "질문 의도는 이해했지만, 현재 지식베이스 근거가 부족해요. 프로젝트명/관심 포인트를 알려주시면 더 정확히 답할게요."
+        return "질문 의도는 이해했지만 현재 지식베이스 근거가 부족해요. 프로젝트명이나 상황을 조금만 더 주시면 정확도를 높여서 답할게요."
 
     q = question.lower()
-    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드", "질문 템플릿", "질문의 핵심은", "적용 예시", "par로 정리하여 답변"]
+    banned = ["존재하지 않는 경력", "시스템 프롬프트", "가드레일", "핵심 컨텍스트", "본 문서는 서비스 내 ai", "적용 규칙", "행동 모드", "질문 템플릿"]
     cleaned = []
     for c in rag_chunks:
         txt = (c.get("text") or "").replace("\n", " ").strip()
@@ -214,73 +247,42 @@ def _build_rag_fallback_answer(question: str, rag_chunks: list[dict]) -> str:
             continue
         cleaned.append(txt)
 
-    evidence_1 = cleaned[0][:120] if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
-    evidence_2 = cleaned[1][:120] if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
+    evidence_1 = cleaned[0][:140] if len(cleaned) > 0 else "프로젝트 문제를 빠르게 구조화한 경험"
+    evidence_2 = cleaned[1][:140] if len(cleaned) > 1 else "실행 흐름을 단순화해 팀 의사결정 속도를 높인 경험"
 
     if "협업" in q or "커뮤니케이션" in q or "갈등" in q:
         return (
-            "## 협업 스타일\n"
-            "협업 이슈에서는 먼저 의사결정 기준을 맞추고, 역할별 책임을 명확히 나누는 방식으로 접근해요.\n"
-            "쟁점을 문서화해서 팀 해석을 한 방향으로 맞추는 편이에요.\n\n"
-            "## 구체적 상황\n"
-            f"- 상황: {evidence_1}\n"
-            "- 대응: 다기능 팀과 일할 때 우선순위 기준(사용자 영향/비즈니스 영향/개발 난이도)을 공개적으로 합의했어요.\n"
-            "- 실행: 회의에서 나온 결정을 바로 작업 단위로 쪼개서 담당자와 일정까지 확정했어요.\n\n"
-            "## 결과와 교훈\n"
-            "팀 간 해석 차이가 줄고, 결정에서 실행으로 넘어가는 시간이 짧아졌어요.\n"
-            f"추가 근거: {evidence_2}"
+            f"협업 질문이라면 핵심은 기준을 먼저 맞추는 방식이에요. {evidence_1} 같은 상황에서 저는 우선순위 기준을 합의하고, 역할과 결정을 바로 실행 단위로 나눠 조율했어요. "
+            f"그 결과 해석 차이와 재작업이 줄었고, 결정에서 실행으로 넘어가는 속도가 안정적으로 빨라졌어요. 추가 근거로 {evidence_2}도 같은 패턴을 보여줘요."
         )
-    elif "우선순위" in q or "전략" in q:
+
+    if "우선순위" in q or "전략" in q or "트레이드오프" in q:
         return (
-            "## 판단 프레임워크\n"
-            "우선순위는 사용자 가치, 비즈니스 임팩트, 구현 복잡도를 함께 보면서 정해요.\n"
-            "'좋은 아이디어'보다 '지금 해결할 문제'를 먼저 고정하는 방식을 써요.\n\n"
-            "## 적용 사례\n"
-            f"- 문제: {evidence_1}\n"
-            "- 선택: AI 오디오북 프로젝트에서 기능을 문제 크기·사용자 임팩트·개발 비용 기준으로 재정렬했어요.\n"
-            "- 결과: 핵심 기능 출시가 앞당겨졌고, 팀 집중도와 릴리즈 안정성이 함께 좋아졌어요.\n\n"
-            "## 트레이드오프\n"
-            "초기에 매력적인 부가 기능 일부는 뒤로 미뤘고, 핵심 가치가 검증되는 흐름을 우선했어요."
-        )
-    elif "채용" in q or "강점" in q or "경력" in q:
-        return (
-            "## 핵심 강점\n"
-            "- 복잡한 요구사항을 구조화해 실행 가능한 흐름으로 전환하는 힘\n"
-            "- 디자인 판단과 제품 전략 판단을 한 프레임에서 연결하는 힘\n"
-            "- 합의된 결정을 실제 배포 단계까지 끌고 가는 실행 관리력\n\n"
-            "## 근거 사례\n"
-            "- 3D 모션 데이터 플랫폼에서 업로드-판매-정산 흐름을 재설계해 사용자 마찰을 줄였어요.\n"
-            "- AI 오디오북 프로젝트에서 기능 우선순위를 재정렬해 출시 속도와 팀 집중도를 높였어요.\n"
-            f"- 추가 근거: {evidence_2}\n\n"
-            "## 팀에 기대할 수 있는 점\n"
-            "입사 후에도 모호한 요구사항을 빠르게 정리하고, 팀이 공통 기준으로 실행하도록 연결할 수 있어요."
+            f"우선순위 판단은 사용자 임팩트·비즈니스 효과·구현 복잡도를 같이 보면서 정해요. {evidence_1} 같은 맥락에서 매력적인 부가 기능보다 핵심 흐름을 먼저 고정했고, "
+            f"실행 과정에서 검증 루프를 짧게 가져가 릴리즈 리스크를 줄였어요. 비슷한 접근은 {evidence_2}에서도 반복됐어요."
         )
 
     return (
-        "## 맥락\n"
-        f"질문의 핵심은 {evidence_1}와 연결돼 있어요.\n\n"
-        "## 문제 정의 과정\n"
-        "사용자 흐름과 비즈니스 목표를 같은 프레임에 올려서, 어떤 문제를 먼저 풀어야 하는지 정리했어요.\n"
-        "정량 데이터와 정성 피드백을 같이 보며 우선순위를 조정했어요.\n\n"
-        "## 해결과 결과\n"
-        "핵심 플로우를 단순화하고 검증 루프를 짧게 돌려 의사결정 속도와 품질을 함께 올렸어요.\n"
-        f"추가 근거: {evidence_2}"
+        f"질문과 가장 맞는 근거는 {evidence_1} 쪽이에요. 이 맥락에서 문제를 구조화하고 우선순위를 재정렬해 실행 흐름을 단순화했어요. "
+        f"또 {evidence_2} 사례에서도 같은 방식으로 결과를 냈고, 공통적으로 속도와 품질을 같이 개선했다는 점이 확인돼요."
     )
 
 
 def _is_low_quality_answer(answer: str) -> bool:
     if not answer:
         return True
-    if len(answer.strip()) < 120:
-        return True
-    if "## 핵심요약" in answer and "## 사례 (PAR)" not in answer:
+    text = answer.strip()
+    if len(text) < 120:
         return True
     repetitive_markers = [
         "디자인 관점과 제품 전략 관점을 함께 보면서",
         "입사 후에도 불확실한 요구사항을 빠르게 정리하고",
+        "## 핵심요약",
+        "## 사례 (PAR)",
+        "## 채용 관점 기대효과",
     ]
-    marker_hits = sum(1 for m in repetitive_markers if m in answer)
-    return marker_hits >= 2 and len(answer) < 520
+    marker_hits = sum(1 for m in repetitive_markers if m in text)
+    return marker_hits >= 3 and len(text) < 560
 
 
 def generate_persona_answer(
@@ -292,7 +294,8 @@ def generate_persona_answer(
     lowered_q = question.lower()
 
     base_context = build_context_block()
-    rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
+    rag_chunks = retrieve_relevant_chunks(question, top_k=max(settings.rag_top_k, 8))
+    rag_chunks = _rerank_chunks(question, rag_chunks)
     rag_hits = "\n".join(
         f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in rag_chunks
     )
@@ -302,9 +305,6 @@ def generate_persona_answer(
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
-    if (settings.answer_quality_mode or "balanced").lower() == "quality":
-        citations = [c["source"] for c in rag_chunks][:5]
-        return _build_rag_fallback_answer(question, rag_chunks), citations
 
     if settings.use_openclaw_agent:
         try:
@@ -344,7 +344,7 @@ def generate_persona_answer(
 
     repetitive_phrases = [
         "디자인 관점과 제품 전략 관점을 함께 보면서 방향성과 실행력을 동시에 끌어올리는",
-        "입사 후에도 불확실한 요구사항을 빠르게 정리하고",
+        "핵심은 기준을 먼저 맞추는 방식이에요",
     ]
     if sum(1 for p in repetitive_phrases if p in answer) >= 2:
         answer = _build_rag_fallback_answer(question, rag_chunks)
