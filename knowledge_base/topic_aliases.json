@@ -1,0 +1,41 @@
+{
+  "design_system": [
+    "디자인 시스템",
+    "디자인 라이브러리",
+    "컴포넌트 라이브러리",
+    "ui 라이브러리",
+    "공통 컴포넌트",
+    "디자인 토큰",
+    "패턴 라이브러리",
+    "컴포넌트 관리",
+    "design system",
+    "component library",
+    "ui component",
+    "design token"
+  ],
+  "collaboration": [
+    "협업",
+    "커뮤니케이션",
+    "조율",
+    "갈등 해결",
+    "stakeholder",
+    "team communication"
+  ],
+  "prioritization": [
+    "우선순위",
+    "트레이드오프",
+    "의사결정",
+    "판단 기준",
+    "product strategy",
+    "prioritization"
+  ],
+  "project_experience": [
+    "프로젝트 경험",
+    "케이스 스터디",
+    "성과",
+    "임팩트",
+    "문제 해결",
+    "case study",
+    "impact"
+  ]
+}

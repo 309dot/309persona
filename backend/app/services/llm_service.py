@@ -56,6 +56,10 @@ def build_user_payload(
     )
     category_text = f"질문 카테고리: {category or 'general'}"
 
+    ambiguity_hint = ""
+    if (category or "").lower() == "general":
+        ambiguity_hint = "- 질문 의도가 모호하면 가장 가까운 주제를 먼저 추론해 답하고, 필요시 첫 문장에 '혹시 ~ 의미하시는 걸까요?'처럼 가볍게 확인한다.\n"
+
     return (
         f"{category_text}\n"
         f"방문자 정보: {visitor_meta or '익명 방문자'}\n"
@@ -68,6 +72,7 @@ def build_user_payload(
         "- 정량 지표를 포함하되, 같은 지표 반복을 피하고 질문별로 지표 유형을 분산한다.\n"
         "- 행동 동사로 본인 기여를 분명히 쓴다.\n"
         "- 지원 회사 적용 포인트/입사 후 어필 문장은 쓰지 않는다.\n"
+        f"{ambiguity_hint}"
         "- 말투는 '했습니다/입니다'보다 자연스러운 '했어요/그래요' 톤을 우선 사용한다.\n"
         "- 이력서/포트폴리오 기반 사례를 최소 2개 포함한다.\n"
         "- 6~11문장 범위에서 밀도 있게 작성한다."

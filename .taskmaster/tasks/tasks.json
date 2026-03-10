@@ -287,12 +287,25 @@
       ],
       "status": "pending",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 23,
+      "title": "의미 기반 질문 이해(토픽 alias 확장) 적용",
+      "description": "키워드 일치 기반 질문 분류를 의미 기반 topic 추론 방식으로 개선",
+      "details": "topic_aliases.json 추가, question_filter 의미유사 매핑 도입, 모호 질문 거부 대신 추론 응답 정책 반영",
+      "testStrategy": "동의어 질문(디자인 라이브러리/UI 컴포넌트/디자인 시스템) 동일 topic 매핑 확인",
+      "priority": "high",
+      "dependencies": [
+        "21"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T09:07:54.093800Z",
-    "taskCount": 22,
-    "completedCount": 19
+    "lastModified": "2026-03-10T09:27:56.287874Z",
+    "taskCount": 23,
+    "completedCount": 20
   }
 }
