@@ -1,0 +1,9 @@
+{
+  "type": "failure",
+  "project": "string",
+  "topic": "string",
+  "symptom": "string",
+  "cause": "string",
+  "fix": "string",
+  "prevention": "string"
+}

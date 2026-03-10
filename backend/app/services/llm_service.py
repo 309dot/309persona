@@ -17,6 +17,7 @@ from .answer_quality import (
     is_low_quality_answer,
     passes_quality_gate,
 )
+from .context_planner import build_retrieval_plan, compose_context_sections
 from .knowledge_base import build_context_block, retrieve_relevant_chunks
 from .rag_fallback import build_rag_fallback_answer, rerank_chunks
 
@@ -174,11 +175,25 @@ def generate_persona_answer(
     base_context = build_context_block()
     rag_chunks = retrieve_relevant_chunks(question, top_k=max(settings.rag_top_k, 8))
     rag_chunks = rerank_chunks(question, rag_chunks, settings.rag_top_k)
+    plan = build_retrieval_plan(question)
+
     rag_hits = "\n".join(
         f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in rag_chunks
     )
+    composed_context = compose_context_sections(plan, rag_chunks)
+    plan_block = (
+        f"\n\n=== RETRIEVAL PLAN ===\n"
+        f"intent: {plan.intent}\n"
+        f"output_mode: {plan.output_mode}\n"
+        f"need_actionable_steps: {plan.need_actionable_steps}\n"
+        f"memory_sources: {', '.join(plan.memory_sources)}\n"
+        f"=== COMPOSED CONTEXT ===\n{composed_context}"
+        if composed_context
+        else ""
+    )
+
     knowledge_block = (
-        f"{base_context[:8000]}\n\n=== RAG RETRIEVED CONTEXT ===\n{rag_hits}" if rag_hits else base_context[:8000]
+        f"{base_context[:8000]}\n\n=== RAG RETRIEVED CONTEXT ===\n{rag_hits}{plan_block}" if rag_hits else base_context[:8000]
     )
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)

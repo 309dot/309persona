@@ -1,0 +1,10 @@
+{
+  "type": "decision",
+  "project": "string",
+  "topic": "string",
+  "date": "YYYY-MM-DD",
+  "context": "string",
+  "decision": "string",
+  "reason": "string",
+  "next_action": "string"
+}

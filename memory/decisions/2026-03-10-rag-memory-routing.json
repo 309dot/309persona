@@ -1,0 +1,10 @@
+{
+  "type": "decision",
+  "project": "309persona",
+  "topic": "RAG to memory-type routing",
+  "date": "2026-03-10",
+  "context": "문서 chunk 검색만으로는 작업 문맥 유지가 약해 답변 품질이 떨어짐",
+  "decision": "memory type routing + context composer 도입",
+  "reason": "identity/project/working/reference를 분리하면 질문 의도별 근거 조립 품질이 올라감",
+  "next_action": "llm_service에 planner/composer 연결 및 working memory 운영 자동화"
+}
