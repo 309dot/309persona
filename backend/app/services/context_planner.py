@@ -15,6 +15,7 @@ class RetrievalPlan:
     output_mode: str
     need_actionable_steps: bool
     project_pack: str
+    memory_horizon: str  # short | mixed | long
 
 
 def classify_intent(question: str) -> str:
@@ -43,14 +44,14 @@ def build_retrieval_plan(question: str) -> RetrievalPlan:
     intent = classify_intent(question)
     project_pack = infer_project_pack(question)
     if intent == "decision_reasoning":
-        return RetrievalPlan(intent, ["project", "decision", "working"], "narrative", True, project_pack)
+        return RetrievalPlan(intent, ["project", "decision", "working"], "narrative", True, project_pack, "mixed")
     if intent == "next_actions":
-        return RetrievalPlan(intent, ["working", "project", "decision"], "actionable", True, project_pack)
+        return RetrievalPlan(intent, ["working", "project", "decision"], "actionable", True, project_pack, "short")
     if intent == "interview_answering":
-        return RetrievalPlan(intent, ["identity", "project", "reference"], "concise_structured", True, project_pack)
+        return RetrievalPlan(intent, ["identity", "project", "reference"], "concise_structured", True, project_pack, "long")
     if intent == "setup_reference":
-        return RetrievalPlan(intent, ["reference", "project", "working"], "instructional", True, project_pack)
-    return RetrievalPlan(intent, ["project", "working", "reference"], "narrative", False, project_pack)
+        return RetrievalPlan(intent, ["reference", "project", "working"], "instructional", True, project_pack, "mixed")
+    return RetrievalPlan(intent, ["project", "working", "reference"], "narrative", False, project_pack, "mixed")
 
 
 def _load_latest_record(kind: str, project_pack: str) -> str:

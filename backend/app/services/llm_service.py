@@ -187,6 +187,7 @@ def generate_persona_answer(
         f"intent: {plan.intent}\n"
         f"project_pack: {plan.project_pack}\n"
         f"output_mode: {plan.output_mode}\n"
+        f"memory_horizon: {plan.memory_horizon}\n"
         f"need_actionable_steps: {plan.need_actionable_steps}\n"
         f"memory_sources: {', '.join(plan.memory_sources)}\n"
         f"=== COMPOSED CONTEXT ===\n{composed_context}"

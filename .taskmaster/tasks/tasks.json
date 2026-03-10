@@ -430,12 +430,25 @@
       ],
       "status": "done",
       "assignee": "orchestrator"
+    },
+    {
+      "id": 34,
+      "title": "Short vs Long memory horizon 분리 적용",
+      "description": "intent별로 short/mixed/long memory horizon을 planner에 명시해 retrieval 조합을 안정화",
+      "details": "RetrievalPlan.memory_horizon 추가 및 llm_service plan block 반영",
+      "testStrategy": "smoke test 통과 및 plan block에 memory_horizon 노출 확인",
+      "priority": "medium",
+      "dependencies": [
+        "33"
+      ],
+      "status": "done",
+      "assignee": "orchestrator"
     }
   ],
   "metadata": {
     "version": "1.0.0",
-    "lastModified": "2026-03-10T13:35:36.233625Z",
-    "taskCount": 33,
-    "completedCount": 30
+    "lastModified": "2026-03-10T13:36:47.321279Z",
+    "taskCount": 34,
+    "completedCount": 31
   }
 }
