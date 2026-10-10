@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.core import auth as core_auth
 from app.core.config import settings
 from app.services import conversation_service, direct_pipeline, visitor_service
 from tests.fake_firestore import FakeFirestore
@@ -16,13 +15,6 @@ def db(monkeypatch):
     for module in (conversation_service, visitor_service):
         monkeypatch.setattr(module, "get_firestore_client", lambda: fake)
     return fake
-
-
-@pytest.fixture
-def admin(monkeypatch):
-    monkeypatch.setattr(core_auth.auth, "verify_id_token", lambda _token: {"email": "owner@309.so"})
-    monkeypatch.setattr(settings, "admin_allowed_emails", ["owner@309.so"])
-    return {"Authorization": "Bearer test-token"}
 
 
 def log(session_id, question, **fields):

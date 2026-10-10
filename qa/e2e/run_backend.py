@@ -1,6 +1,7 @@
 """Run the real backend with an in-memory Firestore and a debug dump endpoint.
 
 QA_FAKE_ADMIN=1 accepts any Firebase ID token as owner@309.so (dashboard QA only).
+QA_NOTES=1 loads the fake Obsidian notes in qa/e2e/notes/309-persona as private notes.
 """
 import json
 import os
@@ -14,6 +15,8 @@ os.environ.update(
     OPENAI_BASE_URL="http://127.0.0.1:11500/v1", OPENAI_API_KEY="x",
     FIREBASE_CREDENTIALS_PATH="", FIREBASE_CREDENTIALS_JSON="",
 )
+if os.environ.get("QA_NOTES") == "1":
+    os.environ.update(NOTES_DIR=str(Path(__file__).resolve().parent / "notes"), NOTES_SUBDIR="309-persona")
 
 from tests.fake_firestore import FakeFirestore  # noqa: E402
 

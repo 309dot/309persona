@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 
 from .api.router import api_router
 from .core.config import settings
 from .core.firebase import get_firestore_client
+from .services import knowledge_graph
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,8 @@ async def lifespan(_app: FastAPI):
         get_firestore_client()
     except Exception as exc:
         logger.warning("Firebase init skipped at startup: %s", exc)
+    # Knowledge base and private notes (a GitHub download) are ready before the first question.
+    await run_in_threadpool(knowledge_graph.warm_up)
     yield
 
 

@@ -125,7 +125,7 @@ async function restartBackend() {
 
   // ---------------------------------------------------------------- 4. 2~5번째 질문
   screen = '4. 질문 2~5';
-  await dock.getByRole('button', { name: /최근 2년 안에/ }).click();
+  await page.getByRole('button', { name: /최근 2년 안에/ }).click(); // suggestions sit under the greeting
   await waitFor(async () => (await answers()) >= 2, 15000);
   check('빠른 질문으로 2번째 답변', (await answers()) === 2);
   check('2번째 답변 프롬프트에 수정된 프로필 반영', ((await llm()).last_user || '').includes('방문자 정보: 김리크루터, 309 Lab'));

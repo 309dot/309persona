@@ -3,7 +3,7 @@
 Both /api/chat (JSON) and /api/chat/stream (SSE) run the same steps; the runner
 reports progress through `emit(event, data)`:
 
-    start       {remaining, limit}
+    start       {remaining, limit, related}  related: knowledge map node ids guessed from the question
     delta       {text}
     answer_end  {}  answer text complete, metadata still coming (direct pipeline only)
     done        {answer, citations, sources, follow_ups, category, conversation_id, remaining, limit}
@@ -23,7 +23,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from ..core.config import settings
 from ..core.rate_limiter import get_ip_question_limiter, get_session_rate_limiter
-from . import conversation_service, direct_pipeline, llm_service, question_filter, visitor_service
+from . import conversation_service, direct_pipeline, knowledge_graph, llm_service, question_filter, visitor_service
 from .direct_pipeline import HistoryTurn, PipelineResult
 from .knowledge_document import label_sources
 
@@ -141,7 +141,8 @@ def _refund(turn: Turn) -> None:
 def run_turn(turn: Turn, emit: Emit, cancel: threading.Event) -> None:
     """Generate the answer for a prepared, unblocked turn and report it through `emit`."""
     pipeline = current_pipeline()
-    emit("start", _quota(turn))
+    # A guess from the question's words, so the knowledge map can light up before the answer.
+    emit("start", {**_quota(turn), "related": knowledge_graph.related_nodes(turn.question)})
     started = time.monotonic()
     first_token_ms: Optional[int] = None
 

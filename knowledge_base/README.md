@@ -4,13 +4,14 @@
 
 | 경로 | 쓰이는 방식 |
 |---|---|
-| `309_knowledge_pack.json` | 요약·협업 방식·가치관·프로젝트·말투·가드레일. 매 질문의 프롬프트에 들어간다(`KNOWLEDGE_PACK_PATH`). 프로젝트는 direct 파이프라인에서 `P1`·`P2`… 출처가 되고, 제목이 근거 칩에 그대로 보인다 |
+| `309_knowledge_pack.json` | 요약·협업 방식·가치관·프로젝트·말투·가드레일. 매 질문의 프롬프트에 들어간다(`KNOWLEDGE_PACK_PATH`). 프로젝트는 direct 파이프라인에서 `P1`·`P2`… 출처가 되고, 제목이 근거 칩과 기록 지도에 그대로 보인다. `allowed_topics`는 기록 지도의 주제 점이 된다 |
 | `309files/*.md` | **사실 문서만.** legacy 파이프라인은 빈 줄 기준으로 쪼개 검색(RAG)하고(출처 `doc:파일명#번호`), direct 파이프라인은 전부 프롬프트에 넣는다(출처 `RESUME`·`NOTES` 등, `backend/app/services/knowledge_document.py`). 새 파일을 넣으면 `DOC_SOURCES`에 화면에 보일 이름을 추가한다 |
 | `309files/pdf/` | 다운로드용 이력서·포트폴리오 PDF. 프론트가 GitHub raw 주소로 링크하므로 경로를 바꾸지 말 것 |
 | `instructions/` | 말투·답변 형식·금지 규칙 같은 지시문. 색인하지 않는다(사실처럼 검색돼 답변에 새어 나오던 문제 방지) |
 | `drafts/` | 이전 개발 에이전트가 정리한 케이스 스터디 초안. 이력서와 대조 전이라 런타임이 읽지 않는다. 내용을 확인한 파일만 `309files/`로 옮긴다 |
-| `topic_aliases.json` | 질문 주제 분류용 별칭(`backend/app/services/question_filter.py`) |
+| `topic_aliases.json` | 질문 주제 분류용 별칭(`backend/app/services/question_filter.py`). 기록 지도가 질문과 관련된 주제를 고를 때도 쓴다 |
+| (비공개) 옵시디언 노트 | 이 레포 밖의 비공개 저장소에 있다. 서버가 `NOTES_GITHUB_*`로 받아 `N:슬러그` 출처로 더한다. 쓰는 법과 설정은 `docs/obsidian-notes.md` |
 
-- `309files/` 문서의 전화번호 줄은 읽을 때 빠진다(두 파이프라인 모두).
-- 수정 후에는 백엔드를 재시작해야 반영된다(로딩 결과를 캐시함).
+- `309files/` 문서와 노트의 전화번호 줄은 읽을 때 빠지고, `309designlab.com`이 아닌 이메일은 가려진다(두 파이프라인 모두).
+- 수정 후에는 백엔드를 재시작해야 반영된다(로딩 결과를 캐시함). 노트는 대시보드의 "다시 불러오기"로 재시작 없이 반영된다.
 - 내용을 바꾼 뒤에는 `backend/evals`로 답변이 나빠지지 않았는지 확인한다(근거 없는 숫자, 프로젝트 언급).

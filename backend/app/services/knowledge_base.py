@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections import Counter
 from functools import lru_cache
 from math import sqrt
@@ -11,6 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from ..core.config import settings
+from .obsidian_notes import NOTE_PREFIX, get_notes, notes_version
+from .redaction import redact_contacts
 from .vector_retrieval import retrieve_vector_chunks
 
 
@@ -77,10 +78,6 @@ def build_context_block() -> str:
     return "\n\n".join(filter(None, sections))
 
 
-# Korean mobile numbers; contact lines are kept out of retrievable evidence.
-PHONE_LINE_RE = re.compile(r"^.*\b01[016789][-. ]?\d{3,4}[-. ]?\d{4}\b.*$", re.MULTILINE)
-
-
 @lru_cache
 def load_fact_documents() -> List[Tuple[str, str]]:
     """Return (file stem, text) for fact documents in 309files/ next to the knowledge pack.
@@ -99,7 +96,7 @@ def load_fact_documents() -> List[Tuple[str, str]]:
             content = md_file.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        content = PHONE_LINE_RE.sub("", content).strip()
+        content = redact_contacts(content).strip()
         if content:
             documents.append((md_file.stem, content))
     return documents
@@ -125,9 +122,13 @@ def _cosine(a: Counter, b: Counter) -> float:
     return dot / (na * nb)
 
 
-@lru_cache
 def build_rag_chunks() -> List[Tuple[str, str, str]]:
-    """Return (source, text, source_type) chunks from the knowledge pack and markdown docs."""
+    """Return (source, text, source_type) chunks from the knowledge pack, markdown docs and notes."""
+    return _build_rag_chunks(notes_version())
+
+
+@lru_cache(maxsize=2)
+def _build_rag_chunks(_notes_version: int) -> List[Tuple[str, str, str]]:
     pack = load_knowledge_pack()
     chunks: List[Tuple[str, str, str]] = []
 
@@ -170,6 +171,13 @@ def build_rag_chunks() -> List[Tuple[str, str, str]]:
                 continue
             if len(text) >= 40:
                 chunks.append((f"doc:{stem}#{idx}", text, "portfolio"))
+
+    for note in get_notes().notes:
+        slug = note.id.removeprefix(NOTE_PREFIX)
+        for idx, block in enumerate(note.text.split("\n\n"), start=1):
+            text = block.strip()
+            if len(text) >= 40:
+                chunks.append((f"note:{slug}#{idx}", f"[{note.title}]\n{text}", "portfolio"))
 
     return chunks
 

@@ -17,7 +17,8 @@
    - `MAX_SESSION_QUESTIONS` (기본 5, 프론트 표시값도 이 값을 따른다)
    - `ANSWER_PIPELINE` — `legacy`(기본) 또는 `direct`. `direct`로 바꾸기 전에 `backend/evals`로 비교한다
    - `TRUSTED_PROXY_HOPS` — 앱 앞에서 `X-Forwarded-For`를 덧붙이는 프록시 수(Render 1). IP 한도가 이 값으로 클라이언트 IP를 고른다
-   - 선택: `MAX_IP_QUESTIONS`(30)·`MAX_IP_SESSIONS`(20)·`IP_WINDOW_MINUTES`(60), `CHAT_HISTORY_TURNS`(3), `LLM_TEMPERATURE`(0.4), `LLM_MAX_OUTPUT_TOKENS`(1200), `LLM_STREAM_USAGE`(true, 스트림 토큰 사용량을 지원하지 않는 서버면 false), `LLM_TIMEOUT_SECONDS`(45), `LLM_MAX_RETRIES`(1), `ANSWER_TIME_BUDGET_SECONDS`(90), `ADMIN_REQUIRE_EMAIL_VERIFIED`(false)
+   - 선택: `MAX_IP_QUESTIONS`(30)·`MAX_IP_SESSIONS`(20)·`IP_WINDOW_MINUTES`(60), `CHAT_HISTORY_TURNS`(3), `LLM_TEMPERATURE`(0.4), `LLM_MAX_OUTPUT_TOKENS`(1200), `LLM_STREAM_USAGE`(true, 스트림 토큰 사용량을 지원하지 않는 서버면 false), `LLM_REASONING_EFFORT`(비움), `LLM_TIMEOUT_SECONDS`(45), `LLM_MAX_RETRIES`(1), `ANSWER_TIME_BUDGET_SECONDS`(90), `ADMIN_REQUIRE_EMAIL_VERIFIED`(false)
+   - 비공개 노트: `NOTES_GITHUB_REPO`, `NOTES_GITHUB_TOKEN`(그 저장소만 Contents 읽기 권한), `NOTES_GITHUB_REF`(main), `NOTES_SUBDIR`(309-persona), `NOTES_MAX_CHARS`(60000). 설정 방법은 `docs/obsidian-notes.md`. 노트는 서버가 시작할 때 받아 오고, 동기화한 뒤에는 대시보드의 "다시 불러오기"로 재배포 없이 반영한다
 3. 실행
    - 이미지 기본 명령이 `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}`이다. Render가 넣는 `PORT`를 그대로 쓰므로 Start Command를 따로 지정하지 않는다.
    - 이미지는 Python 3.13 slim, 비루트 사용자(uid 10001)로 돈다. 의존성은 `backend/requirements.txt`(uv.lock에서 내보낸 파일)로 설치한다.
@@ -28,6 +29,27 @@
    - 답변은 `POST /api/chat/stream`(Server-Sent Events)으로 나간다. 응답에 `X-Accel-Buffering: no`가 붙고, 모델이 늦게 시작해도 15초마다 ping 주석을 보내 연결이 끊기지 않게 한다. 앞단 프록시가 응답을 모아서 보내면 글자 단위 표시가 안 되므로 버퍼링을 끈다.
    - `POST /api/chat`(JSON)도 그대로 둔다. 프론트·백엔드가 따로 배포되는 동안 구버전 프론트가 쓰고, 새 프론트도 스트림 경로가 없으면 이쪽으로 바꾼다.
    - LLM 오류는 이제 고정 문단 대신 오류로 돌아간다(SSE `error`, JSON `503`). LLM 연결이 안 된 상태로 배포하면 방문자에게 "지금은 답변을 가져오지 못했어요"가 보인다.
+
+### LLM 연결 (Google Gemini 무료 등급 예시)
+
+OpenAI 호환 주소를 그대로 쓰므로 코드 변경 없이 환경 변수만 바꾼다.
+
+1. Google AI Studio에서 API 키를 만든다. 모델 목록에서 최신 Flash와 Flash-Lite 모델 id를 확인한다(무료 등급에 포함되는지, 하루 요청 한도가 얼마인지도 같은 화면에 나온다).
+2. Render 환경 변수:
+   ```
+   OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+   OPENAI_API_KEY=<AI Studio 키>
+   OPENAI_MODEL=<최신 Flash 모델 id>
+   OPENAI_FALLBACK_MODEL=<최신 Flash-Lite 모델 id>
+   LLM_REASONING_EFFORT=low
+   LLM_MAX_OUTPUT_TOKENS=4096
+   LLM_TEMPERATURE=1.0
+   ```
+   - 예비 모델은 첫 글자가 나가기 전에 실패할 때(하루 한도 초과 포함)만 쓴다. Flash-Lite는 보통 하루 한도가 더 넉넉하다.
+   - Gemini의 Flash 계열은 생각하는 모델이라 생각 토큰도 출력 한도에 들어간다. 추론 강도를 낮추고 출력 한도를 올려 두지 않으면 답이 잘린다.
+   - 대시보드의 토큰 수가 계속 0이면 `LLM_STREAM_USAGE=false`.
+3. 바꾼 뒤 `backend/evals`로 legacy와 direct를 비교하고(`uv run python -m evals.run --pipeline both`), 같거나 나으면 `ANSWER_PIPELINE=direct`로 바꾼다.
+4. 무료 등급은 질문·답변이 제공사의 서비스 개선에 쓰일 수 있다(방문자 화면의 개인정보 안내에 적어 둠). 비공개 노트도 모델로 전송되므로 공개하면 안 되는 내용은 노트에 넣지 않는다. 이 조건이 맞지 않으면 결제를 켠 유료 등급을 쓴다.
 
 ## Frontend (Vercel)
 

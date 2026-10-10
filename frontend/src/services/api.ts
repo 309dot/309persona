@@ -1,10 +1,13 @@
 import type {
   ChatOutcome,
   ChatRequestPayload,
+  ChatStart,
   ChatResponseBody,
   ConversationRecord,
   DashboardStats,
   FeedbackRating,
+  KnowledgeGraph,
+  KnowledgeStatus,
   SessionDetail,
   SessionInfo,
   VisitorPayload,
@@ -135,13 +138,13 @@ function parseSseBlock(block: string): { event: string; data: unknown } | null {
 }
 
 /**
- * Ask over Server-Sent Events. Calls onDelta with answer text as it arrives,
- * onAnswerEnd once only metadata (sources, follow-ups) is left, and resolves
- * with the final done | blocked | error event.
+ * Ask over Server-Sent Events. Calls onStart once the backend accepted the question,
+ * onDelta with answer text as it arrives, onAnswerEnd once only metadata (sources,
+ * follow-ups) is left, and resolves with the final done | blocked | error event.
  */
 export async function streamQuestion(
   payload: ChatRequestPayload,
-  handlers: { onDelta: (text: string) => void; onAnswerEnd?: () => void },
+  handlers: { onDelta: (text: string) => void; onAnswerEnd?: () => void; onStart?: (data: ChatStart) => void },
   signal?: AbortSignal,
 ): Promise<ChatOutcome> {
   const response = await fetch(`${API_BASE_URL}/chat/stream`, {
@@ -171,7 +174,9 @@ export async function streamQuestion(
       buffer = buffer.slice(boundary + 2);
       boundary = buffer.indexOf('\n\n');
       if (!parsed) continue;
-      if (parsed.event === 'delta') {
+      if (parsed.event === 'start') {
+        handlers.onStart?.(parsed.data as ChatStart);
+      } else if (parsed.event === 'delta') {
         handlers.onDelta((parsed.data as { text: string }).text);
       } else if (parsed.event === 'answer_end') {
         handlers.onAnswerEnd?.();
@@ -182,6 +187,16 @@ export async function streamQuestion(
     }
   }
   throw new Error('응답이 중간에 끊겼어요.');
+}
+
+/** The knowledge map's graph; null when the backend predates /knowledge/graph. */
+export async function getKnowledgeGraph(): Promise<KnowledgeGraph | null> {
+  try {
+    return await request<KnowledgeGraph>('/knowledge/graph');
+  } catch (error) {
+    console.warn('[API] 기록 지도를 불러오지 못했어요', error);
+    return null;
+  }
 }
 
 export async function sendFeedback(payload: {
@@ -223,6 +238,18 @@ export async function getSessionDetail(idToken: string, sessionId: string): Prom
     headers: {
       Authorization: `Bearer ${idToken}`,
     },
+  });
+}
+
+export async function getKnowledgeStatus(idToken: string): Promise<KnowledgeStatus> {
+  return request<KnowledgeStatus>('/dashboard/knowledge', { headers: { Authorization: `Bearer ${idToken}` } });
+}
+
+/** Fetch the private notes again (after a sync) without redeploying the backend. */
+export async function reloadKnowledge(idToken: string): Promise<KnowledgeStatus> {
+  return request<KnowledgeStatus>('/dashboard/knowledge/reload', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}` },
   });
 }
 

@@ -176,3 +176,41 @@ class FunnelEventCreate(BaseModel):
         return value
 
 
+
+
+class GraphNode(BaseModel):
+    id: str
+    label: str
+    kind: Literal["center", "project", "doc", "topic", "note"]
+    group: Optional[str] = None
+    meta: Optional[str] = None
+    question: Optional[str] = None
+    pages: Optional[str] = None
+
+
+class KnowledgeGraph(BaseModel):
+    nodes: List[GraphNode]
+    edges: List[List[str]]
+    version: int
+
+
+class KnowledgeNoteInfo(BaseModel):
+    id: str
+    title: str
+    kind: str
+    path: str
+    chars: int
+    included: bool
+    links: int = 0
+
+
+class KnowledgeStatus(BaseModel):
+    source: Literal["none", "local", "github"]
+    loaded_at: Optional[datetime] = None
+    error: Optional[str] = None
+    notes: List[KnowledgeNoteInfo] = Field(default_factory=list)
+    skipped: List[str] = Field(default_factory=list)
+    notes_chars: int = 0
+    notes_left_out: int = 0
+    notes_max_chars: int = 0
+    prompt_chars: int = 0

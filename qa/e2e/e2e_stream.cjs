@@ -54,7 +54,7 @@ const FAKE_END = '수렴했어요.';
   // ---------------------------------------------------------------- A. 스트리밍 답변
   screen = 'A. 스트리밍 답변';
   await page.goto(`${WEB}/persona`, { waitUntil: 'networkidle' });
-  await dock.getByRole('button', { name: /디자인 시스템 구축에서/ }).click();
+  await page.getByRole('button', { name: /디자인 시스템 구축에서/ }).click();
   const lengths = [];
   await waitFor(async () => {
     const text = (await page.locator('main').innerText()).split('남은 질문')[0];

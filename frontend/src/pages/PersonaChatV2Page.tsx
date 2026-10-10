@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconEdit from '@assets/icons/name-edit.svg';
@@ -12,6 +12,7 @@ import logoFull from '@assets/icons/logo.svg';
 import {
   ApiError,
   createVisitor,
+  getKnowledgeGraph,
   sendFeedback,
   sendQuestion,
   streamQuestion,
@@ -25,9 +26,24 @@ import { loadSavedChat, saveChat } from '../lib/savedChat';
 import { getVisitId } from '../lib/visit';
 import { inferVisitorProfile } from '../lib/visitorProfile';
 import { AnswerFeedback, AnswerSources, FailedAnswer, FollowUpChips } from './persona/AnswerExtras';
+import { MapHero } from './persona/map/MapHero';
+import type { MapPhase, MapSignals } from './persona/map/nodes';
 import { AnimatedFormattedAnswer, CompletionModal, VisitorInfoModal } from './persona/PersonaResponseAndModals';
+import { AvatarPresence, MapIcon, StreamingText, ThinkingIndicator } from './persona/Presence';
 import { PrivacyNotice } from './persona/PrivacyNotice';
-import type { ChatOutcome, ChatSource, FeedbackRating, HistoryTurn, SessionInfo } from '../types/api';
+import type {
+  ChatOutcome,
+  ChatSource,
+  ChatStart,
+  FeedbackRating,
+  GraphNode,
+  HistoryTurn,
+  KnowledgeGraph,
+  SessionInfo,
+} from '../types/api';
+
+// The full map (and its canvas) loads only when someone opens it.
+const MapOverlay = lazy(() => import('./persona/map/MapOverlay'));
 
 const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
@@ -54,7 +70,7 @@ const EXPERIMENT_VARIANT = QUESTION_FIRST_EXPERIMENT ? 'on' : 'off';
 const HISTORY_TURNS = 3;
 
 type ThreadStatus = 'pending' | 'streaming' | 'done' | 'blocked' | 'error';
-type QuestionSource = 'manual' | 'quick' | 'follow_up' | 'retry';
+type QuestionSource = 'manual' | 'quick' | 'follow_up' | 'retry' | 'map';
 
 type PersonaThread = {
   id: string;
@@ -70,6 +86,8 @@ type PersonaThread = {
   followUps?: string[];
   conversationId?: string | null;
   feedback?: FeedbackRating;
+  /** Answer lengths after each screen update while streaming, for the word fade-in. */
+  marks?: number[];
 };
 
 function sourceHref(source: ChatSource): string | undefined {
@@ -123,6 +141,7 @@ function RemainingCounter({ used, total }: { used: number; total: number }) {
           strokeDasharray={circumference}
           strokeDashoffset={dashoffset}
           strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 700ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}
         />
       </svg>
       <span>
@@ -178,6 +197,8 @@ function InputPanel({
   onInputFocus,
   showIdentityEdit,
   maxReached,
+  onOpenMap,
+  mapActive,
 }: {
   name: string;
   question: string;
@@ -190,10 +211,13 @@ function InputPanel({
   onInputFocus: () => void;
   showIdentityEdit: boolean;
   maxReached: boolean;
+  onOpenMap?: () => void;
+  mapActive: boolean;
 }) {
   const disabled = !question.trim() || loading || maxReached;
 
   return (
+    <div className={`w-full rounded-[36px] ${loading ? 'ai-glow' : ''}`} data-busy={loading || undefined}>
     <div className="animate-slide-up w-full rounded-[36px] border border-line bg-white px-6 py-5 shadow-[0_12px_30px_rgba(15,19,36,0.14)]">
       <div className="flex flex-col gap-4">
         <input
@@ -213,6 +237,19 @@ function InputPanel({
         />
         <div className="flex flex-wrap items-center gap-4">
           <RemainingCounter used={usedCount} total={questionLimit} />
+          {onOpenMap ? (
+            <button
+              type="button"
+              onClick={onOpenMap}
+              aria-label="309의 기록 지도 열기"
+              className={`inline-flex items-center gap-1.5 text-[12px] font-semibold transition hover:text-graphite ${
+                mapActive ? 'text-accent' : 'text-graphite/60'
+              }`}
+            >
+              <MapIcon active={mapActive} />
+              기록 지도
+            </button>
+          ) : null}
           {showIdentityEdit ? (
             <button
               type="button"
@@ -223,7 +260,9 @@ function InputPanel({
               <img src={iconEdit} alt="정보 수정" className="h-[10.5px] w-[10.5px]" />
             </button>
           ) : (
-            <span className="ml-auto text-[12px] font-semibold text-graphite/40">질문 먼저 시작해도 됩니다</span>
+            <span className="ml-auto text-[12px] font-semibold text-graphite/40">
+              <span className="hidden sm:inline">질문 먼저 시작해도 됩니다</span>
+            </span>
           )}
           <button
             type="button"
@@ -236,6 +275,7 @@ function InputPanel({
           </button>
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -251,11 +291,16 @@ export function PersonaChatV2Page() {
   const [questionLimit, setQuestionLimit] = useState(saved?.questionLimit ?? DEFAULT_QUESTION_LIMIT);
   const [ctaVisible, setCtaVisible] = useState(Boolean(saved?.threads.length));
   const [threads, setThreads] = useState<PersonaThread[]>(saved?.threads ?? []);
-  const [quickQuestionConsumed, setQuickQuestionConsumed] = useState(false);
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const [showProfileNudge, setShowProfileNudge] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  // Knowledge map: the graph, what the AI is doing with it, and the full view.
+  const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
+  const [graphMissing, setGraphMissing] = useState(false);
+  const [activity, setActivity] = useState<{ phase: MapPhase; related: string[] }>({ phase: 'idle', related: [] });
+  const [mapView, setMapView] = useState<{ focusId: string | null } | null>(null);
+  const [focusedSource, setFocusedSource] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -303,6 +348,37 @@ export function PersonaChatV2Page() {
     }
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    // After the first paint; the map is decoration until someone looks at it.
+    const timer = window.setTimeout(() => {
+      void getKnowledgeGraph().then((data) => {
+        if (cancelled) return;
+        if (data?.nodes.length) setGraph(data);
+        else setGraphMissing(true);
+      });
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  const nodeLabels = useMemo(() => new Map(graph?.nodes.map((node) => [node.id, node.label]) ?? []), [graph]);
+
+  const mapSignals = useMemo<MapSignals>(() => {
+    const answered = threads.filter((thread) => thread.status === 'done' && thread.sources?.length);
+    const latest = answered.at(-1)?.sources?.map((source) => source.id) ?? [];
+    return {
+      phase: activity.phase,
+      related: activity.related,
+      // The latest answer's sources glow until the next question starts.
+      cited: activity.phase === 'idle' ? latest : [],
+      visited: [...new Set(answered.flatMap((thread) => thread.sources?.map((source) => source.id) ?? []))],
+      focus: focusedSource,
+    };
+  }, [threads, activity, focusedSource]);
+
   const ensureSession = useCallback((forceNew = false): Promise<SessionInfo> => {
     if (forceNew) sessionPromiseRef.current = null;
     if (!sessionPromiseRef.current) {
@@ -330,7 +406,7 @@ export function PersonaChatV2Page() {
     async (
       text: string,
       history: HistoryTurn[],
-      handlers: { onDelta: (delta: string) => void; onAnswerEnd: () => void },
+      handlers: { onDelta: (delta: string) => void; onAnswerEnd: () => void; onStart: (data: ChatStart) => void },
       signal: AbortSignal,
     ): Promise<ChatOutcome> => {
       const attempt = async (sessionId: string): Promise<ChatOutcome> => {
@@ -371,11 +447,11 @@ export function PersonaChatV2Page() {
     if (!pending) return;
     pendingDeltaRef.current = null;
     setThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === pending.threadId
-          ? { ...thread, status: 'streaming', answer: thread.answer + pending.text }
-          : thread,
-      ),
+      prev.map((thread) => {
+        if (thread.id !== pending.threadId) return thread;
+        const answer = thread.answer + pending.text;
+        return { ...thread, status: 'streaming', answer, marks: [...(thread.marks ?? []).slice(-63), answer.length] };
+      }),
     );
   }, []);
 
@@ -491,17 +567,28 @@ export function PersonaChatV2Page() {
     abortRef.current = controller;
     // Set once the answer text is complete; sources and follow-ups may still be on the way.
     let answerEnded = false;
+    let writing = false;
+    setActivity({ phase: 'searching', related: [] });
 
     try {
       const outcome = await runQuestion(
         text,
         history,
         {
-          onDelta: (delta) => appendDelta(threadId, delta),
+          onStart: (data) => {
+            if (abortRef.current === controller) setActivity((current) => ({ ...current, related: data.related ?? [] }));
+          },
+          onDelta: (delta) => {
+            if (!writing && abortRef.current === controller) {
+              writing = true;
+              setActivity((current) => ({ ...current, phase: 'answering' }));
+            }
+            appendDelta(threadId, delta);
+          },
           onAnswerEnd: () => {
             answerEnded = true;
             flushDelta();
-            updateThread(threadId, { status: 'done', answerAt: new Date().toISOString() });
+            updateThread(threadId, { status: 'done', answerAt: new Date().toISOString(), marks: undefined });
             // Let the visitor ask the next question without waiting for the metadata.
             if (abortRef.current === controller) setLoading(false);
           },
@@ -516,7 +603,7 @@ export function PersonaChatV2Page() {
       }
 
       if (outcome.type === 'error') {
-        updateThread(threadId, { status: 'error', answer: '' });
+        updateThread(threadId, { status: 'error', answer: '', marks: undefined });
         return;
       }
       const data = outcome.data;
@@ -531,6 +618,7 @@ export function PersonaChatV2Page() {
         sources: data.sources ?? [],
         followUps: data.follow_ups ?? [],
         conversationId: data.conversation_id ?? null,
+        marks: undefined,
       });
       setCtaVisible(true);
       if (firstAnswer) {
@@ -550,12 +638,13 @@ export function PersonaChatV2Page() {
       if (answerEnded) return; // the answer arrived in full; only its metadata is missing
       // The backend gives the question back when an answer fails.
       setUsedCount((count) => Math.max(0, count - 1));
-      updateThread(threadId, { status: 'error', answer: '' });
+      updateThread(threadId, { status: 'error', answer: '', marks: undefined });
     } finally {
       // A newer question may already be running; only the active request owns `loading`.
       if (abortRef.current === controller) {
         abortRef.current = null;
         setLoading(false);
+        setActivity({ phase: 'idle', related: [] });
       }
     }
   };
@@ -622,6 +711,19 @@ export function PersonaChatV2Page() {
     );
   };
 
+  const openMap = (from: 'hero' | 'dock', node?: GraphNode) => {
+    setMapView({ focusId: node?.id ?? null });
+    void trackFunnelEvent('map_opened', { from, ...(node ? { node: node.id } : {}) });
+  };
+
+  const closeMap = useCallback(() => setMapView(null), []);
+
+  const handleMapAsk = (value: string, node: GraphNode) => {
+    setMapView(null);
+    void trackFunnelEvent('map_question_asked', { node: node.id, kind: node.kind });
+    void handleSubmit('map', value);
+  };
+
   const closePrivacyNotice = useCallback(() => setShowPrivacyNotice(false), []);
 
   const handleInputFocus = () => {
@@ -635,7 +737,6 @@ export function PersonaChatV2Page() {
       setShowCompletionModal(true);
       return;
     }
-    setQuickQuestionConsumed(true);
     setQuestion(value);
     void trackFunnelEvent('quick_question_clicked', { value });
     void handleSubmit('quick', value);
@@ -665,7 +766,6 @@ export function PersonaChatV2Page() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
-      <style>{`@keyframes dotPulseMove {0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}`}</style>
       <main
         ref={contentRef}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10"
@@ -677,23 +777,24 @@ export function PersonaChatV2Page() {
             <div className="h-10 w-10" />
           </div>
           <div className="space-y-4">
-            <p className="text-[32px] font-bold leading-snug text-ink sm:text-[38px]">
+            <p className="animate-rise text-[32px] font-bold leading-snug text-ink sm:text-[38px]">
               안녕하세요. 🙋 만나서 반갑습니다.
               <br />
               이 서비스는 저의 페르소나가 담긴 🤖 *AI Agent 기반 커피챗 서비스입니다.
             </p>
-            <p className="text-sm font-medium text-[#767676]">
+            <p className="animate-rise text-sm font-medium text-[#767676]" style={{ animationDelay: '100ms' }}>
               *저의 경력과 일하는 방식을 AI가 자연스럽게 재현해 면접 전에 후보자 이해도를 높이고, 채용담당자가 보다 효율적이고 정확한 평가를
               할 수 있도록 돕는 사전 인터뷰 에이전트입니다.
             </p>
           </div>
+          {graphMissing ? null : (
+            <MapHero graph={graph} signals={mapSignals} onOpen={(node) => openMap('hero', node)} />
+          )}
         </section>
 
         <section className="flex flex-col gap-6">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
-              <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
-            </div>
+          <div className="animate-rise flex items-start gap-3" style={{ animationDelay: '320ms' }}>
+            <AvatarPresence src={agentAvatar} />
             <div className="flex w-full max-w-[540px] flex-col gap-1">
               <div className="flex items-center gap-2 text-[11px] text-slate-500">
                 <span className="font-semibold text-slate-900">309</span>
@@ -704,6 +805,23 @@ export function PersonaChatV2Page() {
               </div>
             </div>
           </div>
+
+          {threads.length === 0 ? (
+            // Suggestions belong to the greeting; they go once the conversation starts.
+            <div className="flex flex-wrap gap-2 pl-[52px]" aria-label="추천 질문">
+              {QUICK_QUESTIONS.map((q, index) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => handleQuickQuestion(q)}
+                  className="animate-rise rounded-full border border-mist-line bg-mist px-3 py-1.5 text-left text-[12px] font-semibold text-[#445067] transition hover:-translate-y-0.5 hover:bg-mist-hover"
+                  style={{ animationDelay: `${420 + index * 70}ms` }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {threads.length ? (
             <div className="flex flex-col gap-6">
@@ -725,16 +843,12 @@ export function PersonaChatV2Page() {
                     ) : null}
                     {thread.status === 'error' ? (
                       <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
-                          <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
-                        </div>
+                        <AvatarPresence src={agentAvatar} />
                         <FailedAnswer disabled={loading} onRetry={() => handleRetry(thread)} />
                       </div>
                     ) : thread.answer ? (
                       <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
-                          <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
-                        </div>
+                        <AvatarPresence src={agentAvatar} state={thread.status === 'streaming' ? 'speaking' : null} />
                         <div className="flex w-full max-w-[540px] flex-col gap-1">
                           <div className="flex items-center gap-2 text-[11px] text-slate-500">
                             <span className="font-semibold text-slate-900">309</span>
@@ -743,10 +857,18 @@ export function PersonaChatV2Page() {
                           {thread.inferredCaption ? (
                             <p className="text-[11px] text-slate-500">{thread.inferredCaption}</p>
                           ) : null}
-                          <AnimatedFormattedAnswer text={thread.answer} />
+                          {thread.status === 'streaming' ? (
+                            <StreamingText text={thread.answer} marks={thread.marks ?? []} />
+                          ) : (
+                            <AnimatedFormattedAnswer text={thread.answer} />
+                          )}
                           {thread.status === 'done' ? (
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <AnswerSources sources={thread.sources ?? []} hrefFor={sourceHref} />
+                              <AnswerSources
+                                sources={thread.sources ?? []}
+                                hrefFor={sourceHref}
+                                onFocusSource={graph ? setFocusedSource : undefined}
+                              />
                               {thread.conversationId ? (
                                 <AnswerFeedback
                                   value={thread.feedback}
@@ -759,7 +881,16 @@ export function PersonaChatV2Page() {
                       </div>
                     ) : null}
                     {showFollowUps ? (
-                      <FollowUpChips items={thread.followUps ?? []} disabled={loading} onPick={handleFollowUp} />
+                      thread.followUps?.length ? (
+                        <FollowUpChips items={thread.followUps} disabled={loading} onPick={handleFollowUp} />
+                      ) : (
+                        // No follow-ups from the model (legacy pipeline): offer the suggestions not asked yet.
+                        <FollowUpChips
+                          items={QUICK_QUESTIONS.filter((q) => !threads.some((t) => t.question === q)).slice(0, 3)}
+                          disabled={loading}
+                          onPick={handleQuickQuestion}
+                        />
+                      )
                     ) : null}
                   </div>
                 );
@@ -769,9 +900,7 @@ export function PersonaChatV2Page() {
 
           {showProfileNudge && !loading ? (
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
-                <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
-              </div>
+              <AvatarPresence src={agentAvatar} />
               <div className="w-full max-w-[540px] rounded-2xl border border-mist-line bg-mist px-4 py-3 text-[13px] leading-5 text-[#334155]">
                 <p>혹시 실례가 안 된다면 이름/소속을 알려주실 수 있을까요? 맥락에 맞춰 더 정확히 답변드릴 수 있어요 😊</p>
                 <div className="mt-2 flex gap-2">
@@ -795,19 +924,10 @@ export function PersonaChatV2Page() {
           ) : null}
 
           {threads.some((thread) => thread.status === 'pending') ? (
-            <div className="mt-2 flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
-                <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
-              </div>
-              <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[13px] font-medium text-slate-500 backdrop-blur-sm">
-                <span>답변을 정리하고 있어요</span>
-                <span className="flex gap-1">
-                  <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '0ms' }} />
-                  <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '120ms' }} />
-                  <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '240ms' }} />
-                </span>
-              </div>
-            </div>
+            <ThinkingIndicator
+              avatar={agentAvatar}
+              relatedLabels={activity.related.map((id) => nodeLabels.get(id)).filter((label): label is string => Boolean(label))}
+            />
           ) : null}
           <div ref={bottomRef} className="h-1 w-full" style={{ scrollMarginBottom: dockHeight + 16 }} />
         </section>
@@ -840,20 +960,6 @@ export function PersonaChatV2Page() {
             </div>
           ) : null}
           <div className="space-y-3">
-            {!quickQuestionConsumed ? (
-              <div className="flex flex-wrap gap-2 px-1">
-                {QUICK_QUESTIONS.map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => handleQuickQuestion(q)}
-                    className="rounded-full border border-mist-line bg-mist px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-mist-hover"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            ) : null}
             <InputPanel
               name={displayName}
               question={question}
@@ -866,6 +972,8 @@ export function PersonaChatV2Page() {
               onInputFocus={handleInputFocus}
               showIdentityEdit={showIdentityEdit}
               maxReached={usedCount >= questionLimit}
+              onOpenMap={graph ? () => openMap('dock') : undefined}
+              mapActive={activity.phase !== 'idle'}
             />
             <p className="px-2 text-center text-[11px] text-slate-400">
               질문과 입력하신 정보는 답변과 서비스 개선에만 써요.{' '}
@@ -876,6 +984,19 @@ export function PersonaChatV2Page() {
           </div>
         </div>
       </div>
+      {mapView && graph ? (
+        <Suspense fallback={null}>
+          <MapOverlay
+            graph={graph}
+            signals={mapSignals}
+            initialId={mapView.focusId}
+            remaining={Math.max(0, questionLimit - usedCount)}
+            disabled={loading}
+            onAsk={handleMapAsk}
+            onClose={closeMap}
+          />
+        </Suspense>
+      ) : null}
       <PrivacyNotice open={showPrivacyNotice} onClose={closePrivacyNotice} />
       <VisitorInfoModal
         key={`visitor-${showVisitorInfoModal ? 'open' : 'closed'}-${visitorName}-${visitorAffiliation}`}

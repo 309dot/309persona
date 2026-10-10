@@ -41,7 +41,7 @@ async function shot(page, name) {
     await input.waitFor();
     await shot(page, `${vpName}-1-persona-initial`);
 
-    await dock.getByRole('button', { name: /디자인 시스템 구축에서/ }).click();
+    await page.getByRole('button', { name: /디자인 시스템 구축에서/ }).click();
     await waitAnswers(1);
     await page.getByText('혹시 실례가 안 된다면').waitFor();
     await shot(page, `${vpName}-2-persona-answer`);

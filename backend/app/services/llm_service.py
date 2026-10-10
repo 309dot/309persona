@@ -94,10 +94,19 @@ def build_user_payload(
     )
 
 
+def reasoning_kwargs() -> Dict[str, str]:
+    """reasoning_effort for providers with thinking models (LLM_REASONING_EFFORT), else nothing."""
+    effort = settings.llm_reasoning_effort.strip()
+    return {"reasoning_effort": effort} if effort else {}
+
+
 def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
     quality = (settings.answer_quality_mode or "balanced").lower()
     temperature = 0.45 if quality == "quality" else 0.35
     max_tokens = 420 if quality == "quality" else 260
+    if reasoning_kwargs():
+        # Thinking tokens share the output budget; the short legacy budget would cut answers off.
+        max_tokens = max(max_tokens, settings.llm_max_output_tokens)
     return client.chat.completions.create(
         model=model,
         temperature=temperature,
@@ -106,6 +115,7 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},
         ],
+        **reasoning_kwargs(),
     )
 
 

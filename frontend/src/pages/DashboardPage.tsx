@@ -20,6 +20,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { formatMs, formatTime } from './dashboard/format';
+import { KnowledgeCard } from './dashboard/KnowledgeCard';
 import { SessionPanel } from './dashboard/SessionPanel';
 
 function KpiCard({ icon: Icon, title, value, note }: { icon: LucideIcon; title: string; value: string; note?: string }) {
@@ -233,6 +234,8 @@ export function DashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <KnowledgeCard user={auth.user} />
 
       {openSession ? (
         <SessionPanel key={openSession} user={auth.user} sessionId={openSession} onClose={() => setOpenSession(null)} />

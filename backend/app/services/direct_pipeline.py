@@ -18,7 +18,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from ..core.config import settings
 from .knowledge_base import load_knowledge_pack
 from .knowledge_document import render_knowledge_block, source_ids
-from .llm_service import get_openai_client
+from .llm_service import get_openai_client, reasoning_kwargs
+from .obsidian_notes import notes_version
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,12 @@ def _pack_lines(value: Any) -> str:
     return str(value or "").strip()
 
 
-@lru_cache
 def build_system_prompt() -> str:
+    return _system_prompt(notes_version())
+
+
+@lru_cache(maxsize=2)
+def _system_prompt(_notes_version: int) -> str:
     template = (Path(__file__).resolve().parent.parent / "prompts" / "persona_direct.txt").read_text(encoding="utf-8")
     pack = load_knowledge_pack()
     return (
@@ -185,7 +190,7 @@ def _create_stream(model: str, messages: List[Dict[str, str]]):
     }
     if settings.llm_stream_usage:
         kwargs["stream_options"] = {"include_usage": True}
-    return get_openai_client().chat.completions.create(**kwargs)
+    return get_openai_client().chat.completions.create(**kwargs, **reasoning_kwargs())
 
 
 def stream_answer(

@@ -5,23 +5,43 @@ import type { ChatSource, FeedbackRating } from '../../types/api';
 export function AnswerSources({
   sources,
   hrefFor,
+  onFocusSource,
 }: {
   sources: ChatSource[];
   hrefFor: (source: ChatSource) => string | undefined;
+  /** Pointing at a chip lights its record up on the knowledge map. */
+  onFocusSource?: (id: string | null) => void;
 }) {
   if (!sources.length) return null;
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
       <span className="font-semibold">근거</span>
-      {sources.map((source) => {
+      {sources.map((source, index) => {
         const href = hrefFor(source);
-        const className = 'rounded-full border border-mist-line bg-mist px-2 py-0.5 text-[#445067]';
+        const className = 'animate-rise rounded-full border border-mist-line bg-mist px-2 py-0.5 text-[#445067]';
+        const focus = onFocusSource
+          ? {
+              onMouseEnter: () => onFocusSource(source.id),
+              onMouseLeave: () => onFocusSource(null),
+              onFocus: () => onFocusSource(source.id),
+              onBlur: () => onFocusSource(null),
+            }
+          : {};
+        const style = { animationDelay: `${index * 80}ms` };
         return href ? (
-          <a key={source.id} href={href} target="_blank" rel="noreferrer" className={`${className} hover:bg-mist-hover`}>
+          <a
+            key={source.id}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className={`${className} hover:bg-mist-hover`}
+            style={style}
+            {...focus}
+          >
             {source.label}
           </a>
         ) : (
-          <span key={source.id} className={className}>
+          <span key={source.id} className={className} style={style} tabIndex={onFocusSource ? 0 : undefined} {...focus}>
             {source.label}
           </span>
         );

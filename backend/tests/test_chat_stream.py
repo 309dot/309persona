@@ -181,3 +181,10 @@ def test_feedback_needs_a_stored_answer(client, session_id):
     assert res.status_code == 404  # no Firestore in tests, nothing stored
     bad = client.post("/api/chat/feedback", json={"session_id": session_id, "conversation_id": "abc", "rating": "meh"})
     assert bad.status_code == 422
+
+
+def test_stream_start_event_carries_related_nodes(client, session_id, direct):
+    direct()
+    events = read_events(client, {"session_id": session_id, "question": "디자인 시스템 구축 경험 알려줘"})
+    name, data = events[0]
+    assert name == "start" and data["related"] == ["T:디자인 시스템", "P2"]

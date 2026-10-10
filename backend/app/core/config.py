@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     llm_stream_usage: bool = Field(
         default=True, description="Ask for token usage in streamed responses (stream_options.include_usage)"
     )
+    llm_reasoning_effort: str = Field(
+        default="",
+        description="Sent as reasoning_effort when set (e.g. low for Gemini). Thinking tokens count toward "
+        "llm_max_output_tokens on most providers, so raise that too. Empty: not sent",
+    )
     chat_history_turns: int = Field(default=3, description="Previous Q&A pairs sent back to the model")
     answer_time_budget_seconds: float = Field(
         default=90, description="Skip optional quality retries once an answer has taken this long"
@@ -69,6 +74,15 @@ class Settings(BaseSettings):
     knowledge_pack_path: str = Field(
         default="../knowledge_base/309_knowledge_pack.json",
         description="Path to the 309 knowledge base JSON file",
+    )
+    # Private Obsidian notes (docs/obsidian-notes.md): a local folder, or a private GitHub repo read with a token.
+    notes_dir: str = Field(default="", description="Local folder of Obsidian notes (development and tests)")
+    notes_github_repo: str = Field(default="", description="owner/repo of the private notes repository")
+    notes_github_token: str = Field(default="", description="Fine-grained token with read access to that repo")
+    notes_github_ref: str = Field(default="main")
+    notes_subdir: str = Field(default="", description="Folder inside the repo or notes_dir to read; empty: all")
+    notes_max_chars: int = Field(
+        default=60000, description="Note text added to the direct prompt; notes past this are left out"
     )
     firebase_credentials_path: Optional[str] = Field(
         default=None, description="Path to Firebase service account JSON file"

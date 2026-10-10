@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 
 from ...core.auth import verify_admin
-from ...services import conversation_service, visitor_service
+from ...services import conversation_service, knowledge_document, visitor_service
 from .. import schemas
 
 router = APIRouter()
@@ -31,6 +31,25 @@ def get_recent_logs(limit: int = Query(50, ge=1, le=200)):
     return [schemas.ConversationRecord(**log) for log in logs]
 
 
+@router.get(
+    "/knowledge",
+    response_model=schemas.KnowledgeStatus,
+    dependencies=[Depends(verify_admin)],
+)
+def get_knowledge_status():
+    """Which private notes the answers can use right now, and why others were left out."""
+    return schemas.KnowledgeStatus(**knowledge_document.knowledge_status())
+
+
+@router.post(
+    "/knowledge/reload",
+    response_model=schemas.KnowledgeStatus,
+    dependencies=[Depends(verify_admin)],
+)
+def reload_knowledge():
+    """Fetch the notes again after a sync, without a redeploy."""
+    knowledge_document.reload_knowledge()
+    return schemas.KnowledgeStatus(**knowledge_document.knowledge_status())
 
 
 @router.get(

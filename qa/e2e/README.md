@@ -21,8 +21,12 @@ node qa/e2e/e2e.cjs
 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_stream.cjs
 
-# 3) 대시보드: 시드 데이터 → 로그인(Firebase Auth REST 응답을 가짜로) → 지표 값 대조 → 방문자 대화 보기 (22개)
-qa/e2e/stack.sh build-admin && QA_FAKE_ADMIN=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
+# 3) 기록 지도·모션: 첫 화면 지도, 생각 중 관련 기록, 쓰는 중 잉크 효과, 근거 표시, 지도에서 질문, 움직임 줄이기, 지도 없는 백엔드 (35개)
+QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
+node qa/e2e/e2e_map.cjs
+
+# 4) 대시보드: 시드 데이터 → 로그인(Firebase Auth REST 응답을 가짜로) → 지표 값 대조 → 방문자 대화 보기 → 노트 상태·다시 불러오기 (25개)
+qa/e2e/stack.sh build-admin && QA_FAKE_ADMIN=1 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_admin.cjs
 
 qa/e2e/stack.sh stop
@@ -30,12 +34,15 @@ qa/e2e/stack.sh stop
 
 - 각 스크립트는 체크마다 `PASS`/`FAIL`을 찍고, 하나라도 실패하면 종료 코드 1이다.
 - `QA_FAKE_ADMIN=1`은 어떤 ID 토큰이든 `owner@309.so`로 받아 준다. QA 스택(`run_backend.py`)에서만 쓰인다.
+- `QA_NOTES=1`은 `qa/e2e/notes/309-persona/`의 가짜 옵시디언 노트를 비공개 노트로 읽힌다(실제 노트가 아니다).
+- 가짜 LLM은 `POST /__mode {"chunk_delay": 0.08}`처럼 글자 조각 사이 간격을 늘려 스트리밍 모션을 눈으로 볼 수 있다.
+- 스택을 다시 띄우는 `stack.sh restart`는 다른 명령과 한 줄로 묶지 않는다. 안의 `pkill -f`가 같은 줄의 문자열에 걸려 셸까지 끝낼 수 있다.
 - `e2e.cjs`는 장애 재현을 위해 백엔드를 직접 죽였다 띄운다. 끝나면 `stack.sh stop`으로 정리한다.
 - 로그·결과는 `qa/e2e/.logs/`, 스크린샷은 `qa/e2e/shots/`(둘 다 gitignore).
 
 ## 시각 회귀
 
-시계를 고정하고 애니메이션을 끄기 때문에 같은 빌드는 픽셀 단위로 같게 나온다.
+시계를 고정하고 움직임 줄이기(`reducedMotion: 'reduce'`)로 애니메이션을 끄기 때문에 같은 빌드는 픽셀 단위로 같게 나온다. 기록 지도는 시드가 고정된 레이아웃이라 정지 화면도 매번 같다.
 
 ```bash
 node qa/e2e/visual.cjs qa/e2e/shots/before      # 변경 전 빌드로 스택을 띄운 상태에서

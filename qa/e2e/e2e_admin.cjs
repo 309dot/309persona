@@ -1,5 +1,5 @@
 // Dashboard v2 QA: seeded data → login (Firebase Auth REST faked) → KPI values → session panel.
-// Needs: build with VITE_FIREBASE_* set, backend with QA_FAKE_ADMIN=1 and ANSWER_PIPELINE=direct.
+// Needs: build with VITE_FIREBASE_* set, backend with QA_FAKE_ADMIN=1, QA_NOTES=1 and ANSWER_PIPELINE=direct.
 const { chromium } = require('playwright') // resolved via NODE_PATH, see README.md;
 const fs = require('fs');
 const path = require('path');
@@ -22,6 +22,14 @@ const post = async (p, body) => {
 };
 const setMode = (mode) => fetch(`${LLM}/__mode`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
 const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+const waitFor = async (fn, ms = 10000) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await fn()) return true;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return false;
+};
 
 function fakeIdToken() {
   const now = Math.floor(Date.now() / 1000);
@@ -119,6 +127,19 @@ function fakeIdToken() {
   await page.screenshot({ path: path.join(SHOTS, 'session-panel.png') });
   await page.keyboard.press('Escape');
   check('ESC로 닫힘', (await page.getByRole('dialog').count()) === 0);
+
+  screen = '지식베이스 카드';
+  const knowledge = page.getByRole('region', { name: '지식베이스 · 비공개 노트' });
+  await knowledge.getByText('리뷰 루프').waitFor({ timeout: 5000 }).catch(() => undefined);
+  check('연결 방식·사용 노트 수 (QA_NOTES=1)', (await knowledge.getByText('연결: 로컬 폴더').isVisible()) && (await knowledge.getByText('노트 2개 사용').isVisible()));
+  check('노트 목록과 경로', (await knowledge.getByText('QA 프로젝트 회고', { exact: true }).isVisible()) && (await knowledge.getByText('리뷰 루프.md').isVisible()));
+  const reloads = [];
+  page.on('request', (r) => { if (r.url().endsWith('/api/dashboard/knowledge/reload')) reloads.push(r.method()); });
+  await knowledge.getByRole('button', { name: '다시 불러오기' }).click();
+  await waitFor(async () => reloads.length === 1, 5000);
+  await page.waitForTimeout(300);
+  check('다시 불러오기: POST 후 목록 유지', reloads[0] === 'POST' && (await knowledge.getByText('노트 2개 사용').isVisible()), JSON.stringify(reloads));
+  await knowledge.screenshot({ path: path.join(SHOTS, 'knowledge-card.png') });
 
   screen = '콘솔 오류';
   const unexpected = consoleErrors.filter((e) => !e.includes('net::ERR'));
