@@ -175,12 +175,23 @@ question_filter(키워드) → lexical 검색 → 키워드 rerank("2024" 가산
 
 ### Phase 0 — 현황 확인 & 작업 기반 (S)
 
-- [ ] 운영값 확인: Render env(`MAX_SESSION_QUESTIONS`, `OPENAI_BASE_URL`/`OPENAI_MODEL`, `ADMIN_ALLOWED_EMAILS`, `RAG_MODE`), Render 플랜, LLM 실제 연결 여부(질문 1회로 고정 템플릿 답변이 나오는지)
-- [ ] Firestore에서 최근 6개월 세션·질문 수 집계 → 비용 산정, 평가셋 재료
-- [ ] 개발 환경: `CLAUDE.md`(구조·명령·규칙), `.nvmrc`(24), `engines`, 클라우드 세션용 SessionStart 훅(의존성 자동 설치), `.claude/settings.json` 권한
-- [ ] CI(GitHub Actions): 프론트 lint·typecheck·build, 백엔드 스모크 테스트
-- [ ] 개발 산출물 정리 결정: `.cursor/`, `.taskmaster/`, `history_log/`, `memory/` → `docs/archive/`로 이동 또는 삭제
-- [ ] 2025-12부터 열려 있는 vercel[bot] draft PR 2개(Vercel Web Analytics) 정리 — 필요하면 Phase 4 관측성에서 다시 적용
+- [ ] 운영값 확인: Render env(`MAX_SESSION_QUESTIONS`, `OPENAI_BASE_URL`/`OPENAI_MODEL`, `ADMIN_ALLOWED_EMAILS`, `RAG_MODE`), Render 플랜, LLM 실제 연결 여부(질문 1회로 고정 템플릿 답변이 나오는지) — Render 대시보드 접근이 필요해 사용자 확인 대기
+- [ ] Firestore에서 최근 6개월 세션·질문 수 집계 → 비용 산정, 평가셋 재료 — `backend/scripts/usage_report.py` 추가 완료, 자격 증명이 있는 환경에서 실행 대기
+- [x] 개발 환경: `CLAUDE.md`, `.nvmrc`(24) + `engines`, 클라우드 세션용 SessionStart 훅(`.claude/hooks/session-start.sh`). 권한 allowlist는 사용 패턴이 쌓인 뒤 `/fewer-permission-prompts`로 만든다
+- [x] CI(GitHub Actions, `.github/workflows/ci.yml`): 프론트 lint·typecheck·build, 백엔드 compile + 스모크 테스트 2종(`answer_quality_smoke_test.py`, 신규 `api_smoke_test.py`) — 첫 실행 통과
+- [ ] 개발 산출물 정리 결정: `.cursor/`, `.taskmaster/`, `history_log/`, `memory/` → `docs/archive/`로 이동 또는 삭제 — 사용자 결정 대기
+- [x] 2025-12부터 열려 있던 vercel[bot] draft PR 2개(Vercel Web Analytics, 내용 동일) 닫음 — Phase 4 관측성에서 재검토
+
+**운영 실태 (2026-10-10)** — 보안 관련 값은 public 레포라 기록하지 않는다
+
+| 항목 | 값 |
+|---|---|
+| 프론트 | Vercel `309persona`, Node 24.x, `309designlab.com`·`www`, 마지막 운영 배포 2026-03-10(`8f7f581`) |
+| 운영 API | `https://three09persona.onrender.com/api` (운영 번들에서 확인) |
+| Render 플랜·런타임 | ❓ |
+| 운영 LLM(`OPENAI_BASE_URL`/`OPENAI_MODEL`) | ❓ |
+| 질문 한도(`MAX_SESSION_QUESTIONS`) | ❓ |
+| 월별 세션·질문 수 | ❓ `usage_report.py` 실행 결과로 채움 |
 
 완료 기준: CI 통과, 운영 실태 표 작성 완료
 
