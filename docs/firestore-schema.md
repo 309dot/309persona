@@ -29,19 +29,20 @@
 
 - dashboard에서 최근 질문/카테고리 분포를 계산합니다.
 
-## personaFunnelEvents
+## funnel_events
+
+백엔드 `POST /api/events/funnel`이 기록한다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `event` | string | 퍼널 이벤트명 (`landing_view`, `input_focus`, `first_submit` 등) |
-| `sessionId` | string | 방문 세션 식별자 |
-| `visitRef` | string | 유입 ref |
-| `variant` | string | 실험 분기값 (`on`/`off`) |
-| `path` | string | 페이지 경로 |
-| `createdAt` | timestamp | Firestore 서버 타임스탬프 |
+| `session_id` | string | 방문 ID(프론트가 탭마다 만드는 값). 서버 세션 ID와 다를 수 있다 |
+| `event` | string | 퍼널 이벤트명 (`landing_view`, `chat_input_started`, `first_submit` 등) |
+| `variant` | string | 실험 분기값 (`on`/`off`), `properties.variant`를 최상위로 복사 |
+| `properties` | map | 이벤트별 부가 정보 (최대 20개 키·2000자) |
+| `timestamp` | timestamp | Firestore 서버 타임스탬프 |
 
-- 질문 전환 실험의 baseline/variant 비교 분석에 사용합니다.
 - 7일 단위 리포트는 `backend/scripts/funnel_report.py`로 생성합니다.
+- 예전 클라이언트 직접 기록 컬렉션 `personaFunnelEvents`는 더 이상 쓰지 않습니다.
 
 ## analytics (선택)
 

@@ -52,6 +52,9 @@ def log_funnel_event(session_id: str, event: str, properties: Optional[Dict] = N
             {
                 "session_id": session_id,
                 "event": event,
+                # Top-level so reports can group by experiment variant without
+                # digging into properties.
+                "variant": (properties or {}).get("variant"),
                 "properties": properties or {},
                 "timestamp": firestore.SERVER_TIMESTAMP,
             }

@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-"""Decide winner variant when enough funnel samples are accumulated."""
+"""Decide winner variant when enough funnel samples are accumulated.
+
+Run (needs Firebase credentials):
+  cd backend && ./.venv/bin/python scripts/funnel_winner_decision.py
+"""
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict
 
-from app.core.firebase import get_firestore_client
-
-
-def to_dt(value: Any) -> datetime | None:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.astimezone(timezone.utc)
-    return None
+from funnel_report import collect, load_events
 
 
 def ratio(n: int, d: int) -> float:
@@ -28,27 +22,7 @@ def main() -> None:
     min_landing = 100
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
-    client = get_firestore_client()
-    docs = client.collection("personaFunnelEvents").stream()
-
-    sessions: Dict[str, Dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
-    counts: Dict[str, Counter] = defaultdict(Counter)
-
-    for snap in docs:
-        d = snap.to_dict() or {}
-        created = to_dt(d.get("createdAt"))
-        if not created or created < since:
-            continue
-
-        variant = str(d.get("variant") or "unknown")
-        event = str(d.get("event") or "")
-        session_id = str(d.get("sessionId") or "")
-        if not event:
-            continue
-
-        counts[variant][event] += 1
-        if session_id:
-            sessions[variant][event].add(session_id)
+    sessions, _counts = collect(load_events(since), since)
 
     out = []
     out.append(f"# Funnel Winner Decision ({datetime.now().date().isoformat()})")
