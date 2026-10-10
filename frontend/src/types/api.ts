@@ -31,6 +31,9 @@ export interface ChatResponseBody {
   blocked: boolean;
   reason?: string;
   category?: string;
+  citations?: string[];
+  remaining?: number;
+  limit?: number;
 }
 
 export interface ChatMessage {

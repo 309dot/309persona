@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { addDoc, collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconEdit from '@assets/icons/name-edit.svg';
 import iconArrowRight from '@assets/icons/icon-arrow-right.svg';
 import iconMailSolid from '@assets/icons/icon-mail.svg';
-import iconClose from '@assets/icons/icon-close.svg';
-import heroCardImage from '@assets/icons/card.svg';
 import iconPortfolio from '@assets/icons/icon-portfolio.svg';
 import iconResume from '@assets/icons/icon-resume.svg';
 import iconSend from '@assets/icons/send-arrow.svg';
 import logoFull from '@assets/icons/logo.svg';
 
-import { createVisitor, sendQuestion, trackFunnelEvent as trackFunnelEventApi } from '../services/api';
-import { firestore } from '../lib/firebase';
+import {
+  ApiError,
+  createVisitor,
+  sendQuestion,
+  trackFunnelEvent as trackFunnelEventApi,
+  updateVisitor,
+} from '../services/api';
 import { formatVisitorName } from '../lib/formatName';
+import { getVisitId } from '../lib/visit';
 import { AnimatedFormattedAnswer, CompletionModal, VisitorInfoModal } from './persona/PersonaResponseAndModals';
-import type { SessionInfo } from '../types/api';
+import type { ChatResponseBody, SessionInfo } from '../types/api';
 
 const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
@@ -29,18 +32,17 @@ const QUICK_QUESTIONS = [
   '우선순위가 충돌할 때 어떤 기준으로 결정했는지 예시로 설명해줘',
   '채용 관점에서 리스크와 강점을 균형 있게 평가해줘',
 ];
-const TOTAL_QUESTIONS = 5;
+// Shown until the first answer arrives; after that the backend's limit/remaining win.
+const DEFAULT_QUESTION_LIMIT = 5;
+const DEFAULT_VISITOR_NAME = '채용 담당자';
+const QUESTION_MAX_LENGTH = 500;
 const PORTFOLIO_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%8F%AC%ED%8A%B8%ED%8F%B4%EB%A6%AC%EC%98%A4_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
 const RESUME_URL =
   'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/Product-resume.pdf';
 const OUT_OF_SCOPE_MESSAGE = '이 서비스는 309의 경력 관련 질문만 응답합니다. 프로덕트/UX/경력 맥락으로 다시 질문해 주세요.';
-const CONTEXT_HINT =
-  '\n\n(맥락: 이 질문은 309 성백곤의 프로덕트/UX/협업/경력과 관련된 내용입니다. 해당 범위에서 답변해 주세요.)';
-const CONTEXT_KEYWORDS = ['프로덕트', 'UX', '경력', '프로젝트', '협업', '리더십', '디자인', '경험', '채용', '작업 방식'];
 const QUESTION_FIRST_EXPERIMENT = String(import.meta.env.VITE_EXPERIMENT_QUESTION_FIRST ?? 'true') === 'true';
-const ENABLE_CLIENT_FIRESTORE_LOGGING =
-  String(import.meta.env.VITE_ENABLE_CLIENT_FIRESTORE_LOGGING ?? 'false') === 'true';
+const EXPERIMENT_VARIANT = QUESTION_FIRST_EXPERIMENT ? 'on' : 'off';
 
 type PersonaThread = {
   id: string;
@@ -76,13 +78,13 @@ function BrandBadge() {
   );
 }
 
-function RemainingCounter({ used }: { used: number }) {
+function RemainingCounter({ used, total }: { used: number; total: number }) {
   const size = 16;
   const strokeWidth = 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const clamped = Math.min(used, TOTAL_QUESTIONS);
-  const progress = clamped / TOTAL_QUESTIONS;
+  const clamped = Math.min(used, total);
+  const progress = total > 0 ? clamped / total : 1;
   const dashoffset = circumference * (1 - progress);
 
   return (
@@ -115,16 +117,10 @@ function RemainingCounter({ used }: { used: number }) {
         />
       </svg>
       <span>
-        {clamped}/{TOTAL_QUESTIONS}
+        {clamped}/{total}
       </span>
     </div>
   );
-}
-
-function enrichQuestionContext(questionText: string) {
-  const hasKeyword = CONTEXT_KEYWORDS.some((keyword) => questionText.includes(keyword));
-  if (hasKeyword) return questionText;
-  return `${questionText}${CONTEXT_HINT}`;
 }
 
 function ProposalCard({ onClick }: { onClick?: () => void }) {
@@ -158,7 +154,7 @@ function formatTimeLabel(timestamp?: string) {
 }
 
 function withHonorific(name?: string | null) {
-  return formatVisitorName(name, '채용 담당자');
+  return formatVisitorName(name, DEFAULT_VISITOR_NAME);
 }
 
 function InputPanel({
@@ -168,6 +164,7 @@ function InputPanel({
   onSubmit,
   loading,
   usedCount,
+  questionLimit,
   onEditVisitor,
   onInputFocus,
   showIdentityEdit,
@@ -179,6 +176,7 @@ function InputPanel({
   onSubmit: (source?: 'manual' | 'quick') => void;
   loading: boolean;
   usedCount: number;
+  questionLimit: number;
   onEditVisitor: () => void;
   onInputFocus: () => void;
   showIdentityEdit: boolean;
@@ -192,8 +190,9 @@ function InputPanel({
         <input
           value={question}
           onChange={(e) => onQuestionChange(e.target.value)}
-          placeholder={maxReached ? '질문 5회가 완료되었습니다' : INPUT_PLACEHOLDER}
+          placeholder={maxReached ? `질문 ${questionLimit}회가 완료되었습니다` : INPUT_PLACEHOLDER}
           disabled={maxReached}
+          maxLength={QUESTION_MAX_LENGTH}
           className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none disabled:cursor-not-allowed disabled:text-slate-400"
           onFocus={onInputFocus}
           onKeyDown={(e) => {
@@ -204,7 +203,7 @@ function InputPanel({
           }}
         />
         <div className="flex flex-wrap items-center gap-4">
-          <RemainingCounter used={usedCount} />
+          <RemainingCounter used={usedCount} total={questionLimit} />
           {showIdentityEdit ? (
             <button
               type="button"
@@ -281,40 +280,20 @@ function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void })
   );
 }
 
-function HeroInfoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/70 px-4">
-      <div className="relative w-full max-w-sm">
-        <img src={heroCardImage} alt="309 persona hero info" className="w-full rounded-[32px] shadow-[0_45px_95px_rgba(15,19,36,0.35)]" />
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute -top-4 -right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#14151A] text-white hover:bg-black"
-          aria-label="모달 닫기"
-        >
-          <img src={iconClose} alt="닫기" className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export function PersonaChatV2Page() {
-  const [visitorName, setVisitorName] = useState('채용 담당자');
+  const [visitorName, setVisitorName] = useState(DEFAULT_VISITOR_NAME);
   const [visitorAffiliation, setVisitorAffiliation] = useState('');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [heroDone, setHeroDone] = useState(false);
   const [showLoadingBubble, setShowLoadingBubble] = useState(false);
   const [usedCount, setUsedCount] = useState(0);
+  const [questionLimit, setQuestionLimit] = useState(DEFAULT_QUESTION_LIMIT);
   const [dockVisible, setDockVisible] = useState(false);
   const [ctaVisible, setCtaVisible] = useState(false);
   const [threads, setThreads] = useState<PersonaThread[]>([]);
   const [quickQuestionConsumed, setQuickQuestionConsumed] = useState(false);
-  const [session, setSession] = useState<SessionInfo | null>(null);
   const [showConsentModal, setShowConsentModal] = useState(false);
-  const [showHeroInfoModal, setShowHeroInfoModal] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const [showProfileNudge, setShowProfileNudge] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -323,139 +302,75 @@ export function PersonaChatV2Page() {
   const landingTrackedRef = useRef(false);
   const chatViewTrackedRef = useRef(false);
   const inputFocusTrackedRef = useRef(false);
+  // The chat session is created on the first question, not on page load.
+  const sessionPromiseRef = useRef<Promise<SessionInfo> | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  // Only profile values the visitor entered themselves are sent to the backend;
+  // names guessed from question text stay on screen.
+  const confirmedProfileRef = useRef({ name: '', affiliation: '' });
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
-  const displayName = visitorName || '채용 담당자';
+  const displayName = visitorName || DEFAULT_VISITOR_NAME;
   const showIdentityEdit = !QUESTION_FIRST_EXPERIMENT || usedCount > 0;
 
-  const logQuestionToFirestore = useCallback(
-    async (questionText: string) => {
-      if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !firestore || !session) return;
-      try {
-        await addDoc(collection(firestore, 'personaQuestions'), {
-          sessionId: session.sessionId,
-          question: questionText,
-          visitorName,
-          visitorAffiliation,
-          visitRef: session.visitRef ?? '',
-          createdAt: serverTimestamp(),
-        });
-      } catch (error) {
-        console.error('[Persona] 질문 기록 실패', error);
-      }
-    },
-    [session, visitorName, visitorAffiliation],
-  );
-
-  const trackFunnelEvent = useCallback(
-    async (eventName: string, extra: Record<string, unknown> = {}) => {
-      if (!session?.sessionId) return;
-      try {
-        await trackFunnelEventApi({
-          sessionId: session.sessionId,
-          event: eventName,
-          properties: {
-            visitorName,
-            visitorAffiliation,
-            visitRef: session.visitRef ?? '',
-            path: window.location.pathname,
-            ...extra,
-          },
-        });
-      } catch (error) {
-        console.error('[Persona] 퍼널 이벤트 기록 실패', error);
-      }
-    },
-    [session, visitorName, visitorAffiliation],
-  );
-
-  const persistVisitorProfile = useCallback(
-    async (nameValue: string, affiliationValue: string, sessionOverride?: SessionInfo | null) => {
-      const activeSession = sessionOverride ?? session;
-      if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !firestore || !activeSession) return;
-      try {
-        await setDoc(
-          doc(firestore, 'personaVisitors', activeSession.sessionId),
-          {
-            visitorName: nameValue,
-            visitorAffiliation: affiliationValue,
-            visitRef: activeSession.visitRef ?? '',
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-      } catch (error) {
-        console.error('[Persona] 방문자 정보 저장 실패', error);
-      }
-    },
-    [session],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const info = await createVisitor({
-          visitorName: '채용 담당자',
-          visitorAffiliation: 'Persona Preview',
+  const trackFunnelEvent = useCallback(async (eventName: string, extra: Record<string, unknown> = {}) => {
+    try {
+      await trackFunnelEventApi({
+        sessionId: getVisitId(),
+        event: eventName,
+        properties: {
+          experiment: 'question_first',
+          variant: EXPERIMENT_VARIANT,
           visitRef: 'persona-v2',
-          referrer: document.referrer || '',
-        });
-        if (!cancelled) {
-          setSession(info);
-          setVisitorName(info.visitorName || '채용 담당자');
-          setVisitorAffiliation(info.visitorAffiliation || '');
-          if (ENABLE_CLIENT_FIRESTORE_LOGGING && firestore && (info.visitorName || info.visitorAffiliation)) {
-            try {
-              await setDoc(
-                doc(firestore, 'personaVisitors', info.sessionId),
-                {
-                  visitorName: info.visitorName || '채용 담당자',
-                  visitorAffiliation: info.visitorAffiliation || '',
-                  visitRef: info.visitRef ?? '',
-                  updatedAt: serverTimestamp(),
-                },
-                { merge: true },
-              );
-            } catch (error) {
-              console.error('[Persona] 초기 방문자 정보 저장 실패', error);
-            }
-          }
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error('[Persona] 세션 생성 실패', error);
-          alert('프리뷰 세션을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+          path: window.location.pathname,
+          ...(sessionIdRef.current ? { chatSessionId: sessionIdRef.current } : {}),
+          ...extra,
+        },
+      });
+    } catch (error) {
+      console.error('[Persona] 퍼널 이벤트 기록 실패', error);
+    }
   }, []);
 
-  useEffect(() => {
-    if (!ENABLE_CLIENT_FIRESTORE_LOGGING || !session || !firestore) return;
-    let cancelled = false;
-    (async () => {
+  const ensureSession = useCallback((forceNew = false): Promise<SessionInfo> => {
+    if (forceNew) sessionPromiseRef.current = null;
+    if (!sessionPromiseRef.current) {
+      const profile = confirmedProfileRef.current;
+      sessionPromiseRef.current = createVisitor({
+        visitorName: profile.name || DEFAULT_VISITOR_NAME,
+        visitorAffiliation: profile.affiliation,
+        visitRef: 'persona-v2',
+        referrer: document.referrer || '',
+      }).then(
+        (info) => {
+          sessionIdRef.current = info.sessionId;
+          return info;
+        },
+        (error) => {
+          sessionPromiseRef.current = null;
+          throw error;
+        },
+      );
+    }
+    return sessionPromiseRef.current;
+  }, []);
+
+  const askQuestion = useCallback(
+    async (text: string): Promise<ChatResponseBody> => {
+      const active = await ensureSession();
       try {
-        const snapshot = await getDoc(doc(firestore, 'personaVisitors', session.sessionId));
-        if (!snapshot.exists() || cancelled) return;
-        const data = snapshot.data() as { visitorName?: string; visitorAffiliation?: string };
-        if (typeof data.visitorName === 'string') {
-          setVisitorName(data.visitorName || '채용 담당자');
-        }
-        if (typeof data.visitorAffiliation === 'string') {
-          setVisitorAffiliation(data.visitorAffiliation || '');
-        }
+        return await sendQuestion({ sessionId: active.sessionId, question: text });
       } catch (error) {
-        console.error('[Persona] 방문자 정보 불러오기 실패', error);
+        // The backend lost the session (e.g. restarted without Firestore): start a new one once.
+        if (error instanceof ApiError && error.status === 404) {
+          const fresh = await ensureSession(true);
+          return sendQuestion({ sessionId: fresh.sessionId, question: text });
+        }
+        throw error;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
+    },
+    [ensureSession],
+  );
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = 'smooth') => {
@@ -507,10 +422,7 @@ export function PersonaChatV2Page() {
   useEffect(() => {
     if (landingTrackedRef.current) return;
     landingTrackedRef.current = true;
-    void trackFunnelEvent('landing_view', {
-      experiment: 'question_first',
-      variant: QUESTION_FIRST_EXPERIMENT ? 'on' : 'off',
-    });
+    void trackFunnelEvent('landing_view');
   }, [trackFunnelEvent]);
 
   useEffect(() => {
@@ -603,12 +515,8 @@ export function PersonaChatV2Page() {
   const handleSubmit = async (source: 'manual' | 'quick' = 'manual', questionOverride?: string) => {
     const trimmed = (questionOverride ?? question).trim();
     if (!trimmed) return;
-    if (usedCount >= TOTAL_QUESTIONS) {
+    if (usedCount >= questionLimit) {
       setShowCompletionModal(true);
-      return;
-    }
-    if (!session) {
-      alert('프리뷰 세션을 준비 중입니다. 잠시 후 다시 시도해 주세요.');
       return;
     }
 
@@ -621,33 +529,32 @@ export function PersonaChatV2Page() {
     if (nextName !== visitorName || nextAffiliation !== visitorAffiliation) {
       setVisitorName(nextName);
       setVisitorAffiliation(nextAffiliation);
-      void persistVisitorProfile(nextName, nextAffiliation);
     }
 
     const threadId = uuid();
     const questionAt = new Date().toISOString();
-    const nextUsedCount = Math.min(TOTAL_QUESTIONS, usedCount + 1);
+    const nextUsedCount = Math.min(questionLimit, usedCount + 1);
     setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt, inferredCaption }]);
     setUsedCount(nextUsedCount);
     setQuestion('');
     setShowLoadingBubble(true);
     setLoading(true);
     scrollToBottom();
-    void logQuestionToFirestore(trimmed);
     void trackFunnelEvent('question_submitted', { source, usedCount: nextUsedCount });
     if (usedCount === 0) {
       void trackFunnelEvent('first_submit', { source });
     }
-    if (nextUsedCount === TOTAL_QUESTIONS) {
+    if (nextUsedCount === questionLimit) {
       void trackFunnelEvent('five_questions_reached', { usedCount: nextUsedCount });
       setShowCompletionModal(true);
     }
 
     try {
-      const response = await sendQuestion({
-        sessionId: session.sessionId,
-        question: enrichQuestionContext(trimmed),
-      });
+      const response = await askQuestion(trimmed);
+      if (typeof response.limit === 'number' && typeof response.remaining === 'number') {
+        setQuestionLimit(response.limit);
+        setUsedCount(Math.max(0, response.limit - response.remaining));
+      }
       const normalizedAnswer =
         response.blocked && (response.reason || !response.answer)
           ? response.reason ?? OUT_OF_SCOPE_MESSAGE
@@ -673,7 +580,7 @@ export function PersonaChatV2Page() {
       }
     } catch (error) {
       console.error('[Persona] 답변 실패', error);
-      const fallback = error instanceof Error ? error.message : '응답을 가져오지 못했습니다.';
+      const fallback = '응답을 가져오지 못했어요. 잠시 후 다시 질문해 주세요.';
       setThreads((prev) =>
         prev.map((thread) =>
           thread.id === threadId
@@ -699,7 +606,7 @@ export function PersonaChatV2Page() {
   };
 
   const handleQuickQuestion = (value: string) => {
-    if (usedCount >= TOTAL_QUESTIONS) {
+    if (usedCount >= questionLimit) {
       setShowCompletionModal(true);
       return;
     }
@@ -710,12 +617,21 @@ export function PersonaChatV2Page() {
   };
 
   const handleVisitorSave = (nameValue: string, affiliationValue: string) => {
-    const normalizedName = nameValue || '채용 담당자';
+    const normalizedName = nameValue || DEFAULT_VISITOR_NAME;
     setVisitorName(normalizedName);
     setVisitorAffiliation(affiliationValue);
     setShowVisitorInfoModal(false);
     setShowProfileNudge(false);
-    void persistVisitorProfile(normalizedName, affiliationValue);
+    confirmedProfileRef.current = { name: nameValue, affiliation: affiliationValue };
+    // Before the first question there is no session yet; the profile is sent when it is created.
+    const pendingSession = sessionPromiseRef.current;
+    if (pendingSession) {
+      void pendingSession
+        .then((info) =>
+          updateVisitor(info.sessionId, { visitorName: normalizedName, visitorAffiliation: affiliationValue }),
+        )
+        .catch((error) => console.error('[Persona] 방문자 정보 저장 실패', error));
+    }
     void trackFunnelEvent('profile_submitted', {
       has_name: Boolean(nameValue?.trim()),
       has_affiliation: Boolean(affiliationValue?.trim()),
@@ -772,7 +688,7 @@ export function PersonaChatV2Page() {
           {threads.length ? (
             <div className="flex flex-col gap-6">
               {threads.map((thread, index) => {
-                const remaining = Math.max(0, TOTAL_QUESTIONS - (index + 1));
+                const remaining = Math.max(0, questionLimit - (index + 1));
                 return (
                   <div key={thread.id} className="space-y-3">
                   <div className="flex justify-end">
@@ -781,7 +697,7 @@ export function PersonaChatV2Page() {
                     </div>
                   </div>
                     <p className="text-right text-[11px] font-medium text-[#0F1324] opacity-60">
-                      남은 질문 {remaining}/{TOTAL_QUESTIONS}
+                      남은 질문 {remaining}/{questionLimit}
                     </p>
                   {thread.answer ? (
                     <div className="flex items-start gap-3">
@@ -901,17 +817,17 @@ export function PersonaChatV2Page() {
                 onSubmit={handleSubmit}
                 loading={loading}
                 usedCount={usedCount}
+                questionLimit={questionLimit}
                 onEditVisitor={() => setShowVisitorInfoModal(true)}
                 onInputFocus={handleInputFocus}
                 showIdentityEdit={showIdentityEdit}
-                maxReached={usedCount >= TOTAL_QUESTIONS}
+                maxReached={usedCount >= questionLimit}
               />
 
             </div>
           </div>
         </div>
       ) : null}
-      <HeroInfoModal open={showHeroInfoModal} onClose={() => setShowHeroInfoModal(false)} />
       <ConsentModal open={showConsentModal} onClose={() => setShowConsentModal(false)} />
       <VisitorInfoModal
         key={`visitor-${showVisitorInfoModal ? 'open' : 'closed'}-${visitorName}-${visitorAffiliation}`}
@@ -924,6 +840,7 @@ export function PersonaChatV2Page() {
       <CompletionModal
         key={`completion-${showCompletionModal ? 'open' : 'closed'}-${visitorName}-${visitorAffiliation}`}
         open={showCompletionModal}
+        questionLimit={questionLimit}
         name={visitorName}
         affiliation={visitorAffiliation}
         onClose={() => setShowCompletionModal(false)}

@@ -38,18 +38,27 @@ function resolveBaseUrl() {
 
 const API_BASE_URL = resolveBaseUrl();
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers ?? {}),
-    },
-    ...options,
-  });
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const { headers, ...rest } = options;
+  const merged = new Headers(headers);
+  if (!merged.has('Content-Type')) {
+    merged.set('Content-Type', 'application/json');
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...rest, headers: merged });
 
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || 'API 요청에 실패했습니다.');
+    throw new ApiError(response.status, detail || 'API 요청에 실패했습니다.');
   }
 
   return response.json() as Promise<T>;
@@ -74,6 +83,19 @@ export async function createVisitor(payload: VisitorPayload): Promise<SessionInf
     visitorAffiliation: data.visitor_affiliation,
     visitRef: data.visit_ref,
   };
+}
+
+export async function updateVisitor(
+  sessionId: string,
+  payload: { visitorName: string; visitorAffiliation: string },
+): Promise<void> {
+  await request<VisitorResponse>(`/visitors/${encodeURIComponent(sessionId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      visitor_name: payload.visitorName,
+      visitor_affiliation: payload.visitorAffiliation,
+    }),
+  });
 }
 
 export async function sendQuestion(payload: ChatRequestPayload): Promise<ChatResponseBody> {
@@ -125,8 +147,7 @@ export async function trackFunnelEvent(payload: {
       }),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('404') || message.includes('Not Found')) {
+    if (error instanceof ApiError && error.status === 404) {
       funnelEndpointAvailable = false;
       return;
     }

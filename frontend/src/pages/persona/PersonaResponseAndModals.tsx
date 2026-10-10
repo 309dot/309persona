@@ -100,12 +100,14 @@ export function VisitorInfoModal({
 
 export function CompletionModal({
   open,
+  questionLimit,
   name,
   affiliation,
   onClose,
   onSave,
 }: {
   open: boolean;
+  questionLimit: number;
   name: string;
   affiliation: string;
   onClose: () => void;
@@ -126,7 +128,7 @@ export function CompletionModal({
         }}
         className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-[0_18px_45px_rgba(15,19,36,0.25)]"
       >
-        <p className="text-sm font-semibold text-slate-500">5개 질문 완료</p>
+        <p className="text-sm font-semibold text-slate-500">{questionLimit}개 질문 완료</p>
         <h3 className="text-2xl font-bold text-[#0F1324]">마지막으로 프로필과 제안 정보를 남겨주세요</h3>
         <p className="mt-1 text-sm text-slate-500">이름/소속을 입력하고, 필요하면 바로 제안 메일을 보낼 수 있어요.</p>
         <div className="mt-4 space-y-4">
