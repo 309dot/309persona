@@ -43,6 +43,7 @@ const FAKE_END = '수렴했어요.';
     if (r.url().startsWith(API)) apiCalls.push({ method: r.method(), path: r.url().slice(API.length), body: r.postData() });
   });
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
   const calls = (method, exact) => apiCalls.filter((c) => c.method === method && c.path === exact);
   const dock = page.locator('div.fixed.inset-x-0.bottom-0');
   const input = dock.locator('input');
@@ -65,10 +66,11 @@ const FAKE_END = '수렴했어요.';
   const partials = new Set(lengths).size;
   check('답변이 조각으로 나눠 표시됨(스트리밍)', partials >= 3, `서로 다른 길이 ${partials}개 관측`);
   await page.getByText('근거', { exact: true }).first().waitFor({ timeout: 5000 });
-  for (const label of ['페이히어 디자인 시스템 (2022–2023)', "'하나 합' 금융 UX (2021–2022)", '이력서']) {
-    check(`근거 칩: ${label}`, await page.getByRole('link', { name: label, exact: true }).isVisible());
-  }
-  const resumeHref = await page.getByRole('link', { name: '이력서', exact: true }).getAttribute('href');
+  // Sources with portfolio pages open the in-app viewer (e2e_portfolio.cjs); the resume is a link.
+  check('근거 칩: 페이히어 디자인 시스템 (2022–2023) → 포트폴리오 보기', await page.getByRole('button', { name: '페이히어 디자인 시스템 (2022–2023)', exact: true }).isVisible());
+  check("근거 칩: '하나 합' 금융 UX (2021–2022) (쪽 없음, 링크 없음)", (await page.getByText("'하나 합' 금융 UX (2021–2022)", { exact: true }).isVisible()) && (await page.getByRole('link', { name: "'하나 합' 금융 UX (2021–2022)" }).count()) === 0);
+  check('근거 칩: 이력서', await page.locator('main').getByRole('link', { name: '이력서', exact: true }).isVisible());
+  const resumeHref = await page.locator('main').getByRole('link', { name: '이력서', exact: true }).getAttribute('href');
   check('이력서 칩은 이력서 PDF로 연결', (resumeHref || '').endsWith('Product-resume.pdf'), resumeHref);
   for (const chip of ['디자인 시스템을 팀에 정착시킨 방법은?', '하나 합에서 맡은 역할은?']) {
     check(`후속 질문 칩: ${chip}`, await page.getByRole('button', { name: chip }).isVisible());
@@ -91,7 +93,7 @@ const FAKE_END = '수렴했어요.';
   const sessionA = JSON.parse(calls('POST', '/api/chat/stream')[0].body).session_id;
   const visitorPosts = calls('POST', '/api/visitors').length;
   await page.reload({ waitUntil: 'networkidle' });
-  check('답변·근거 칩·후속 질문 칩 복원', (await completed()) === 1 && (await page.getByRole('link', { name: '이력서', exact: true }).count()) === 1 && (await page.getByRole('button', { name: '하나 합에서 맡은 역할은?' }).count()) === 1);
+  check('답변·근거 칩·후속 질문 칩 복원', (await completed()) === 1 && (await page.locator('main').getByRole('link', { name: '이력서', exact: true }).count()) === 1 && (await page.getByRole('button', { name: '하나 합에서 맡은 역할은?' }).count()) === 1);
   check('질문 수 복원(1/5)', await dock.getByText('1/5', { exact: true }).isVisible());
 
   // ---------------------------------------------------------------- A2. 메타데이터가 늦을 때
@@ -101,11 +103,11 @@ const FAKE_END = '수렴했어요.';
   await input.press('Enter');
   await waitFor(async () => (await completed()) >= 2, 15000);
   await page.waitForTimeout(300);
-  const chipsBefore = await page.getByRole('link', { name: '이력서', exact: true }).count();
+  const chipsBefore = await page.locator('main').getByRole('link', { name: '이력서', exact: true }).count();
   await input.fill('다음 질문 미리 입력');
   check('본문이 끝나면 근거가 오기 전에도 전송 가능', !(await dock.getByRole('button', { name: '전송' }).isDisabled()) && chipsBefore === 1, `근거 칩 수(첫 답변 것만) ${chipsBefore}`);
-  await waitFor(async () => (await page.getByRole('link', { name: '이력서', exact: true }).count()) === 2, 5000);
-  check('메타데이터가 도착하면 근거 칩 추가', (await page.getByRole('link', { name: '이력서', exact: true }).count()) === 2);
+  await waitFor(async () => (await page.locator('main').getByRole('link', { name: '이력서', exact: true }).count()) === 2, 5000);
+  check('메타데이터가 도착하면 근거 칩 추가', (await page.locator('main').getByRole('link', { name: '이력서', exact: true }).count()) === 2);
   const afterReload = JSON.parse(calls('POST', '/api/chat/stream').at(-1).body);
   check('새로고침 뒤에도 같은 세션 + 복원된 대화를 이력으로 전송', afterReload.session_id === sessionA && calls('POST', '/api/visitors').length === visitorPosts && afterReload.history.length === 1,
     `${afterReload.session_id.slice(0, 8)} vs ${sessionA.slice(0, 8)}, history ${afterReload.history.length}`);

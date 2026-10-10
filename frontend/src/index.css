@@ -131,7 +131,51 @@
   }
 }
 
+@keyframes page-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-in-none {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @layer components {
+  /* Portfolio pages slide in from the side they came from. */
+  .page-in-next {
+    animation: page-in-next 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .page-in-prev {
+    animation: page-in-prev 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .page-in-none {
+    animation: page-in-none 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
   /* A comet of light circling the input while the answer is on its way.
      Put on a wrapper: the ring draws over the child's border, the halo behind it. */
   .ai-glow {
@@ -247,6 +291,9 @@
   .avatar-presence::before,
   .ink-in,
   .stream-caret,
+  .page-in-next,
+  .page-in-prev,
+  .page-in-none,
   .dot-wave > span,
   .map-icon circle,
   .animate-rise,
@@ -282,5 +329,29 @@
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;
+  }
+}
+
+/* The conversation summary prints alone (the browser's "save as PDF"). */
+@media print {
+  .summary-open > :not(.summary-sheet) {
+    display: none !important;
+  }
+  .summary-sheet {
+    position: static !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .summary-sheet article {
+    max-width: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  .summary-sheet .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
   }
 }

@@ -44,7 +44,7 @@ function fakeIdToken() {
   // ---------------------------------------------------------------- 데이터 준비
   screen = '데이터 준비';
   await setMode('normal');
-  const a = (await post('/api/visitors', { visitor_name: '김리크루터', visitor_affiliation: '309 Lab' })).body.session_id;
+  const a = (await post('/api/visitors', { visitor_name: '김리크루터', visitor_affiliation: '309 Lab', visitor_purpose: 'hiring' })).body.session_id;
   const b = (await post('/api/visitors', { visitor_name: '채용 담당자' })).body.session_id;
   const q1 = await post('/api/chat', { session_id: a, question: '디자인 시스템 경험 알려주세요' });
   const q2 = await post('/api/chat', { session_id: a, question: '그 프로젝트에서 어려웠던 점은?', history: [{ question: '디자인 시스템 경험 알려주세요', answer: q1.body.answer }] });
@@ -66,6 +66,7 @@ function fakeIdToken() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
   const consoleErrors = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
   const unknownAuth = [];
   const idToken = fakeIdToken();
   await page.route('https://identitytoolkit.googleapis.com/**', async (route) => {
@@ -86,7 +87,8 @@ function fakeIdToken() {
   const loggedIn = await page.getByText('owner@309.so님, 운영 지표를 확인해요.').waitFor({ timeout: 10000 }).then(() => true, () => false);
   check('로그인 후 대시보드 표시', loggedIn, unknownAuth.join(', '));
   await page.getByText('최근 질문 로그').waitFor();
-  await page.waitForLoadState('networkidle');
+  // Stats and logs arrive together; a log row means the numbers are in ('networkidle' may already have passed).
+  await page.locator('button', { hasText: '디자인 시스템 경험 알려주세요' }).waitFor({ timeout: 10000 });
 
   // ---------------------------------------------------------------- 지표
   screen = '지표 카드';
@@ -108,6 +110,11 @@ function fakeIdToken() {
   check('대화창 입력 2 · 66.67%', (await funnelRow('대화창 입력').innerText()).includes('2 · 66.67%'), await funnelRow('대화창 입력').innerText());
   check('첫 답변 확인 1 · 50%', (await funnelRow('첫 답변 확인').innerText()).includes('1 · 50%'), await funnelRow('첫 답변 확인').innerText());
 
+  screen = '방문 목적';
+  const purposeCard = page.locator('div', { has: page.getByText('방문 목적 (첫 화면에서 고른 것)', { exact: true }) }).filter({ hasText: '명' }).last();
+  const purposeText = (await purposeCard.innerText()).replace(/\s+/g, ' ');
+  check('목적별 방문자: 채용 검토 1 · 선택 안 함 1', purposeText.includes('채용 검토 1명') && purposeText.includes('선택 안 함 1명'), purposeText);
+
   screen = '로그';
   check('실패 로그에 "답변 실패" 배지', await page.getByText('답변 실패', { exact: true }).first().isVisible());
   check('피드백 받은 로그에 👍', (await page.locator('button', { hasText: '디자인 시스템 경험 알려주세요' }).innerText()).includes('👍'));
@@ -118,7 +125,7 @@ function fakeIdToken() {
   await page.locator('button', { hasText: '그 프로젝트에서 어려웠던 점은?' }).click();
   const panel = page.getByRole('dialog', { name: '방문자 대화' });
   await panel.getByText('LLM이 실패하는 질문입니다').waitFor({ timeout: 5000 });
-  check('방문자 이름·소속', await panel.getByText('김리크루터 · 309 Lab').isVisible());
+  check('방문자 이름·소속·목적', await panel.getByText('김리크루터 · 309 Lab · 채용 검토 중', { exact: true }).isVisible());
   const questions = await panel.locator('p.font-semibold.text-slate-900').allInnerTexts();
   check('그 세션 질문만 시간순', JSON.stringify(questions) === JSON.stringify(['디자인 시스템 경험 알려주세요', '그 프로젝트에서 어려웠던 점은?', 'LLM이 실패하는 질문입니다']), JSON.stringify(questions));
   check('실패 표시 + 원인', await panel.getByText('답변 실패 · llm_unavailable').isVisible());

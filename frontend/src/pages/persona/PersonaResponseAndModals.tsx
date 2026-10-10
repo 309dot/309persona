@@ -105,6 +105,7 @@ export function CompletionModal({
   affiliation,
   onClose,
   onSave,
+  onOpenSummary,
 }: {
   open: boolean;
   questionLimit: number;
@@ -112,6 +113,8 @@ export function CompletionModal({
   affiliation: string;
   onClose: () => void;
   onSave: (name: string, affiliation: string) => void;
+  /** Opens today's conversation as a sheet to save or share. */
+  onOpenSummary?: () => void;
 }) {
   const [localName, setLocalName] = useState(name);
   const [localAffiliation, setLocalAffiliation] = useState(affiliation);
@@ -136,6 +139,21 @@ export function CompletionModal({
           <input value={localAffiliation} onChange={(event) => setLocalAffiliation(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" placeholder="회사 / 팀" />
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
+          {onOpenSummary ? (
+            <button
+              type="button"
+              onClick={() => {
+                // Keep what was typed here: it goes on the summary and into the visitor record.
+                const nextName = localName.trim();
+                const nextAffiliation = localAffiliation.trim();
+                if (nextName !== name || nextAffiliation !== affiliation) onSave(nextName, nextAffiliation);
+                onOpenSummary();
+              }}
+              className="mr-auto rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+            >
+              대화 요약 저장
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {

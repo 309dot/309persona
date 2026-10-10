@@ -29,8 +29,11 @@ import { AnswerFeedback, AnswerSources, FailedAnswer, FollowUpChips } from './pe
 import { MapHero } from './persona/map/MapHero';
 import type { MapPhase, MapSignals } from './persona/map/nodes';
 import { AnimatedFormattedAnswer, CompletionModal, VisitorInfoModal } from './persona/PersonaResponseAndModals';
+import { parsePages, PORTFOLIO_PDF_URL, RESUME_PDF_URL } from './persona/portfolio/chapters';
 import { AvatarPresence, MapIcon, StreamingText, ThinkingIndicator } from './persona/Presence';
 import { PrivacyNotice } from './persona/PrivacyNotice';
+import { ProjectCards } from './persona/ProjectCards';
+import { PURPOSES, purposeLabel, questionsFor, type VisitorPurpose } from './persona/purpose';
 import type {
   ChatOutcome,
   ChatSource,
@@ -42,27 +45,18 @@ import type {
   SessionInfo,
 } from '../types/api';
 
-// The full map (and its canvas) loads only when someone opens it.
+// The full map (and its canvas), the portfolio viewer and the summary load only when opened.
 const MapOverlay = lazy(() => import('./persona/map/MapOverlay'));
+const PortfolioViewer = lazy(() => import('./persona/portfolio/PortfolioViewer'));
+const ChatSummary = lazy(() => import('./persona/ChatSummary'));
 
 const INTRO_MESSAGE =
-  '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
+  '안녕하세요, 309 성백곤입니다. UX 디자인에서 프로덕트 매니지먼트까지 일의 폭을 넓혀 온 프로덕트 매니저/디자이너예요. 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 어떤 일로 오셨는지 골라 주시면 맥락에 맞춰 답변드릴게요. 😊';
 const INPUT_PLACEHOLDER = '예: 309가 프로젝트 우선순위를 정하는 기준은?';
-const QUICK_QUESTIONS = [
-  '최근 2년 안에 가장 임팩트 컸던 프로젝트 2개만 핵심으로 설명해줘',
-  '디자인 시스템 구축에서 실제로 성과를 낸 방식과 수치를 알려줘',
-  '협업 갈등이 생겼을 때 309가 조율한 실제 사례를 말해줘',
-  '우선순위가 충돌할 때 어떤 기준으로 결정했는지 예시로 설명해줘',
-  '채용 관점에서 리스크와 강점을 균형 있게 평가해줘',
-];
 // Shown until the first answer arrives; after that the backend's limit/remaining win.
 const DEFAULT_QUESTION_LIMIT = 5;
 const DEFAULT_VISITOR_NAME = '채용 담당자';
 const QUESTION_MAX_LENGTH = 500;
-const PORTFOLIO_URL =
-  'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/%ED%8F%AC%ED%8A%B8%ED%8F%B4%EB%A6%AC%EC%98%A4_%EC%84%B1%EB%B0%B1%EA%B3%A4.pdf';
-const RESUME_URL =
-  'https://raw.githubusercontent.com/309dot/309persona/main/knowledge_base/309files/pdf/Product-resume.pdf';
 const OUT_OF_SCOPE_MESSAGE = '이 서비스는 309의 경력 관련 질문만 응답합니다. 프로덕트/UX/경력 맥락으로 다시 질문해 주세요.';
 const QUESTION_FIRST_EXPERIMENT = String(import.meta.env.VITE_EXPERIMENT_QUESTION_FIRST ?? 'true') === 'true';
 const EXPERIMENT_VARIANT = QUESTION_FIRST_EXPERIMENT ? 'on' : 'off';
@@ -71,6 +65,7 @@ const HISTORY_TURNS = 3;
 
 type ThreadStatus = 'pending' | 'streaming' | 'done' | 'blocked' | 'error';
 type QuestionSource = 'manual' | 'quick' | 'follow_up' | 'retry' | 'map';
+type ViewerState = { start: number; range: [number, number] | null; title?: string };
 
 type PersonaThread = {
   id: string;
@@ -89,12 +84,6 @@ type PersonaThread = {
   /** Answer lengths after each screen update while streaming, for the word fade-in. */
   marks?: number[];
 };
-
-function sourceHref(source: ChatSource): string | undefined {
-  if (source.id === 'RESUME') return RESUME_URL;
-  if (/^P\d+$/.test(source.id)) return PORTFOLIO_URL;
-  return undefined;
-}
 
 
 function BrandBadge() {
@@ -301,6 +290,13 @@ export function PersonaChatV2Page() {
   const [activity, setActivity] = useState<{ phase: MapPhase; related: string[] }>({ phase: 'idle', related: [] });
   const [mapView, setMapView] = useState<{ focusId: string | null } | null>(null);
   const [focusedSource, setFocusedSource] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<ViewerState | null>(null);
+  // The summary sheet; the visitor line is fixed when it opens (only what the visitor typed in).
+  const [summary, setSummary] = useState<{ visitorLine: string } | null>(null);
+  // Why the visitor came; sent with the session and shapes the suggested questions.
+  const [visitorPurpose, setVisitorPurpose] = useState<VisitorPurpose | null>(
+    PURPOSES.some((item) => item.key === saved?.visitorPurpose) ? (saved?.visitorPurpose as VisitorPurpose) : null,
+  );
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -318,6 +314,7 @@ export function PersonaChatV2Page() {
   // Only profile values the visitor entered themselves are sent to the backend;
   // names guessed from question text stay on screen.
   const confirmedProfileRef = useRef(saved?.confirmedProfile ?? { name: '', affiliation: '' });
+  const purposeRef = useRef(visitorPurpose);
   // Falls back to the JSON endpoint once if the backend has no /chat/stream yet.
   const streamSupportedRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
@@ -365,6 +362,17 @@ export function PersonaChatV2Page() {
   }, []);
 
   const nodeLabels = useMemo(() => new Map(graph?.nodes.map((node) => [node.id, node.label]) ?? []), [graph]);
+  const nodesById = useMemo(() => new Map(graph?.nodes.map((node) => [node.id, node]) ?? []), [graph]);
+  const pagesFor = useCallback((source: ChatSource) => parsePages(nodesById.get(source.id)?.pages), [nodesById]);
+  const sourceHref = useCallback(
+    (source: ChatSource) => {
+      if (source.id === 'RESUME') return RESUME_PDF_URL;
+      // Without the graph (older backend) there are no page numbers; fall back to the whole PDF.
+      if (!graph && /^P\d+$/.test(source.id)) return PORTFOLIO_PDF_URL;
+      return undefined;
+    },
+    [graph],
+  );
 
   const mapSignals = useMemo<MapSignals>(() => {
     const answered = threads.filter((thread) => thread.status === 'done' && thread.sources?.length);
@@ -388,6 +396,7 @@ export function PersonaChatV2Page() {
         visitorAffiliation: profile.affiliation,
         visitRef: 'persona-v2',
         referrer: document.referrer || '',
+        visitorPurpose: purposeRef.current,
       }).then(
         (info) => {
           sessionIdRef.current = info.sessionId;
@@ -542,8 +551,9 @@ export function PersonaChatV2Page() {
       visitorName,
       visitorAffiliation,
       confirmedProfile: confirmedProfileRef.current,
+      visitorPurpose,
     });
-  }, [threads, usedCount, questionLimit, visitorName, visitorAffiliation]);
+  }, [threads, usedCount, questionLimit, visitorName, visitorAffiliation, visitorPurpose]);
 
   useEffect(() => {
     if (landingTrackedRef.current) return;
@@ -568,6 +578,9 @@ export function PersonaChatV2Page() {
     // Set once the answer text is complete; sources and follow-ups may still be on the way.
     let answerEnded = false;
     let writing = false;
+    // Questions left right after this one was counted. `done` reports the session's count when it is sent,
+    // which already includes a next question asked while this answer's metadata was still coming.
+    let remainingAfterThis: number | undefined;
     setActivity({ phase: 'searching', related: [] });
 
     try {
@@ -576,6 +589,7 @@ export function PersonaChatV2Page() {
         history,
         {
           onStart: (data) => {
+            remainingAfterThis = data.remaining;
             if (abortRef.current === controller) setActivity((current) => ({ ...current, related: data.related ?? [] }));
           },
           onDelta: (delta) => {
@@ -614,7 +628,7 @@ export function PersonaChatV2Page() {
             ? data.reason || data.answer || OUT_OF_SCOPE_MESSAGE
             : data.answer || OUT_OF_SCOPE_MESSAGE,
         answerAt: new Date().toISOString(),
-        remaining,
+        remaining: remainingAfterThis ?? remaining,
         sources: data.sources ?? [],
         followUps: data.follow_ups ?? [],
         conversationId: data.conversation_id ?? null,
@@ -627,7 +641,8 @@ export function PersonaChatV2Page() {
           setShowProfileNudge(true);
         }
       }
-      if (remaining === 0) {
+      // Only the latest question ends the conversation; an earlier answer can finish after the last one was sent.
+      if (remaining === 0 && abortRef.current === controller) {
         void trackFunnelEvent('five_questions_reached', { usedCount: limit });
         setShowCompletionModal(true);
       }
@@ -718,6 +733,38 @@ export function PersonaChatV2Page() {
 
   const closeMap = useCallback(() => setMapView(null), []);
 
+  const openPortfolio = (from: string, range: [number, number] | null, title?: string) => {
+    setMapView(null);
+    setViewer({ start: range?.[0] ?? 1, range, title });
+    void trackFunnelEvent('portfolio_opened', { from, page: range?.[0] ?? 1 });
+  };
+
+  const closePortfolio = useCallback(
+    (pagesSeen: number) => {
+      setViewer(null);
+      void trackFunnelEvent('portfolio_closed', { pages_seen: pagesSeen });
+    },
+    [trackFunnelEvent],
+  );
+
+  const openSummary = (from: string) => {
+    const profile = confirmedProfileRef.current;
+    setShowCompletionModal(false);
+    setSummary({
+      visitorLine: [profile.name, profile.affiliation, purposeLabel(visitorPurpose)].filter(Boolean).join(' · '),
+    });
+    void trackFunnelEvent('summary_opened', { from });
+  };
+
+  const closeSummary = useCallback(() => setSummary(null), []);
+
+  const handlePurpose = (purpose: VisitorPurpose) => {
+    const next = visitorPurpose === purpose ? null : purpose;
+    setVisitorPurpose(next);
+    purposeRef.current = next;
+    if (next) void trackFunnelEvent('purpose_selected', { purpose: next });
+  };
+
   const handleMapAsk = (value: string, node: GraphNode) => {
     setMapView(null);
     void trackFunnelEvent('map_question_asked', { node: node.id, kind: node.kind });
@@ -765,7 +812,7 @@ export function PersonaChatV2Page() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+    <div className={`flex min-h-screen flex-col bg-white text-slate-900 ${summary ? 'summary-open' : ''}`}>
       <main
         ref={contentRef}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10"
@@ -807,19 +854,44 @@ export function PersonaChatV2Page() {
           </div>
 
           {threads.length === 0 ? (
-            // Suggestions belong to the greeting; they go once the conversation starts.
-            <div className="flex flex-wrap gap-2 pl-[52px]" aria-label="추천 질문">
-              {QUICK_QUESTIONS.map((q, index) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => handleQuickQuestion(q)}
-                  className="animate-rise rounded-full border border-mist-line bg-mist px-3 py-1.5 text-left text-[12px] font-semibold text-[#445067] transition hover:-translate-y-0.5 hover:bg-mist-hover"
-                  style={{ animationDelay: `${420 + index * 70}ms` }}
-                >
-                  {q}
-                </button>
-              ))}
+            // Purpose and suggestions belong to the greeting; they go once the conversation starts.
+            <div className="flex flex-col gap-3 pl-[52px]">
+              <div className="animate-rise" style={{ animationDelay: '380ms' }}>
+                <p id="purpose-title" className="mb-2 text-[12px] font-semibold text-slate-500">
+                  어떤 일로 오셨어요?
+                </p>
+                {/* Toggle buttons, not radios: picking the chosen one again clears it. */}
+                <div role="group" aria-labelledby="purpose-title" className="flex flex-wrap gap-2">
+                  {PURPOSES.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      aria-pressed={visitorPurpose === item.key}
+                      onClick={() => handlePurpose(item.key)}
+                      className={`rounded-full border px-3 py-1.5 text-[12px] font-semibold transition ${
+                        visitorPurpose === item.key
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-line bg-white text-graphite hover:border-graphite/30'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div key={visitorPurpose ?? 'all'} className="flex flex-wrap gap-2" aria-label="추천 질문">
+                {questionsFor(visitorPurpose).map((q, index) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => handleQuickQuestion(q)}
+                    className="animate-rise rounded-full border border-mist-line bg-mist px-3 py-1.5 text-left text-[12px] font-semibold text-[#445067] transition hover:-translate-y-0.5 hover:bg-mist-hover"
+                    style={{ animationDelay: `${(visitorPurpose ? 0 : 440) + index * 70}ms` }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -867,6 +939,8 @@ export function PersonaChatV2Page() {
                               <AnswerSources
                                 sources={thread.sources ?? []}
                                 hrefFor={sourceHref}
+                                pagesFor={pagesFor}
+                                onOpenPages={(source, range) => openPortfolio('source_chip', range, source.label)}
                                 onFocusSource={graph ? setFocusedSource : undefined}
                               />
                               {thread.conversationId ? (
@@ -877,6 +951,14 @@ export function PersonaChatV2Page() {
                               ) : null}
                             </div>
                           ) : null}
+                          {thread.status === 'done' && thread.sources?.length ? (
+                            <ProjectCards
+                              projects={thread.sources
+                                .map((source) => nodesById.get(source.id))
+                                .filter((node): node is GraphNode => Boolean(node && (node.kind === 'project' || node.kind === 'note')))}
+                              onOpen={(node, range) => openPortfolio('project_card', range, node.label)}
+                            />
+                          ) : null}
                         </div>
                       </div>
                     ) : null}
@@ -886,7 +968,7 @@ export function PersonaChatV2Page() {
                       ) : (
                         // No follow-ups from the model (legacy pipeline): offer the suggestions not asked yet.
                         <FollowUpChips
-                          items={QUICK_QUESTIONS.filter((q) => !threads.some((t) => t.question === q)).slice(0, 3)}
+                          items={questionsFor(visitorPurpose).filter((q) => !threads.some((t) => t.question === q)).slice(0, 3)}
                           disabled={loading}
                           onPick={handleQuickQuestion}
                         />
@@ -940,20 +1022,27 @@ export function PersonaChatV2Page() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <ProposalCard onClick={() => void trackFunnelEvent('proposal_email_sent')} />
               <div className="flex items-center gap-4 text-[13px] font-semibold text-ink">
-                <a
-                  href={PORTFOLIO_URL}
+                <button
+                  type="button"
+                  onClick={() => openSummary('dock')}
                   className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-ink opacity-80 transition hover:opacity-100"
-                  download
                 >
-                  <img src={iconPortfolio} alt="portfolio" className="h-4 w-4" />
+                  대화 요약
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPortfolio('dock', null)}
+                  className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-ink opacity-80 transition hover:opacity-100"
+                >
+                  <img src={iconPortfolio} alt="" className="h-4 w-4" />
                   포트폴리오
-                </a>
+                </button>
                 <a
-                  href={RESUME_URL}
+                  href={RESUME_PDF_URL}
                   className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-ink opacity-80 transition hover:opacity-100"
                   download
                 >
-                  <img src={iconResume} alt="resume" className="h-4 w-4" />
+                  <img src={iconResume} alt="" className="h-4 w-4" />
                   이력서
                 </a>
               </div>
@@ -993,7 +1082,24 @@ export function PersonaChatV2Page() {
             remaining={Math.max(0, questionLimit - usedCount)}
             disabled={loading}
             onAsk={handleMapAsk}
+            onOpenPages={(node, range) => openPortfolio('map', range, node.label)}
             onClose={closeMap}
+          />
+        </Suspense>
+      ) : null}
+      {viewer ? (
+        <Suspense fallback={null}>
+          <PortfolioViewer start={viewer.start} range={viewer.range} title={viewer.title} onClose={closePortfolio} />
+        </Suspense>
+      ) : null}
+      {summary ? (
+        <Suspense fallback={null}>
+          <ChatSummary
+            threads={threads.filter((thread) => thread.status === 'done')}
+            visitorLine={summary.visitorLine}
+            pagesFor={pagesFor}
+            onPrint={() => void trackFunnelEvent('summary_printed')}
+            onClose={closeSummary}
           />
         </Suspense>
       ) : null}
@@ -1014,6 +1120,7 @@ export function PersonaChatV2Page() {
         affiliation={visitorAffiliation}
         onClose={() => setShowCompletionModal(false)}
         onSave={handleVisitorSave}
+        onOpenSummary={() => openSummary('completion')}
       />
     </div>
   );

@@ -30,7 +30,7 @@ def log(session_id, question, **fields):
 
 
 def test_stats_count_failures_latency_feedback_and_visits(client, db, admin):
-    s1 = visitor_service.create_visitor({"visitor_name": "김리크루터"})["session_id"]
+    s1 = visitor_service.create_visitor({"visitor_name": "김리크루터", "visitor_purpose": "hiring"})["session_id"]
     s2 = visitor_service.create_visitor({"visitor_name": "채용 담당자"})["session_id"]
     first = log(s1, "디자인 시스템 경험은?", latency_ms=1200, first_token_ms=300, prompt_tokens=5000, completion_tokens=300)
     second = log(s1, "그 프로젝트에서 어려웠던 점은?", latency_ms=1800, first_token_ms=500)
@@ -46,6 +46,7 @@ def test_stats_count_failures_latency_feedback_and_visits(client, db, admin):
 
     res = client.get("/api/dashboard/stats", headers=admin)
     assert res.status_code == 200, res.text
+    assert sorted((p["label"], p["value"]) for p in res.json()["purpose_stats"]) == [("선택 안 함", 1), ("채용 검토", 1)]
     kpis = res.json()["kpis"]
     assert kpis["visits"] == 3 and kpis["total_sessions"] == 2
     assert kpis["avg_questions_per_session"] == 2.0  # 4 questions (3 answered + 1 blocked) in 2 sessions

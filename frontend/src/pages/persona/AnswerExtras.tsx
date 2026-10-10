@@ -5,10 +5,15 @@ import type { ChatSource, FeedbackRating } from '../../types/api';
 export function AnswerSources({
   sources,
   hrefFor,
+  pagesFor,
+  onOpenPages,
   onFocusSource,
 }: {
   sources: ChatSource[];
   hrefFor: (source: ChatSource) => string | undefined;
+  /** Portfolio pages of a source; such chips open the in-app viewer. */
+  pagesFor?: (source: ChatSource) => [number, number] | null;
+  onOpenPages?: (source: ChatSource, range: [number, number]) => void;
   /** Pointing at a chip lights its record up on the knowledge map. */
   onFocusSource?: (id: string | null) => void;
 }) {
@@ -28,6 +33,21 @@ export function AnswerSources({
             }
           : {};
         const style = { animationDelay: `${index * 80}ms` };
+        const pages = onOpenPages ? pagesFor?.(source) : null;
+        if (pages && onOpenPages) {
+          return (
+            <button
+              key={source.id}
+              type="button"
+              onClick={() => onOpenPages(source, pages)}
+              className={`${className} hover:bg-mist-hover`}
+              style={style}
+              {...focus}
+            >
+              {source.label}
+            </button>
+          );
+        }
         return href ? (
           <a
             key={source.id}

@@ -49,7 +49,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 ### 질문 1건의 흐름
 
-1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고 질문을 `POST /api/chat/stream`(SSE)으로 보낸다. 직전 답변 3개를 `history`로 함께 보낸다. 이벤트는 `start`(남은 질문 수, 질문 단어로 고른 기록 지도 노드 `related`) → `delta`… → `answer_end`(본문 끝, 이때부터 다음 질문 가능) → `done`(근거·후속 질문·`conversation_id`·남은 질문 수) 또는 `error`, 차단이면 `blocked` 하나. 백엔드에 스트림 경로가 없으면(404 "Not Found") 한 번 확인 후 `POST /api/chat`(JSON)으로 바꾼다. SSE 파서와 API 주소 결정(`resolveBaseUrl()`)은 `src/services/api.ts`.
+1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고(첫 화면에서 고른 방문 목적 `visitor_purpose` 포함) 질문을 `POST /api/chat/stream`(SSE)으로 보낸다. 직전 답변 3개를 `history`로 함께 보낸다. 이벤트는 `start`(남은 질문 수, 질문 단어로 고른 기록 지도 노드 `related`) → `delta`… → `answer_end`(본문 끝, 이때부터 다음 질문 가능) → `done`(근거·후속 질문·`conversation_id`·남은 질문 수) 또는 `error`, 차단이면 `blocked` 하나. 백엔드에 스트림 경로가 없으면(404 "Not Found") 한 번 확인 후 `POST /api/chat`(JSON)으로 바꾼다. SSE 파서와 API 주소 결정(`resolveBaseUrl()`)은 `src/services/api.ts`.
 2. `backend/app/api/routes/chat.py` → `services/chat_runner.py`: `prepare_turn()`이 방문자 조회 → 세션 한도·IP 한도(`core/rate_limiter.py`, 메모리) → `question_filter`(탈옥 정규식만 차단)를 처리하고, `run_turn()`이 `ANSWER_PIPELINE`에 따라 답을 만든다.
    - `direct`(`services/direct_pipeline.py`): `app/prompts/persona_direct.txt` + 지식베이스 전체(`knowledge_document.render_knowledge_block()`, 출처 id `PROFILE`·`P1..`·`RESUME`·`NOTES`·비공개 노트 `N:슬러그`) + 대화 이력 + 방문자 정보로 LLM을 **한 번** 스트리밍 호출한다. 모델은 답변 뒤에 `<<<META>>>`와 JSON(sources, follow_ups, topic)을 쓰고, `StreamParser`가 이 부분과 `<think>` 블록을 화면에서 숨긴다. 예비 모델(`OPENAI_FALLBACK_MODEL`)은 첫 글자가 나가기 전 실패에만 쓴다.
    - `legacy`(`services/llm_service.py`, 기본값): 지식팩 요약 + lexical 검색 + 키워드 rerank를 `system_prompt.txt`에 넣고 호출한 뒤 `answer_quality` 게이트로 최대 3회 재호출, 그래도 안 되면 `rag_fallback`의 고정 문단. 이력은 쓰지 않는다.
@@ -62,6 +62,14 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 - 프론트 `pages/persona/map/`: `KnowledgeMapCanvas`(캔버스, 시드 고정 레이아웃, 그리기 루프는 React 밖)와 `MapOverlay`는 지연 로딩이다. 첫 화면 `MapHero`, 입력창의 "기록 지도" 버튼. 그래프 API가 없으면(404) 지도만 숨긴다.
 - 상태 모션은 CSS(`index.css`의 `ai-glow`·`avatar-presence`·`ink-in`·`stream-caret`)와 `pages/persona/Presence.tsx`. 모든 움직임은 `prefers-reduced-motion`에서 멈추고, 시각 회귀 스크린샷은 그 설정으로 찍는다.
 
+### 포트폴리오 뷰어·방문 목적·요약
+
+- 포트폴리오 PDF는 쪽 이미지로 보여 준다: `frontend/public/portfolio/`의 `pNN`(뷰어 2000px)·`mNN`(카드 800px)·`tNN`(쪽 목록 240px) WebP. PDF를 바꾸면 `python3 frontend/scripts/render_portfolio_pages.py`(poppler·Pillow)로 다시 만들고, `pages/persona/portfolio/chapters.ts`의 `PORTFOLIO_PAGES`·`CHAPTERS`와 지식팩 `pages`를 맞춘다.
+- 근거 → 쪽: 지식팩 프로젝트의 `pages`(`"7-11"`)와 노트 속성 `portfolio_pages`가 그래프 노드의 `pages`로 나간다. 쪽이 있는 근거는 칩·답변 아래 카드(`ProjectCards`, 최대 2장, 내용은 지식팩에서)·지도에서 `PortfolioViewer`를 그 쪽으로 연다. 그래프가 없으면(구버전 백엔드) 근거 칩은 PDF 링크로 돌아간다.
+- 방문 목적(`pages/persona/purpose.ts`: hiring·colleague·designer·browsing)은 목적별 추천 질문, 프롬프트 방문자 줄의 "목적: …"(`visitor_service.purpose_label`), 대시보드 목적 카드에 쓰인다. 대화가 시작되면 고를 수 없다.
+- `ChatSummary`는 오늘 대화(질문·답변·근거와 쪽)를 한 장으로 보여 주고 PDF 저장은 `window.print()`에 맡긴다. 인쇄 때 요약만 남기는 규칙은 `index.css`의 `@media print`(루트의 `summary-open`).
+- 질문별 "남은 질문"은 `start` 이벤트 값이다. `done`의 `remaining`은 보낼 때의 세션 값이라, 본문이 끝난 뒤 바로 보낸 다음 질문까지 세어져 있을 수 있다. 완료 모달은 진행 중인 마지막 질문에서만 띄운다.
+
 ### 평가 (`backend/evals/`)
 
 - `golden.jsonl` 44문항(범위 안·자료에 없는 사실·범위 밖·프롬프트 공격·개인정보·이력이 필요한 후속 질문)과 LLM 판정 없는 체크(`checks.py`: 근거 없는 숫자, 내부 문구 유출, 말투, 프로젝트 언급 등).
@@ -71,6 +79,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 - 폴더별 역할은 `knowledge_base/README.md`. 지식팩 JSON과 `309files/*.md`(사실만)를 런타임이 읽는다. legacy는 `309files`를 빈 줄 기준으로 쪼개 검색하고(`doc:파일명#번호`), direct는 전부 프롬프트에 넣는다. `instructions/`(지시문)와 `drafts/`(검토 전 초안)는 읽지 않는다.
 - 지시문을 `309files/`에 넣지 말 것. 사실로 쓰여 답변에 새어 나온다. 전화번호 줄은 로딩 때 빠진다.
+- 309는 프로덕트 매니저/디자이너다(2026 이력서, `309files/pdf/Product-resume.pdf`). 지식팩 요약·`resume.md`·두 프롬프트의 첫 줄이 이 방향으로 맞춰져 있다.
 - `309files/pdf/`는 프론트가 GitHub raw 주소로 직접 링크하므로 경로를 바꾸지 않는다.
 - `knowledge_base/topic_aliases.json`은 `question_filter`가 레포 기준 상대 경로로 읽는다.
 - 로딩 함수가 `lru_cache`라 지식베이스 수정 후에는 서버를 재시작해야 반영된다.
@@ -78,7 +87,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 ### 데이터·인증
 
-- 백엔드만 Firebase Admin SDK로 Firestore에 쓴다: `visitors`(문서 ID = session_id), `conversations`, `funnel_events`. 자격 증명(`FIREBASE_CREDENTIALS_PATH` 또는 `FIREBASE_CREDENTIALS_JSON`)이 없으면 쓰기는 경고만 남기고 넘어가고 방문자 세션은 메모리에 둔다 — 로컬 개발은 자격 증명 없이 가능.
+- 백엔드만 Firebase Admin SDK로 Firestore에 쓴다: `visitors`(문서 ID = session_id, 방문 목적 `visitor_purpose`), `conversations`, `funnel_events`. 자격 증명(`FIREBASE_CREDENTIALS_PATH` 또는 `FIREBASE_CREDENTIALS_JSON`)이 없으면 쓰기는 경고만 남기고 넘어가고 방문자 세션은 메모리에 둔다 — 로컬 개발은 자격 증명 없이 가능.
 - 프론트의 Firebase는 `/admin` 로그인(Auth)용이다. `GET /api/dashboard/stats|logs|sessions/{id}`가 ID 토큰을 검증하고 `ADMIN_ALLOWED_EMAILS`와 대조한다. 세션 조회는 복합 색인이 필요 없도록 `session_id` 같음 조건만 쓰고 정렬은 파이썬에서 한다.
 - `funnel_events`의 `session_id`에는 채팅 세션이 아니라 탭별 방문 ID(`src/lib/visit.ts`)가 들어간다. 대시보드 퍼널과 리포트 스크립트(`funnel_report.py`, `funnel_winner_decision.py`)는 이 단위로 센다.
 
@@ -94,12 +103,12 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 - Tailwind 4: 설정 파일 없이 `src/index.css`의 `@theme`에 토큰을 둔다(`ink` #0F1324, `graphite` #14151A, `accent` #0B98FF, `mist*`, `line`, `placeholder`, 관리자용 `brand-*`). 새 색은 토큰으로 추가한다.
 - 폰트는 `pretendard` 패키지의 dynamic-subset CSS다(쓰인 글자 조각만 받는다).
-- 청크: `vite.config.ts`의 `codeSplitting.groups`가 React 코어만 고정 청크로 뺀다. 마크다운 렌더러, 기록 지도 캔버스·오버레이, `/admin`(Firebase)은 지연 로딩이라 첫 화면에 들어가면 안 된다 — `npm run size`가 잡는다.
+- 청크: `vite.config.ts`의 `codeSplitting.groups`가 React 코어만 고정 청크로 뺀다. 마크다운 렌더러, 기록 지도 캔버스·오버레이, 포트폴리오 뷰어·대화 요약, `/admin`(Firebase)은 지연 로딩이라 첫 화면에 들어가면 안 된다 — `npm run size`가 잡는다.
 - 경로 별칭 `@assets`는 `vite.config.ts`와 `tsconfig.app.json` 양쪽에 정의돼 있다.
 
 ## 배포
 
-- 프론트: Vercel이 루트 `vercel.json`으로 `frontend/`를 빌드한다(Node 24.x, 출력 `frontend/dist`). `main` 푸시 시 운영 배포, 다른 브랜치는 프리뷰.
+- 프론트: Vercel이 루트 `vercel.json`으로 `frontend/`를 빌드한다(Node 24.x, 출력 `frontend/dist`). `main` 푸시 시 운영 배포, 다른 브랜치는 프리뷰. 포트폴리오 쪽 이미지(`/portfolio/`)는 하루 캐시.
 - 백엔드: Render(`https://three09persona.onrender.com/api`). `backend/Dockerfile`(Python 3.13, 비루트 사용자, `PORT` 환경 변수 사용)은 레포 루트를 컨텍스트로 빌드하며 지식베이스를 `/knowledge_base`에 복사한다(`KNOWLEDGE_PACK_PATH=/knowledge_base/309_knowledge_pack.json`). PDF·`drafts/`·`instructions/`는 루트 `.dockerignore`로 이미지에서 빠진다. CI가 이미지를 빌드해 `/health`와 지식베이스 로딩을 확인한다.
 - 프론트와 백엔드는 따로 배포되므로 API를 바꿀 때 구버전 상대와도 동작하게 둔다(예: 스트림 404 → JSON 폴백, `/api/chat` 유지).
 - 스테이징: `infra/docker-compose.staging.yml`(API + nginx로 `frontend/dist` 서빙). SSE는 응답의 `X-Accel-Buffering: no`로 nginx 버퍼링을 끈다.

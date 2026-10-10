@@ -113,3 +113,10 @@ def test_limiter_release_gives_back_the_last_hit():
     assert limiter.touch("k") and limiter.touch("k") and not limiter.touch("k")
     limiter.release("k")
     assert limiter.remaining("k") == 1
+
+
+def test_project_pages_reach_the_prompt():
+    p2 = next(s for s in knowledge_sources() if s.id == "P2")
+    assert p2.text.endswith("(포트폴리오 7-11쪽)")
+    p1 = next(s for s in knowledge_sources() if s.id == "P1")
+    assert "포트폴리오" not in p1.text

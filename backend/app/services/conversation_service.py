@@ -14,6 +14,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 
 from ..core.config import settings
 from ..core.firebase import get_firestore_client
+from .visitor_service import purpose_label
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +231,7 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
 
     ref_counter = Counter()
     referrer_counter = Counter()
+    purpose_counter = Counter()
     daily_counter = defaultdict(int)
     latest_visitors = []
 
@@ -237,6 +239,7 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
         data = doc.to_dict()
         ref = data.get("visit_ref") or "direct"
         ref_counter[ref] += 1
+        purpose_counter[purpose_label(data.get("visitor_purpose")) or "선택 안 함"] += 1
 
         # Track referrer (HTTP Referer header)
         referrer = (data.get("referrer") or "").strip()
@@ -277,6 +280,7 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
 
     return {
         "ref_stats": [{"label": ref, "value": count} for ref, count in ref_counter.most_common()],
+        "purpose_stats": [{"label": label, "value": count} for label, count in purpose_counter.most_common()],
         "referrer_stats": [
             {"label": referrer, "value": count} for referrer, count in referrer_counter.most_common()
         ],

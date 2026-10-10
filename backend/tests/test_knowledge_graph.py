@@ -21,7 +21,15 @@ def test_public_graph_puts_309_at_the_center_with_projects_documents_and_topics(
     graph = build_graph().public()
     nodes = {node["id"]: node for node in graph["nodes"]}
     assert nodes["PROFILE"] == {"id": "PROFILE", "label": "309", "kind": "center"}
-    assert nodes["P2"] == {"id": "P2", "label": "페이히어 디자인 시스템", "kind": "project", "meta": "2022–2023"}
+    assert nodes["P2"] == {
+        "id": "P2",
+        "label": "페이히어 디자인 시스템",
+        "kind": "project",
+        "meta": "2022–2023",
+        "summary": "컴포넌트/토큰 재정의로 디자인 작업시간 3.5→1.3일, 개발 4→2.5일로 단축.",
+        "pages": "7-11",
+    }
+    assert "pages" not in nodes["P1"]  # not in the portfolio PDF
     assert nodes["RESUME"]["kind"] == "doc" and nodes["T:디자인 시스템"]["kind"] == "topic"
     edges = {tuple(edge) for edge in graph["edges"]}
     assert ("T:디자인 시스템", "P2") in edges and ("PROFILE", "P2") in edges
@@ -32,7 +40,9 @@ def test_public_graph_puts_309_at_the_center_with_projects_documents_and_topics(
 def test_related_nodes_guess_topics_and_projects_from_the_question():
     assert related_nodes("디자인 시스템 구축 경험 알려줘") == ["T:디자인 시스템", "P2"]
     assert related_nodes("하나은행 프로젝트에서 한 일은?") == ["P3"]
-    assert related_nodes("우선순위가 충돌할 때 기준은?") == ["T:의사결정"]  # through topic_aliases.json
+    # Through topic_aliases.json, and the project whose impact line mentions priorities.
+    assert related_nodes("우선순위가 충돌할 때 기준은?") == ["T:의사결정", "P6"]
+    assert related_nodes("PM으로 일한 경험 알려줘") == ["T:PM", "P6", "P7"]
     assert related_nodes("채용 관점에서 강점은?") == []
 
 

@@ -53,6 +53,8 @@ export function DashboardPage() {
   const [openSession, setOpenSession] = useState<string | null>(null);
 
   const kpis = stats?.kpis;
+  // Until the numbers arrive, show a dash rather than zeros that read like real results.
+  const kpi = (value: string) => (stats ? value : '–');
   const totalVisitors = useMemo(() => {
     if (!stats) return 0;
     return stats.daily_visits.reduce((sum, item) => sum + item.value, 0);
@@ -110,22 +112,22 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard icon={Eye} title="방문" value={String(kpis?.visits ?? 0)} note="첫 화면을 연 탭 수(최근 이벤트 기준)" />
-        <KpiCard icon={Activity} title="질문한 방문자" value={String(totalVisitors)} />
-        <KpiCard icon={BarChart3} title="평균 질문 수/세션" value={String(kpis?.avg_questions_per_session ?? 0)} />
-        <KpiCard icon={ListChecks} title="준비도 비율" value={`${kpis?.readiness_rate ?? 0}%`} note="질문 2개 이상, 차단 없음" />
-        <KpiCard icon={ShieldAlert} title="차단 응답 비율" value={`${kpis?.blocked_rate ?? 0}%`} />
-        <KpiCard icon={TriangleAlert} title="답변 실패율" value={`${kpis?.failure_rate ?? 0}%`} note="LLM 오류로 답하지 못한 비율" />
+        <KpiCard icon={Eye} title="방문" value={kpi(String(kpis?.visits ?? 0))} note="첫 화면을 연 탭 수(최근 이벤트 기준)" />
+        <KpiCard icon={Activity} title="질문한 방문자" value={kpi(String(totalVisitors))} />
+        <KpiCard icon={BarChart3} title="평균 질문 수/세션" value={kpi(String(kpis?.avg_questions_per_session ?? 0))} />
+        <KpiCard icon={ListChecks} title="준비도 비율" value={kpi(`${kpis?.readiness_rate ?? 0}%`)} note="질문 2개 이상, 차단 없음" />
+        <KpiCard icon={ShieldAlert} title="차단 응답 비율" value={kpi(`${kpis?.blocked_rate ?? 0}%`)} />
+        <KpiCard icon={TriangleAlert} title="답변 실패율" value={kpi(`${kpis?.failure_rate ?? 0}%`)} note="LLM 오류로 답하지 못한 비율" />
         <KpiCard
           icon={Timer}
           title="응답 시간 p50"
-          value={formatMs(kpis?.latency_p50_ms)}
+          value={kpi(formatMs(kpis?.latency_p50_ms))}
           note={`첫 글자 ${formatMs(kpis?.first_token_p50_ms)}`}
         />
         <KpiCard
           icon={ThumbsUp}
           title="답변 피드백"
-          value={`👍 ${kpis?.feedback_up ?? 0} · 👎 ${kpis?.feedback_down ?? 0}`}
+          value={kpi(`👍 ${kpis?.feedback_up ?? 0} · 👎 ${kpis?.feedback_down ?? 0}`)}
         />
       </div>
 
@@ -172,6 +174,22 @@ export function DashboardPage() {
           <CardContent className="space-y-2">
             {stats?.referrer_stats?.length ? (
               stats.referrer_stats.map((point) => (
+                <div key={point.label} className="flex items-center justify-between text-sm">
+                  <span className="truncate text-slate-500">{point.label}</span>
+                  <span className="font-semibold text-slate-900">{point.value}명</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">아직 데이터가 없습니다.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>방문 목적 (첫 화면에서 고른 것)</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {stats?.purpose_stats?.length ? (
+              stats.purpose_stats.map((point) => (
                 <div key={point.label} className="flex items-center justify-between text-sm">
                   <span className="truncate text-slate-500">{point.label}</span>
                   <span className="font-semibold text-slate-900">{point.value}명</span>

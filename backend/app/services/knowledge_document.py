@@ -72,10 +72,11 @@ def _knowledge_sources(_notes_version: int) -> tuple[KnowledgeSource, ...]:
     projects = pack.get("projects") if isinstance(pack.get("projects"), list) else []
     for index, project in enumerate(projects, start=1):
         title = str(project.get("title", "")).strip() or f"프로젝트 {index}"
-        body = "\n".join(
-            str(project.get(key, "")).strip() for key in ("impact", "description") if project.get(key)
-        )
-        sources.append(KnowledgeSource(f"P{index}", title, body))
+        lines = [str(project.get(key, "")).strip() for key in ("impact", "description") if project.get(key)]
+        if project.get("pages"):
+            # Lets the answer point to the right pages of the portfolio PDF.
+            lines.append(f"(포트폴리오 {str(project['pages']).strip()}쪽)")
+        sources.append(KnowledgeSource(f"P{index}", title, "\n".join(lines)))
 
     for stem, content in load_fact_documents():
         source_id, label = _doc_source(stem)

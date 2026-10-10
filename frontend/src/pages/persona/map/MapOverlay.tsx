@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { GraphNode, KnowledgeGraph } from '../../../types/api';
+import { pagesLabel, parsePages } from '../portfolio/chapters';
 import KnowledgeMapCanvas from './KnowledgeMapCanvas';
 import { KIND_LABELS, questionFor, type MapSignals } from './nodes';
 
@@ -32,6 +33,7 @@ export default function MapOverlay({
   remaining,
   disabled,
   onAsk,
+  onOpenPages,
   onClose,
 }: {
   graph: KnowledgeGraph;
@@ -40,6 +42,8 @@ export default function MapOverlay({
   remaining: number;
   disabled: boolean;
   onAsk: (question: string, node: GraphNode) => void;
+  /** Opens the portfolio viewer on a record's pages. */
+  onOpenPages?: (node: GraphNode, range: [number, number]) => void;
   onClose: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -63,6 +67,7 @@ export default function MapOverlay({
 
   const state = selected ? stateOf(selected, signals) : '';
   const question = selected ? questionFor(selected) : '';
+  const pages = parsePages(selected?.pages);
 
   return (
     <div
@@ -122,14 +127,25 @@ export default function MapOverlay({
                 <p className="truncate text-[16px] font-bold text-ink">{selected.label}</p>
                 <p className="truncate text-[13px] text-slate-500">“{question}”</p>
               </div>
-              <button
-                type="button"
-                disabled={disabled || remaining <= 0}
-                onClick={() => onAsk(question, selected)}
-                className="shrink-0 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-black disabled:bg-slate-300"
-              >
-                {remaining > 0 ? `이 질문으로 물어보기 · 남은 질문 ${remaining}` : '질문을 모두 사용했어요'}
-              </button>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {pages && onOpenPages ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenPages(selected, pages)}
+                    className="rounded-full border border-line bg-white px-4 py-2 text-[13px] font-semibold text-ink transition hover:bg-mist"
+                  >
+                    포트폴리오 {pagesLabel(pages)} 보기
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={disabled || remaining <= 0}
+                  onClick={() => onAsk(question, selected)}
+                  className="rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-black disabled:bg-slate-300"
+                >
+                  {remaining > 0 ? `이 질문으로 물어보기 · 남은 질문 ${remaining}` : '질문을 모두 사용했어요'}
+                </button>
+              </div>
             </div>
           ) : (
             <p className="text-[13px] text-slate-500">지도에서 점을 누르거나 아래 목록에서 골라 보세요.</p>

@@ -8,6 +8,9 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+# Why the visitor came, picked on the first screen (labels in visitor_service.PURPOSE_LABELS).
+VisitorPurpose = Literal["hiring", "colleague", "designer", "browsing"]
+
 # Truncate (not reject) free-text visitor fields so an overlong value can't
 # break session creation.
 VISITOR_FIELD_LIMITS = {
@@ -29,6 +32,7 @@ class VisitorCreate(BaseModel):
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
+    visitor_purpose: Optional[VisitorPurpose] = None
 
     @field_validator(*VISITOR_FIELD_LIMITS, mode="before")
     @classmethod
@@ -39,6 +43,7 @@ class VisitorCreate(BaseModel):
 class VisitorUpdate(BaseModel):
     visitor_name: Optional[str] = None
     visitor_affiliation: Optional[str] = None
+    visitor_purpose: Optional[VisitorPurpose] = None
 
     @field_validator("visitor_name", "visitor_affiliation", mode="before")
     @classmethod
@@ -52,6 +57,7 @@ class VisitorResponse(BaseModel):
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
+    visitor_purpose: Optional[str] = None
 
 
 class HistoryTurn(BaseModel):
@@ -101,6 +107,7 @@ class VisitorRecord(BaseModel):
     id: str
     visitor_name: Optional[str] = None
     visitor_affiliation: Optional[str] = None
+    visitor_purpose: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
     session_id: Optional[str] = None
@@ -155,6 +162,7 @@ class DashboardStats(BaseModel):
     recent_questions: List[ConversationRecord]
     funnel_steps: List[FunnelStepStat] = Field(default_factory=list)
     kpis: DashboardKpis = Field(default_factory=DashboardKpis)
+    purpose_stats: List[StatPoint] = Field(default_factory=list)
 
 
 class SessionDetail(BaseModel):
@@ -184,6 +192,7 @@ class GraphNode(BaseModel):
     kind: Literal["center", "project", "doc", "topic", "note"]
     group: Optional[str] = None
     meta: Optional[str] = None
+    summary: Optional[str] = None
     question: Optional[str] = None
     pages: Optional[str] = None
 

@@ -25,7 +25,12 @@ node qa/e2e/e2e_stream.cjs
 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_map.cjs
 
-# 4) 대시보드: 시드 데이터 → 로그인(Firebase Auth REST 응답을 가짜로) → 지표 값 대조 → 방문자 대화 보기 → 노트 상태·다시 불러오기 (25개)
+# 4) 포트폴리오·방문 목적·요약: 목적 선택 → 세션·프롬프트, 근거 칩·프로젝트 카드, 포트폴리오 뷰어(키보드·스와이프·장/쪽 목록·늦게 오는 쪽),
+#    대화 요약과 인쇄 화면, 겹쳐 보낸 질문의 남은 수·완료 모달, 지도 없는 백엔드, 모바일 (76개)
+QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
+node qa/e2e/e2e_portfolio.cjs
+
+# 5) 대시보드: 시드 데이터 → 로그인(Firebase Auth REST 응답을 가짜로) → 지표 값 대조 → 방문 목적 → 방문자 대화 보기 → 노트 상태·다시 불러오기 (26개)
 qa/e2e/stack.sh build-admin && QA_FAKE_ADMIN=1 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_admin.cjs
 
@@ -35,7 +40,8 @@ qa/e2e/stack.sh stop
 - 각 스크립트는 체크마다 `PASS`/`FAIL`을 찍고, 하나라도 실패하면 종료 코드 1이다.
 - `QA_FAKE_ADMIN=1`은 어떤 ID 토큰이든 `owner@309.so`로 받아 준다. QA 스택(`run_backend.py`)에서만 쓰인다.
 - `QA_NOTES=1`은 `qa/e2e/notes/309-persona/`의 가짜 옵시디언 노트를 비공개 노트로 읽힌다(실제 노트가 아니다).
-- 가짜 LLM은 `POST /__mode {"chunk_delay": 0.08}`처럼 글자 조각 사이 간격을 늘려 스트리밍 모션을 눈으로 볼 수 있다.
+- 가짜 LLM은 `POST /__mode {"chunk_delay": 0.08}`처럼 글자 조각 사이 간격을 늘려 스트리밍 모션을 눈으로 볼 수 있다. `{"sources": ["P4", "P5"]}`는 답변 근거를 바꾼다(`null`이면 기본값).
+- 각 스위트는 DB 값을 처음부터 센다. 스위트마다 스택을 새로 띄운다.
 - 스택을 다시 띄우는 `stack.sh restart`는 다른 명령과 한 줄로 묶지 않는다. 안의 `pkill -f`가 같은 줄의 문자열에 걸려 셸까지 끝낼 수 있다.
 - `e2e.cjs`는 장애 재현을 위해 백엔드를 직접 죽였다 띄운다. 끝나면 `stack.sh stop`으로 정리한다.
 - 로그·결과는 `qa/e2e/.logs/`, 스크린샷은 `qa/e2e/shots/`(둘 다 gitignore).

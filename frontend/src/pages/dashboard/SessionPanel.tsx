@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth';
 import { Badge } from '../../components/ui/badge';
 import { getSessionDetail } from '../../services/api';
 import type { ConversationRecord, SessionDetail } from '../../types/api';
+import { purposeLabel } from '../persona/purpose';
 import { formatMs, formatTime } from './format';
 
 function ConversationMeta({ row }: { row: ConversationRecord }) {
@@ -72,7 +73,11 @@ export function SessionPanel({ user, sessionId, onClose }: { user: User; session
           <div>
             <p className="text-xs text-slate-500">대화 보기 · {sessionId.slice(0, 8)}</p>
             <h2 className="text-lg font-semibold text-slate-900">
-              {visitor ? [visitor.visitor_name, visitor.visitor_affiliation].filter(Boolean).join(' · ') : '방문자'}
+              {visitor
+                ? [visitor.visitor_name, visitor.visitor_affiliation, purposeLabel(visitor.visitor_purpose)]
+                    .filter(Boolean)
+                    .join(' · ')
+                : '방문자'}
             </h2>
           </div>
           <button type="button" onClick={onClose} aria-label="닫기" className="rounded-full p-1 text-slate-500 hover:bg-slate-100">

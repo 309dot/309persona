@@ -58,6 +58,7 @@ async function restartBackend() {
     if (url.includes('/assets/') && url.endsWith('.js')) assets.push(url.split('/assets/')[1]);
   });
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
   const calls = (method, prefix) => apiCalls.filter((c) => c.method === method && c.path.startsWith(prefix));
   const funnel = (dump, event) => docs(dump, 'funnel_events').filter((d) => d.event === event);
   const dock = page.locator('div.fixed.inset-x-0.bottom-0');

@@ -23,6 +23,7 @@ from .answer_quality import (
 from .context_planner import build_retrieval_plan, compose_context_sections
 from .knowledge_base import build_context_block, retrieve_relevant_chunks
 from .rag_fallback import build_rag_fallback_answer, rerank_chunks
+from .visitor_service import purpose_label
 
 _openai_client: Optional[OpenAI] = None
 
@@ -66,6 +67,7 @@ def build_user_payload(
                 visitor.get("visitor_name"),
                 visitor.get("visitor_affiliation"),
                 visitor.get("visit_ref"),
+                purpose_label(visitor.get("visitor_purpose")) or None,
             ],
         )
     )

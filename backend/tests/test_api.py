@@ -147,3 +147,22 @@ def test_funnel_event(client, session_id):
     )
     assert res.status_code == 200, res.text
     assert res.json() == {"ok": True}
+
+
+def test_visitor_purpose_is_stored_validated_and_reaches_both_prompts(client, monkeypatch):
+    res = client.post("/api/visitors", json={"visitor_name": "김리크루터", "visitor_purpose": "hiring"})
+    assert res.status_code == 200, res.text
+    session = res.json()["session_id"]
+    assert res.json()["visitor_purpose"] == "hiring"
+    assert client.post("/api/visitors", json={"visitor_name": "x", "visitor_purpose": "spam"}).status_code == 422
+
+    res = client.patch(f"/api/visitors/{session}", json={"visitor_purpose": "colleague"})
+    assert res.status_code == 200 and res.json()["visitor_purpose"] == "colleague"
+    assert res.json()["visitor_name"] == "김리크루터"  # untouched fields stay
+
+    from app.services import direct_pipeline, visitor_service
+
+    visitor = visitor_service.get_visitor_by_session(session)
+    assert direct_pipeline.visitor_line(visitor) == "김리크루터 · 목적: 함께 일할 동료"
+    assert "목적" not in direct_pipeline.visitor_line({"visitor_name": "익명"})
+    assert "함께 일할 동료" in llm_service.build_user_payload("질문", "general", visitor)

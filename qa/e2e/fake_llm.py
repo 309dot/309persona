@@ -1,6 +1,7 @@
 """Minimal OpenAI-compatible chat endpoint for local QA (streaming and non-streaming).
 
-POST /__mode {"mode": "normal" | "fail" | "slow", "delay": seconds, "chunk_delay": seconds} switches behaviour.
+POST /__mode {"mode": "normal" | "fail" | "slow", "delay": seconds, "chunk_delay": seconds} switches behaviour;
+{"sources": ["P4", ...]} changes the cited sources (null for the default).
 """
 import asyncio
 import json
@@ -12,7 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 app = FastAPI()
 calls = []
-state = {"mode": "normal", "delay": 3.0, "meta_delay": 0.0, "chunk_delay": 0.01}
+state = {"mode": "normal", "delay": 3.0, "meta_delay": 0.0, "chunk_delay": 0.01, "sources": None}
 ANSWER = (
     "페이히어에서는 디자인 시스템이 없어 화면마다 편차가 컸어요. 그래서 토큰과 컴포넌트 기준을 먼저 정의하고, "
     "리뷰 루프에 기준 점검을 묶었어요. 그 결과 디자인 작업 시간이 3.5일에서 1.3일로, 개발 시간이 4일에서 2.5일로 줄었어요. "
@@ -66,7 +67,7 @@ async def chat(req: Request):
             yield chunk(body, answer[start:start + 12])
             await asyncio.sleep(float(state.get("chunk_delay") or 0))  # a slow writer shows the streaming motion
         await asyncio.sleep(float(state.get("meta_delay") or 0))  # a slow model still writing metadata
-        meta = json.dumps(META, ensure_ascii=False)
+        meta = json.dumps({**META, "sources": state.get("sources") or META["sources"]}, ensure_ascii=False)
         for start in range(0, len(meta), 12):
             yield chunk(body, meta[start:start + 12])
             await asyncio.sleep(0.01)

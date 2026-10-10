@@ -4,9 +4,9 @@
 
 | 경로 | 쓰이는 방식 |
 |---|---|
-| `309_knowledge_pack.json` | 요약·협업 방식·가치관·프로젝트·말투·가드레일. 매 질문의 프롬프트에 들어간다(`KNOWLEDGE_PACK_PATH`). 프로젝트는 direct 파이프라인에서 `P1`·`P2`… 출처가 되고, 제목이 근거 칩과 기록 지도에 그대로 보인다. `allowed_topics`는 기록 지도의 주제 점이 된다 |
+| `309_knowledge_pack.json` | 요약·협업 방식·가치관·프로젝트·말투·가드레일. 매 질문의 프롬프트에 들어간다(`KNOWLEDGE_PACK_PATH`). 프로젝트는 direct 파이프라인에서 `P1`·`P2`… 출처가 되고, 제목이 근거 칩과 기록 지도에 그대로 보인다. 프로젝트의 `pages`는 포트폴리오 PDF 쪽 번호(예: `"7-11"`)로, 답변 아래 카드와 포트폴리오 뷰어가 그 쪽을 연다. `allowed_topics`는 기록 지도의 주제 점이 된다 |
 | `309files/*.md` | **사실 문서만.** legacy 파이프라인은 빈 줄 기준으로 쪼개 검색(RAG)하고(출처 `doc:파일명#번호`), direct 파이프라인은 전부 프롬프트에 넣는다(출처 `RESUME`·`NOTES` 등, `backend/app/services/knowledge_document.py`). 새 파일을 넣으면 `DOC_SOURCES`에 화면에 보일 이름을 추가한다 |
-| `309files/pdf/` | 다운로드용 이력서·포트폴리오 PDF. 프론트가 GitHub raw 주소로 링크하므로 경로를 바꾸지 말 것 |
+| `309files/pdf/` | 다운로드용 이력서·포트폴리오 PDF. 프론트가 GitHub raw 주소로 링크하므로 경로를 바꾸지 말 것. 앱 안 포트폴리오 뷰어는 이 PDF를 쪽 이미지로 만든 `frontend/public/portfolio/`를 쓴다. 포트폴리오 PDF를 바꾸면 `python3 frontend/scripts/render_portfolio_pages.py`로 다시 만들고 지식팩 `pages`를 맞춘다 |
 | `instructions/` | 말투·답변 형식·금지 규칙 같은 지시문. 색인하지 않는다(사실처럼 검색돼 답변에 새어 나오던 문제 방지) |
 | `drafts/` | 이전 개발 에이전트가 정리한 케이스 스터디 초안. 이력서와 대조 전이라 런타임이 읽지 않는다. 내용을 확인한 파일만 `309files/`로 옮긴다 |
 | `topic_aliases.json` | 질문 주제 분류용 별칭(`backend/app/services/question_filter.py`). 기록 지도가 질문과 관련된 주제를 고를 때도 쓴다 |

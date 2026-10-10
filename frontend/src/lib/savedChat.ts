@@ -13,6 +13,7 @@ export interface SavedChat<Thread> {
   visitorName: string;
   visitorAffiliation: string;
   confirmedProfile: { name: string; affiliation: string };
+  visitorPurpose?: string | null;
 }
 
 export function loadSavedChat<Thread>(): SavedChat<Thread> | null {

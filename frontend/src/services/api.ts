@@ -76,6 +76,7 @@ export async function createVisitor(payload: VisitorPayload): Promise<SessionInf
     visitor_affiliation: payload.visitorAffiliation ?? '',
     visit_ref: payload.visitRef ?? '',
     referrer: payload.referrer ?? '',
+    ...(payload.visitorPurpose ? { visitor_purpose: payload.visitorPurpose } : {}),
   };
 
   const data = await request<VisitorResponse>('/visitors', {

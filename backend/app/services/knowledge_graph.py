@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .knowledge_base import get_allowed_topics
+from .knowledge_base import get_allowed_topics, load_knowledge_pack
 from .knowledge_document import PROJECT_ID_RE, knowledge_sources, notes_in_prompt, render_knowledge_block
 from .obsidian_notes import match_key, notes_version
 from .question_filter import _load_topic_aliases
@@ -29,7 +29,10 @@ TOPIC_PREFIX = "T:"
 # Too broad to be a place on the map.
 GENERIC_TOPICS = {"309", "경력", "프로젝트", "포트폴리오", "커리어"}
 # Words too common to tie a question to one project by themselves.
-STOPWORDS = {"디자인", "프로젝트", "경험", "서비스", "제품", "프로덕트", "관련", "기반", "제작", "솔루션", "플랫폼", "ux", "ui"}
+STOPWORDS = {
+    "디자인", "프로젝트", "경험", "서비스", "제품", "프로덕트", "관련", "기반", "제작", "솔루션", "플랫폼", "시스템", "구축",
+    "ux", "ui",
+}
 DOC_IDS = {"RESUME", "NOTES"}
 WORD_RE = re.compile(r"[가-힣A-Za-z0-9]+")
 TITLE_PERIOD_RE = re.compile(r"^(.*?)\s*\(([^)]*\d[^)]*)\)\s*$")
@@ -43,13 +46,14 @@ class GraphNode:
     kind: str  # center | project | doc | topic | note
     group: Optional[str] = None  # note type (project, story, …)
     meta: Optional[str] = None  # project period
+    summary: Optional[str] = None  # project impact line from the knowledge pack (public)
     question: Optional[str] = None  # the note's own suggested question
     pages: Optional[str] = None
     terms: Tuple[Tuple[str, int], ...] = ()  # (match key, weight) for related_nodes; not sent out
 
     def public(self) -> Dict[str, str]:
         data = {"id": self.id, "label": self.label, "kind": self.kind}
-        for key in ("group", "meta", "question", "pages"):
+        for key in ("group", "meta", "summary", "question", "pages"):
             value = getattr(self, key)
             if value:
                 data[key] = value
@@ -113,10 +117,20 @@ def _build_graph(_notes_version: int) -> Graph:
         if a != b and a in nodes and b in nodes and (a, b) not in edges and (b, a) not in edges:
             edges.append((a, b))
 
+    pack_projects = load_knowledge_pack().get("projects") or []
     for source in knowledge_sources():
         if PROJECT_ID_RE.match(source.id):
             label, period = _split_title(source.label)
-            nodes[source.id] = GraphNode(source.id, label, "project", meta=period, terms=_terms(label))
+            project = pack_projects[int(source.id[1:]) - 1] if int(source.id[1:]) <= len(pack_projects) else {}
+            nodes[source.id] = GraphNode(
+                source.id,
+                label,
+                "project",
+                meta=period,
+                summary=str(project.get("impact") or "").strip() or None,
+                pages=str(project.get("pages") or "").strip() or None,
+                terms=_terms(label),
+            )
             texts[source.id] = match_key(f"{source.label} {source.text}")
             link(CENTER_ID, source.id)
         elif source.id in DOC_IDS:
@@ -137,12 +151,15 @@ def _build_graph(_notes_version: int) -> Graph:
         if label.strip() and label.strip() not in GENERIC_TOPICS:
             topic(label.strip())
 
-    # A pack topic sits next to the projects whose title or impact mentions it.
+    # A pack topic sits next to the projects whose title or impact mentions it, and the project
+    # inherits the topic's words (weakly) so "디자인 시스템 경험" also finds 페이히어 디자인 시스템.
     for node_id in [n for n in nodes if n.startswith(TOPIC_PREFIX)]:
         keys = [key for key, weight in nodes[node_id].terms if weight >= 2]
         for project_id, text in texts.items():
             if any(key in text for key in keys):
                 link(node_id, project_id)
+                project = nodes[project_id]
+                nodes[project_id] = replace(project, terms=project.terms + tuple((key, 1) for key in keys))
 
     included, _ = notes_in_prompt()
     projects = [node for node in nodes.values() if node.kind == "project"]

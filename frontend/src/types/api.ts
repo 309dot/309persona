@@ -3,6 +3,8 @@ export interface VisitorPayload {
   visitorAffiliation?: string;
   visitRef?: string;
   referrer?: string;
+  /** hiring | colleague | designer | browsing, picked on the first screen. */
+  visitorPurpose?: string | null;
 }
 
 export interface VisitorResponse {
@@ -104,12 +106,14 @@ export interface DashboardStats {
   recent_questions: ConversationRecord[];
   funnel_steps: FunnelStepStat[];
   kpis: DashboardKpis;
+  purpose_stats?: StatPoint[];
 }
 
 export interface VisitorRecord {
   id: string;
   visitor_name?: string;
   visitor_affiliation?: string;
+  visitor_purpose?: string | null;
   visit_ref?: string;
   referrer?: string;
   session_id?: string;
@@ -150,6 +154,8 @@ export interface GraphNode {
   group?: string;
   /** Project period, e.g. 2022–2023. */
   meta?: string;
+  /** Project impact line from the knowledge pack. */
+  summary?: string;
   /** A question the note suggests for the map. */
   question?: string;
   pages?: string;

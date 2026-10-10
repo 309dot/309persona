@@ -20,6 +20,7 @@ from .knowledge_base import load_knowledge_pack
 from .knowledge_document import render_knowledge_block, source_ids
 from .llm_service import get_openai_client, reasoning_kwargs
 from .obsidian_notes import notes_version
+from .visitor_service import purpose_label
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,9 @@ def _system_prompt(_notes_version: int) -> str:
 def visitor_line(visitor: Dict[str, Any]) -> str:
     name = str(visitor.get("visitor_name") or "").strip()
     affiliation = str(visitor.get("visitor_affiliation") or "").strip()
-    return " · ".join(part for part in (name, affiliation) if part) or "익명 방문자"
+    purpose = purpose_label(visitor.get("visitor_purpose"))
+    parts = [name, affiliation, f"목적: {purpose}" if purpose else ""]
+    return " · ".join(part for part in parts if part) or "익명 방문자"
 
 
 def build_messages(question: str, visitor: Dict[str, Any], history: Sequence[HistoryTurn]) -> List[Dict[str, str]]:

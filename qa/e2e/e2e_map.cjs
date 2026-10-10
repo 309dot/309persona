@@ -49,6 +49,7 @@ const canvasInk = (locator) =>
   const consoleErrors = [];
   const graphRequests = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
   page.on('request', (r) => { if (r.url().endsWith('/api/knowledge/graph')) graphRequests.push(r.url()); });
   const dock = page.locator('div.fixed.inset-x-0.bottom-0');
   const input = dock.locator('input');
@@ -64,8 +65,10 @@ const canvasInk = (locator) =>
   await heroCanvas.waitFor({ timeout: 5000 });
   await page.waitForTimeout(1800);
   check('그래프를 한 번만 받음', graphRequests.length === 1, graphRequests.join(', '));
-  check('지도 요약: 프로젝트 5 · 주제 · 노트 2', await hero.getByText(/프로젝트 5 · 주제 \d+ · 노트 2/).isVisible());
-  check('캔버스에 지도가 그려짐', (await canvasInk(heroCanvas)) > 500);
+  check('지도 요약: 프로젝트 7 · 주제 · 노트 2', await hero.getByText(/프로젝트 7 · 주제 \d+ · 노트 2/).isVisible());
+  let heroInk = 0;
+  await waitFor(async () => (heroInk = await canvasInk(heroCanvas)) > 500, 6000);
+  check('캔버스에 지도가 그려짐', heroInk > 500, `칠해진 점 ${heroInk}`);
   check('추천 질문은 인사말 아래(입력창 밖)', (await page.locator('main').getByRole('button', { name: /최근 2년 안에/ }).count()) === 1 && (await dock.getByRole('button', { name: /최근 2년 안에/ }).count()) === 0);
   check('입력창에 기록 지도 버튼', await dock.getByRole('button', { name: '309의 기록 지도 열기' }).isVisible());
   await page.screenshot({ path: path.join(SHOTS, 'I-landing.png') });
