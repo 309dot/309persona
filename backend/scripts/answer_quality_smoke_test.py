@@ -6,6 +6,7 @@ Run:
 
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -15,6 +16,8 @@ from app.services.answer_quality import (
     evaluate_answer,
     passes_quality_gate,
 )
+from app.core.config import settings
+from app.services import llm_service
 from app.services.rag_fallback import build_rag_fallback_answer
 
 
@@ -79,12 +82,39 @@ def test_evaluator() -> None:
     assert issues
 
 
+def test_retry_budget() -> None:
+    """Optional quality retries stop once the answer time budget is spent."""
+    medium = ("페이히어에서 디자인 시스템 토큰과 컴포넌트 기준을 다시 세웠어요. " * 4) + (
+        "\n- 토큰 정리\n- 컴포넌트 기준\n- 리뷰 루프\n- 문서화\n- 운영 점검"
+    )
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs["model"])
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=medium))])
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    original = (llm_service.get_openai_client, settings.answer_time_budget_seconds)
+    llm_service.get_openai_client = lambda: fake_client
+    try:
+        settings.answer_time_budget_seconds = 90
+        llm_service.generate_persona_answer("디자인 시스템 경험 알려줘", "design_system", {})
+        assert len(calls) == 3, calls
+        calls.clear()
+        settings.answer_time_budget_seconds = 0
+        llm_service.generate_persona_answer("디자인 시스템 경험 알려줘", "design_system", {})
+        assert len(calls) == 1, calls
+    finally:
+        llm_service.get_openai_client, settings.answer_time_budget_seconds = original
+
+
 def main() -> None:
     test_internal_artifact_detection()
     test_markdown_enforcement()
     test_fallback_shape()
     test_quality_gate()
     test_evaluator()
+    test_retry_budget()
     print("answer_quality_smoke_test: PASS")
 
 

@@ -19,8 +19,12 @@ os.environ["FIREBASE_CREDENTIALS_JSON"] = ""
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from fastapi import HTTPException  # noqa: E402
+from fastapi.security import HTTPAuthorizationCredentials  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.core import auth as core_auth  # noqa: E402
+from app.core.config import Settings, settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services import llm_service  # noqa: E402
 
@@ -85,6 +89,59 @@ def test_dashboard_requires_auth(client: TestClient) -> None:
     assert client.get("/api/dashboard/logs").status_code == 401
 
 
+def test_list_settings_accept_commas_and_json() -> None:
+    os.environ["ALLOWED_ORIGINS"] = "https://a.com, https://b.com"
+    os.environ["ADMIN_ALLOWED_EMAILS"] = '["a@x.com","b@x.com"]'
+    try:
+        parsed = Settings(_env_file=None)
+    finally:
+        del os.environ["ALLOWED_ORIGINS"], os.environ["ADMIN_ALLOWED_EMAILS"]
+    assert parsed.allowed_origins == ["https://a.com", "https://b.com"]
+    assert parsed.admin_allowed_emails == ["a@x.com", "b@x.com"]
+
+
+def _admin_status(token_claims, allowed, require_verified=False):
+    """Run verify_admin with a stubbed Firebase token check; return the HTTP status."""
+    original = (core_auth.auth.verify_id_token, settings.admin_allowed_emails, settings.admin_require_email_verified)
+
+    def fake_verify(_token):
+        if token_claims is None:
+            raise ValueError("bad token")
+        return token_claims
+
+    core_auth.auth.verify_id_token = fake_verify
+    settings.admin_allowed_emails = allowed
+    settings.admin_require_email_verified = require_verified
+    try:
+        core_auth.verify_admin(HTTPAuthorizationCredentials(scheme="Bearer", credentials="t"))
+        return 200
+    except HTTPException as exc:
+        assert "bad token" not in str(exc.detail)
+        return exc.status_code
+    finally:
+        core_auth.auth.verify_id_token, settings.admin_allowed_emails, settings.admin_require_email_verified = original
+
+
+def test_admin_allowlist_fails_closed() -> None:
+    owner = {"email": "owner@309.so", "email_verified": False}
+    assert _admin_status(owner, allowed=[]) == 403
+    assert _admin_status(owner, allowed=["Owner@309.so"]) == 200
+    assert _admin_status({"email": "someone@else.com"}, allowed=["owner@309.so"]) == 403
+    assert _admin_status(owner, allowed=["owner@309.so"], require_verified=True) == 403
+    assert _admin_status(None, allowed=["owner@309.so"]) == 401
+
+
+def test_input_limits(client: TestClient) -> None:
+    session_id = _create_session(client)
+    long_question = client.post("/api/chat", json={"session_id": session_id, "question": "질" * 1001})
+    assert long_question.status_code == 422
+    bad_event = client.post("/api/events/funnel", json={"session_id": session_id, "event": "Bad Event"})
+    assert bad_event.status_code == 422
+    long_name = client.post("/api/visitors", json={"visitor_name": "가" * 200, "referrer": "x" * 2000})
+    assert long_name.status_code == 200
+    assert len(long_name.json()["visitor_name"]) == 50
+
+
 def test_funnel_event(client: TestClient) -> None:
     session_id = _create_session(client)
     res = client.post(
@@ -104,6 +161,9 @@ def main() -> None:
         test_request_validation(client)
         test_dashboard_requires_auth(client)
         test_funnel_event(client)
+        test_input_limits(client)
+    test_list_settings_accept_commas_and_json()
+    test_admin_allowlist_fails_closed()
     print("api_smoke_test: PASS")
 
 

@@ -14,7 +14,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-load_dotenv(ROOT_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env.local")
 
 from app.services import llm_service, question_filter  # noqa: E402
 from app.services.knowledge_base import build_context_block  # noqa: E402
@@ -45,7 +45,7 @@ def main() -> None:
 
     api_key_set = bool(os.getenv("OPENAI_API_KEY"))
     if not api_key_set:
-        print("[경고] OPENAI_API_KEY가 설정되지 않았습니다. .env를 확인해 주세요.")
+        print("[경고] OPENAI_API_KEY가 설정되지 않았습니다. .env.local을 확인해 주세요.")
         if not args.dry_run:
             print("`--dry-run` 옵션으로 프롬프트만 미리 확인할 수 있습니다.")
             sys.exit(1)

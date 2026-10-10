@@ -63,7 +63,7 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 ### 설정
 
 - `backend/app/core/config.py`의 pydantic-settings가 **`backend/.env.local`** 을 읽는다(`.env` 아님). 샘플은 `backend/env.sample`.
-- `ALLOWED_ORIGINS`, `ADMIN_ALLOWED_EMAILS`는 지금 JSON 배열(`["a","b"]`)로 넣어야 한다. 쉼표 형식은 부팅 시 `SettingsError`가 난다(B1). `infra/local-mac/start-api.sh`가 `.env.local`을 JSON 배열로 고쳐 쓰는 것도 이 때문이다.
+- `ALLOWED_ORIGINS`, `ADMIN_ALLOWED_EMAILS`는 쉼표 구분과 JSON 배열 둘 다 받는다(`NoDecode` + `split_list`). `ADMIN_ALLOWED_EMAILS`가 비어 있으면 대시보드는 모두 403이다(fail-closed).
 - 질문 한도는 두 군데에 따로 있다: 프론트 `TOTAL_QUESTIONS`(5), 백엔드 `MAX_SESSION_QUESTIONS`(기본 3) (B2).
 - 프론트 경로 별칭 `@assets`는 `frontend/vite.config.ts`와 `tsconfig.app.json` 양쪽에 정의돼 있다.
 

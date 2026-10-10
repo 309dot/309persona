@@ -36,7 +36,7 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp env.sample .env  # 환경 변수 설정
+cp env.sample .env.local  # 환경 변수 설정 (백엔드는 .env.local을 읽음)
 uvicorn app.main:app --reload
 ```
 

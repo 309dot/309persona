@@ -4,23 +4,25 @@ from __future__ import annotations
 
 from functools import lru_cache
 import json
-from typing import Any, List, Optional, Union
+from typing import Annotated, Any, List, Optional
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
-def lenient_json_loads(value: Any) -> Any:
-    """Return JSON-decoded value, but fall back to original on decode errors."""
+def split_list(value: Any) -> Any:
+    """Accept a comma-separated string or a JSON array string for list settings."""
     if not isinstance(value, str):
         return value
     trimmed = value.strip()
-    if not trimmed:
-        return value
-    try:
-        return json.loads(trimmed)
-    except json.JSONDecodeError:
-        return value
+    if trimmed.startswith("["):
+        try:
+            parsed = json.loads(trimmed)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, list):
+            return [str(item).strip() for item in parsed if str(item).strip()]
+    return [item.strip() for item in trimmed.split(",") if item.strip()]
 
 
 class Settings(BaseSettings):
@@ -30,7 +32,6 @@ class Settings(BaseSettings):
         env_file=".env.local",
         env_file_encoding="utf-8",
         extra="ignore",
-        json_loads=lenient_json_loads,
     )
 
     app_name: str = "309 Interview Agent API"
@@ -51,6 +52,11 @@ class Settings(BaseSettings):
         description="OpenClaw agent id for persona answers",
     )
     openclaw_answer_timeout_seconds: int = Field(default=70)
+    llm_timeout_seconds: float = Field(default=45, description="Timeout for a single LLM request")
+    llm_max_retries: int = Field(default=1, description="SDK-level retries on connection errors")
+    answer_time_budget_seconds: float = Field(
+        default=90, description="Skip optional quality retries once an answer has taken this long"
+    )
     rag_top_k: int = Field(default=4, description="Top K chunks to retrieve for RAG")
     rag_mode: str = Field(default="lexical", description="lexical | hybrid")
     rag_vector_weight: float = Field(default=0.7)
@@ -68,7 +74,7 @@ class Settings(BaseSettings):
     firebase_credentials_json: Optional[str] = Field(
         default=None, description="Inline JSON for Firebase credentials"
     )
-    allowed_origins: List[str] = Field(
+    allowed_origins: Annotated[List[str], NoDecode] = Field(
         default_factory=lambda: [
             "http://localhost:5173",
             "http://127.0.0.1:5173",
@@ -83,43 +89,25 @@ class Settings(BaseSettings):
     blocked_message: str = Field(
         default="이 서비스는 309의 경력 관련 질문만 응답합니다."
     )
-    max_session_questions: int = Field(default=3)
+    max_session_questions: int = Field(default=5)
     session_window_minutes: int = Field(
         default=30, description="Time window for counting rate limited questions"
     )
     analytics_limit: int = Field(
         default=200, description="Max records returned for dashboard lists"
     )
-    admin_allowed_emails: List[str] = Field(
-        default_factory=list, description="Firebase auth emails allowed to view dashboard"
+    admin_allowed_emails: Annotated[List[str], NoDecode] = Field(
+        default_factory=list,
+        description="Firebase auth emails allowed to view dashboard. Empty means nobody.",
+    )
+    admin_require_email_verified: bool = Field(
+        default=False, description="Also require email_verified on the admin's Firebase token"
     )
 
-    @field_validator("allowed_origins", mode="before")
+    @field_validator("allowed_origins", "admin_allowed_emails", mode="before")
     @classmethod
-    def split_allowed_origins(cls, value: Optional[Union[str, List[str], Any]]):
-        """Allow comma-separated strings or JSON arrays."""
-        if value is None:
-            return value
-        if isinstance(value, str):
-            trimmed = value.strip()
-            if trimmed.startswith("["):
-                try:
-                    parsed = json.loads(trimmed)
-                    if isinstance(parsed, list):
-                        return [str(item).strip() for item in parsed if str(item).strip()]
-                except json.JSONDecodeError:
-                    pass
-            return [origin.strip() for origin in trimmed.split(",") if origin.strip()]
-        if isinstance(value, list):
-            return [str(item).strip() for item in value if str(item).strip()]
-        return value
-
-    @field_validator("admin_allowed_emails", mode="before")
-    @classmethod
-    def split_admin_emails(cls, value: Optional[Union[str, List[str]]]):
-        if isinstance(value, str):
-            return [email.strip() for email in value.split(",") if email.strip()]
-        return value
+    def parse_list(cls, value: Any) -> Any:
+        return split_list(value)
 
 
 @lru_cache

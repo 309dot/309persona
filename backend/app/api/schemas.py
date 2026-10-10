@@ -3,9 +3,25 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Truncate (not reject) free-text visitor fields so an overlong value can't
+# break session creation.
+VISITOR_FIELD_LIMITS = {
+    "visitor_name": 50,
+    "visitor_affiliation": 100,
+    "visit_ref": 100,
+    "referrer": 500,
+}
+
+
+def _truncate(value: Optional[str], limit: int) -> Optional[str]:
+    if value is None:
+        return None
+    return value.strip()[:limit]
 
 
 class VisitorCreate(BaseModel):
@@ -13,6 +29,11 @@ class VisitorCreate(BaseModel):
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
+
+    @field_validator(*VISITOR_FIELD_LIMITS, mode="before")
+    @classmethod
+    def truncate_fields(cls, value, info):
+        return _truncate(value, VISITOR_FIELD_LIMITS[info.field_name]) if isinstance(value, str) else value
 
 
 class VisitorResponse(BaseModel):
@@ -24,8 +45,8 @@ class VisitorResponse(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    session_id: str = Field(..., min_length=8)
-    question: str = Field(..., min_length=4)
+    session_id: str = Field(..., min_length=8, max_length=64)
+    question: str = Field(..., min_length=4, max_length=1000)
 
 
 class ChatResponse(BaseModel):
@@ -88,8 +109,15 @@ class DashboardStats(BaseModel):
 
 
 class FunnelEventCreate(BaseModel):
-    session_id: str = Field(..., min_length=8)
-    event: str = Field(..., min_length=2)
+    session_id: str = Field(..., min_length=8, max_length=64)
+    event: str = Field(..., pattern=r"^[a-z0-9_]{2,64}$")
     properties: dict = Field(default_factory=dict)
+
+    @field_validator("properties")
+    @classmethod
+    def limit_properties(cls, value: dict) -> dict:
+        if len(value) > 20 or len(json.dumps(value, ensure_ascii=False, default=str)) > 2000:
+            raise ValueError("properties must have at most 20 keys and 2000 characters")
+        return value
 
 

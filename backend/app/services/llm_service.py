@@ -6,6 +6,7 @@ from functools import lru_cache
 import json
 from pathlib import Path
 import subprocess
+import time
 from typing import Dict, Optional
 
 from openai import OpenAI
@@ -30,7 +31,11 @@ def get_openai_client() -> OpenAI:
     global _openai_client
     if _openai_client is None:
         api_key = settings.openai_api_key or "ollama"
-        kwargs = {"api_key": api_key}
+        kwargs = {
+            "api_key": api_key,
+            "timeout": settings.llm_timeout_seconds,
+            "max_retries": settings.llm_max_retries,
+        }
         if settings.openai_base_url:
             kwargs["base_url"] = settings.openai_base_url
         _openai_client = OpenAI(**kwargs)
@@ -153,6 +158,11 @@ def _complete_with_openclaw_agent(system_prompt: str, user_payload: str) -> str:
     return output
 
 
+def _within_budget(started: float) -> bool:
+    """Whether there is still time left for an optional quality retry."""
+    return time.monotonic() - started < settings.answer_time_budget_seconds
+
+
 def build_rag_rescue_answer(question: str, category: Optional[str] = None) -> tuple[str, list[str]]:
     rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
     reranked = rerank_chunks(question, rag_chunks, settings.rag_top_k)
@@ -171,6 +181,7 @@ def generate_persona_answer(
     visitor: Dict[str, str],
 ) -> tuple[str, list[str]]:
     """Generate persona answer via OpenClaw agent first, then OpenAI-compatible fallback."""
+    started = time.monotonic()
     lowered_q = question.lower()
 
     base_context = build_context_block()
@@ -253,7 +264,12 @@ def generate_persona_answer(
         answer = build_rag_fallback_answer(question, rag_chunks)
 
     is_rescue_style = "## 사례 (PAR)\n- Problem:" in answer
-    if (settings.answer_quality_mode or "balanced").lower() == "quality" and is_low_quality_answer(answer) and not is_rescue_style:
+    if (
+        (settings.answer_quality_mode or "balanced").lower() == "quality"
+        and is_low_quality_answer(answer)
+        and not is_rescue_style
+        and _within_budget(started)
+    ):
         retry_payload = user_payload + "\n\n추가 지시: 직전 답변과 표현이 겹치지 않게 작성하고, 질문의 핵심 키워드를 직접 언급해 주세요. 이력/포트폴리오 기반 사례를 최소 2개로 구체화해 주세요."
         retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
         retry_text = (retry.choices[0].message.content or "").strip()
@@ -263,7 +279,7 @@ def generate_persona_answer(
     answer = ensure_markdown_answer(answer)
 
     eval_score, eval_issues = evaluate_answer(answer)
-    if eval_score < 75:
+    if eval_score < 75 and _within_budget(started):
         retry_payload = user_payload + (
             "\n\n추가 지시(품질 보정):\n"
             f"- 현재 문제: {', '.join(eval_issues) if eval_issues else 'quality_drop'}\n"
@@ -275,7 +291,7 @@ def generate_persona_answer(
         if retry_text:
             answer = ensure_markdown_answer(retry_text)
 
-    if not passes_quality_gate(answer):
+    if not passes_quality_gate(answer) and _within_budget(started):
         retry_payload = user_payload + (
             "\n\n추가 지시(필수):\n"
             "- 이전 답변 도입 문장을 반복하지 말 것(문장 재사용 금지)\n"

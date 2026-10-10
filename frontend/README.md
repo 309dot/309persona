@@ -47,6 +47,6 @@ npm run preview
 
 ## 문제 해결
 
-- API 호출 시 CORS 오류 → 백엔드 `.env`의 `ALLOWED_ORIGINS`에 프론트 도메인을 추가
+- API 호출 시 CORS 오류 → 백엔드 `.env.local`의 `ALLOWED_ORIGINS`에 프론트 도메인을 추가
 - Firebase Auth 미설정 → `DashboardPage`가 "Firebase 설정이 필요" 메시지를 노출 (정상 동작)
 - 빌드 시 환경 변수 누락 → `vite.config.ts`에서 `import.meta.env`가 `undefined`일 수 있으므로 `.env` 확인

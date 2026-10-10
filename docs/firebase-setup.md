@@ -12,7 +12,7 @@
    - ⚠️ 이 파일은 `.gitignore`에 포함되어 있어 Git에 커밋되지 않습니다.
    
 4. **백엔드 환경 변수 설정:**
-   - `backend/env.sample` 파일을 복사하여 `backend/.env` 파일을 생성합니다.
+   - `backend/env.sample` 파일을 복사하여 `backend/.env.local` 파일을 생성합니다.
    - `FIREBASE_CREDENTIALS_PATH=../serviceAccountKey.json` 설정이 이미 되어 있으므로 그대로 사용하면 됩니다.
    - 다른 필수 환경 변수들(OPENAI_API_KEY, ADMIN_ALLOWED_EMAILS 등)도 설정해주세요.
 

@@ -19,7 +19,7 @@
 - [ ] OpenAI Usage 페이지에서 월별 한도 알림 설정
 
 ## 4. 배포 절차
-- [ ] `frontend/.env`와 `backend/.env` 운영 값을 Secret Manager/Vercel Secrets에 업로드
+- [ ] `frontend/.env`와 `backend/.env.local` 운영 값을 Secret Manager/Vercel Secrets에 업로드
 - [ ] `infra/docker-compose.staging.yml`로 최종 스테이징 연습 배포 완료
 - [ ] `docs/deployment.md`에 운영 도메인/CORS 값 업데이트
 
