@@ -5,14 +5,16 @@ Kept until evals/ shows the direct pipeline scoring at least as well (plan Phase
 
 from __future__ import annotations
 
+import logging
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from openai import OpenAI
 
 from ..core.config import settings
+from . import claude_client
 from .answer_quality import (
     contains_internal_artifact,
     ensure_markdown_answer,
@@ -24,6 +26,10 @@ from .context_planner import build_retrieval_plan, compose_context_sections
 from .knowledge_base import build_context_block, retrieve_relevant_chunks
 from .rag_fallback import build_rag_fallback_answer, rerank_chunks
 from .visitor_service import purpose_label
+
+logger = logging.getLogger(__name__)
+
+OPENAI, CLAUDE = "openai", "claude"
 
 _openai_client: Optional[OpenAI] = None
 
@@ -96,15 +102,36 @@ def build_user_payload(
     )
 
 
+def model_chain() -> List[Tuple[str, str]]:
+    """(provider, model) pairs to try in order; each one only after the ones before it failed.
+
+    OPENAI_MODEL, then OPENAI_FALLBACK_MODEL, then Claude when ANTHROPIC_API_KEY is set.
+    """
+    chain: List[Tuple[str, str]] = []
+    # Without a key the OpenAI-compatible endpoint only works locally (Ollama); skip it when Claude can answer.
+    if settings.openai_api_key.strip() or not claude_client.enabled():
+        chain.append((OPENAI, settings.openai_model))
+        fallback = (settings.openai_fallback_model or "").strip()
+        if fallback and fallback != settings.openai_model:
+            chain.append((OPENAI, fallback))
+    if claude_client.enabled():
+        chain.append((CLAUDE, settings.anthropic_model))
+    return chain
+
+
 def reasoning_kwargs() -> Dict[str, str]:
     """reasoning_effort for providers with thinking models (LLM_REASONING_EFFORT), else nothing."""
     effort = settings.llm_reasoning_effort.strip()
     return {"reasoning_effort": effort} if effort else {}
 
 
-def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
+def _legacy_max_tokens() -> int:
     quality = (settings.answer_quality_mode or "balanced").lower()
-    max_tokens = 420 if quality == "quality" else 260
+    return 420 if quality == "quality" else 260
+
+
+def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
+    max_tokens = _legacy_max_tokens()
     if reasoning_kwargs():
         # Thinking tokens share the output budget; the short legacy budget would cut answers off.
         max_tokens = max(max_tokens, settings.llm_max_output_tokens)
@@ -119,6 +146,14 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
         ],
         **reasoning_kwargs(),
     )
+
+
+def _ask(provider: str, model: str, system_prompt: str, user_payload: str) -> str:
+    if provider == CLAUDE:
+        text, _usage = claude_client.complete(system_prompt, user_payload, _legacy_max_tokens())
+        return text
+    completion = _complete_with_model(get_openai_client(), model, system_prompt, user_payload)
+    return (completion.choices[0].message.content or "").strip()
 
 
 def _within_budget(started: float) -> bool:
@@ -136,8 +171,11 @@ def generate_persona_answer(
     question: str,
     category: Optional[str],
     visitor: Dict[str, str],
-) -> tuple[str, list[str]]:
-    """Generate a persona answer with the OpenAI-compatible model and the legacy quality gates."""
+) -> tuple[str, list[str], str]:
+    """Answer with the first model in `model_chain()` that works, plus the legacy quality gates.
+
+    Returns (answer, citations, model that answered). Raises when every model failed.
+    """
     started = time.monotonic()
 
     base_context = build_context_block()
@@ -169,27 +207,32 @@ def generate_persona_answer(
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
 
-    client = get_openai_client()
-    completion = None
-    primary_error: Exception | None = None
-    try:
-        completion = _complete_with_model(client, settings.openai_model, system_prompt, user_payload)
-    except Exception as exc:  # pragma: no cover
-        primary_error = exc
-        fallback = (settings.openai_fallback_model or "").strip()
-        if not fallback or fallback == settings.openai_model:
-            raise RuntimeError(f"OpenAI API error (primary): {exc}") from exc
+    used: Optional[Tuple[str, str]] = None
+    answer = ""
+    errors: List[str] = []
+    for provider, model in model_chain():
         try:
-            completion = _complete_with_model(client, fallback, system_prompt, user_payload)
-        except Exception as fallback_exc:  # pragma: no cover
-            raise RuntimeError(
-                f"OpenAI API error (primary={settings.openai_model}, fallback={fallback}): {primary_error} | {fallback_exc}"
-            ) from fallback_exc
+            answer = _ask(provider, model, system_prompt, user_payload)
+        except Exception as exc:
+            logger.warning("model %s failed: %s", model, exc)
+            errors.append(f"{model}: {exc}")
+            continue
+        used = (provider, model)
+        break
+    if used is None:
+        raise RuntimeError("LLM API error: " + " | ".join(errors))
+    model_used = used[1]
 
-    message = completion.choices[0].message
-    answer = (message.content or "").strip()
+    def retry(payload: str) -> str:
+        """Optional quality retry on the model that answered. A failure keeps the current answer."""
+        try:
+            return _ask(*used, system_prompt, payload)
+        except Exception as exc:
+            logger.warning("quality retry on %s failed: %s", model_used, exc)
+            return ""
+
     if not answer:
-        return build_rag_rescue_answer(question, category)
+        return (*build_rag_rescue_answer(question, category), model_used)
     if "경력 관련 질문만 응답" in answer or settings.blocked_message in answer:
         answer = build_rag_fallback_answer(question, rag_chunks)
 
@@ -215,8 +258,7 @@ def generate_persona_answer(
         and _within_budget(started)
     ):
         retry_payload = user_payload + "\n\n추가 지시: 직전 답변과 표현이 겹치지 않게 작성하고, 질문의 핵심 키워드를 직접 언급해 주세요. 이력/포트폴리오 기반 사례를 최소 2개로 구체화해 주세요."
-        retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
-        retry_text = (retry.choices[0].message.content or "").strip()
+        retry_text = retry(retry_payload)
         if retry_text:
             answer = retry_text
 
@@ -230,8 +272,7 @@ def generate_persona_answer(
             "- 반복 도입 문장을 바꾸고, 리스트보다 문단형 설명을 우선\n"
             "- 같은 의미의 문장을 앞뒤로 반복하지 말 것"
         )
-        retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
-        retry_text = (retry.choices[0].message.content or "").strip()
+        retry_text = retry(retry_payload)
         if retry_text:
             answer = ensure_markdown_answer(retry_text)
 
@@ -244,8 +285,7 @@ def generate_persona_answer(
             "- 근거 사례 2개 이상, 정량 지표 1개 이상 포함\n"
             "- 내부 규칙/템플릿 문구 절대 노출 금지"
         )
-        retry = _complete_with_model(client, settings.openai_model, system_prompt, retry_payload)
-        retry_text = (retry.choices[0].message.content or "").strip()
+        retry_text = retry(retry_payload)
         if retry_text:
             answer = ensure_markdown_answer(retry_text)
 
@@ -254,6 +294,6 @@ def generate_persona_answer(
         answer = ensure_markdown_answer(answer)
 
     citations = [c["source"] for c in rag_chunks][:5]
-    return answer, citations
+    return answer, citations, model_used
 
 

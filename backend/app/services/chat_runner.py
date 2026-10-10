@@ -124,13 +124,13 @@ def generate(
             turn.question, turn.visitor, turn.history, on_delta, cancel, on_answer_end
         )
 
-    answer, citations = llm_service.generate_persona_answer(turn.question, turn.category, turn.visitor)
+    answer, citations, model = llm_service.generate_persona_answer(turn.question, turn.category, turn.visitor)
     if LEGACY_REFUSAL_ECHO in (answer or ""):
         answer, citations = llm_service.build_rag_rescue_answer(turn.question, turn.category)
     answer = (answer or "").strip()
     if answer:
         on_delta(answer)
-    return PipelineResult(answer=answer, sources=list(citations), topic=turn.category, model=settings.openai_model)
+    return PipelineResult(answer=answer, sources=list(citations), topic=turn.category, model=model)
 
 
 def _refund(turn: Turn) -> None:

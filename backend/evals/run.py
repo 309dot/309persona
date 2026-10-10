@@ -67,6 +67,7 @@ def answer_item(pipeline: str, item: Dict[str, Any]) -> Dict[str, Any]:
                 topic=result.topic,
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
+                model=result.model,
             )
         except Exception as exc:  # recorded as a failed item, the run continues
             record.update(answer="", blocked=False, error=f"{type(exc).__name__}: {exc}")
@@ -111,7 +112,9 @@ def run(pipeline: str, items: List[Dict[str, Any]]) -> Dict[str, Any]:
         failed = [name for name, value in record["checks"].items() if value is False]
         print(f"[{pipeline}] {index:>2}/{len(items)} {item['id']:<20} {'ok' if not failed else 'FAIL ' + ','.join(failed)}")
         records.append(record)
-    return {"pipeline": pipeline, "model": settings.openai_model, "summary": summarize(records), "records": records}
+    # A fallback (OPENAI_FALLBACK_MODEL, Claude) may have answered some items.
+    models = sorted({r["model"] for r in records if r.get("model")}) or [settings.openai_model]
+    return {"pipeline": pipeline, "model": ", ".join(models), "summary": summarize(records), "records": records}
 
 
 def print_summary(results: List[Dict[str, Any]]) -> None:

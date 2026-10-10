@@ -16,9 +16,11 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from ..core.config import settings
+from . import claude_client
+from .claude_client import Usage
 from .knowledge_base import load_knowledge_pack
 from .knowledge_document import render_knowledge_block, source_ids
-from .llm_service import get_openai_client, reasoning_kwargs
+from .llm_service import CLAUDE, get_openai_client, model_chain, reasoning_kwargs
 from .obsidian_notes import notes_version
 from .visitor_service import purpose_label
 
@@ -196,6 +198,24 @@ def _create_stream(model: str, messages: List[Dict[str, str]]):
     return get_openai_client().chat.completions.create(**kwargs, **reasoning_kwargs())
 
 
+def _stream_openai(
+    model: str, messages: List[Dict[str, str]], on_text: Callable[[str], None], should_stop: Callable[[], bool]
+) -> Usage:
+    usage = None
+    with _create_stream(model, messages) as stream:
+        for chunk in stream:
+            if should_stop():
+                break
+            if getattr(chunk, "usage", None):
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            text = getattr(chunk.choices[0].delta, "content", None) or ""
+            if text:
+                on_text(text)
+    return getattr(usage, "prompt_tokens", None), getattr(usage, "completion_tokens", None)
+
+
 def stream_answer(
     question: str,
     visitor: Dict[str, Any],
@@ -206,50 +226,47 @@ def stream_answer(
 ) -> PipelineResult:
     """Stream one answer. Raises on LLM errors so the caller can report an honest failure.
 
-    `on_answer_end` fires when the answer text is complete and only metadata is left,
-    so the visitor can move on while sources and follow-ups are still being written.
+    Models are tried in `model_chain()` order, moving on only while nothing has reached
+    the visitor. `on_answer_end` fires when the answer text is complete and only metadata
+    is left, so the visitor can move on while sources and follow-ups are still being written.
     """
     messages = build_messages(question, visitor, history)
-    models = [settings.openai_model]
-    fallback = (settings.openai_fallback_model or "").strip()
-    if fallback and fallback != settings.openai_model:
-        models.append(fallback)
+    chain = model_chain()
 
     parser = StreamParser()
-    usage = None
-    model_used = settings.openai_model
     emitted_any = False
     answer_ended = False
-    for attempt, model in enumerate(models):
+
+    def on_text(text: str) -> None:
+        nonlocal emitted_any, answer_ended
+        visible = parser.feed(text)
+        if visible:
+            emitted_any = True
+            on_delta(visible)
+        if parser.answer_complete and not answer_ended:
+            answer_ended = True
+            if on_answer_end:
+                on_answer_end()
+
+    usage: Usage = (None, None)
+    model_used = chain[0][1]
+    for attempt, (provider, model) in enumerate(chain):
+        model_used = model
         try:
-            with _create_stream(model, messages) as stream:
-                model_used = model
-                for chunk in stream:
-                    if cancel.is_set():
-                        break
-                    if getattr(chunk, "usage", None):
-                        usage = chunk.usage
-                    if not chunk.choices:
-                        continue
-                    text = getattr(chunk.choices[0].delta, "content", None) or ""
-                    visible = parser.feed(text) if text else ""
-                    if visible:
-                        emitted_any = True
-                        on_delta(visible)
-                    if parser.answer_complete and not answer_ended:
-                        answer_ended = True
-                        if on_answer_end:
-                            on_answer_end()
+            if provider == CLAUDE:
+                usage = claude_client.stream(messages, on_text, cancel.is_set)
+            else:
+                usage = _stream_openai(model, messages, on_text, cancel.is_set)
             break
-        except Exception:
+        except Exception as exc:
             if parser.answer_complete:
                 # The answer is whole; only metadata was lost.
                 logger.warning("stream ended while writing metadata", exc_info=True)
                 break
             # Only fall back while nothing has reached the visitor yet.
-            if emitted_any or attempt == len(models) - 1:
+            if emitted_any or attempt == len(chain) - 1:
                 raise
-            logger.warning("model %s failed before the first token; trying %s", model, models[attempt + 1])
+            logger.warning("model %s failed before the first token (%r); trying %s", model, exc, chain[attempt + 1][1])
             parser = StreamParser()
 
     tail, answer, meta_text = parser.finish()
@@ -262,6 +279,6 @@ def stream_answer(
         follow_ups=meta["follow_ups"],
         topic=meta["topic"],
         model=model_used,
-        prompt_tokens=getattr(usage, "prompt_tokens", None),
-        completion_tokens=getattr(usage, "completion_tokens", None),
+        prompt_tokens=usage[0],
+        completion_tokens=usage[1],
     )

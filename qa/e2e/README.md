@@ -1,6 +1,6 @@
 # 브라우저 E2E
 
-실제 백엔드와 프론트 빌드를 띄우고 Playwright로 화면을 조작한 뒤, 화면 값과 DB에 남은 값을 대조한다. LLM은 `fake_llm.py`(OpenAI 호환, 스트리밍·실패·지연 모드), Firestore는 `backend/tests/fake_firestore.py`(메모리)로 대신한다. 브라우저 설치가 필요해 CI에는 넣지 않았다.
+실제 백엔드와 프론트 빌드를 띄우고 Playwright로 화면을 조작한 뒤, 화면 값과 DB에 남은 값을 대조한다. LLM은 `fake_llm.py`(OpenAI 호환과 Anthropic Messages, 스트리밍·실패·지연 모드), Firestore는 `backend/tests/fake_firestore.py`(메모리)로 대신한다. 브라우저 설치가 필요해 CI에는 넣지 않았다.
 
 ## 준비
 
@@ -34,12 +34,20 @@ node qa/e2e/e2e_portfolio.cjs
 qa/e2e/stack.sh build-admin && QA_FAKE_ADMIN=1 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_admin.cjs
 
+# 6) Claude 예비 연결: 기본 모델 정상 → 장애 시 Claude 답변(실제 anthropic SDK가 가짜 /v1/messages 호출, 요청 모양 확인)
+#    → 둘 다 장애 → 다시 시도 → Claude 거절 → 기본 모델 복구 (direct 24개, legacy 21개)
+QA_CLAUDE=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
+node qa/e2e/e2e_claude.cjs
+QA_CLAUDE=1 qa/e2e/stack.sh restart
+node qa/e2e/e2e_claude.cjs
+
 qa/e2e/stack.sh stop
 ```
 
 - 각 스크립트는 체크마다 `PASS`/`FAIL`을 찍고, 하나라도 실패하면 종료 코드 1이다.
 - `QA_FAKE_ADMIN=1`은 어떤 ID 토큰이든 `owner@309.so`로 받아 준다. QA 스택(`run_backend.py`)에서만 쓰인다.
 - `QA_NOTES=1`은 `qa/e2e/notes/309-persona/`의 가짜 옵시디언 노트를 비공개 노트로 읽힌다(실제 노트가 아니다).
+- `QA_CLAUDE=1`은 Claude 예비 연결을 켜고 `fake_llm.py`의 `/v1/messages`(Anthropic Messages API 흉내)로 보낸다. 이 값이 없으면 QA 스택은 셸에 키가 있어도 Claude를 쓰지 않는다. 가짜 LLM은 `{"claude_mode": "fail" | "refusal"}`로 Claude 장애·거절을 낸다.
 - 가짜 LLM은 `POST /__mode {"chunk_delay": 0.08}`처럼 글자 조각 사이 간격을 늘려 스트리밍 모션을 눈으로 볼 수 있다. `{"sources": ["P4", "P5"]}`는 답변 근거를 바꾼다(`null`이면 기본값).
 - 각 스위트는 DB 값을 처음부터 센다. 스위트마다 스택을 새로 띄운다.
 - 스택을 다시 띄우는 `stack.sh restart`는 다른 명령과 한 줄로 묶지 않는다. 안의 `pkill -f`가 같은 줄의 문자열에 걸려 셸까지 끝낼 수 있다.

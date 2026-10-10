@@ -6,6 +6,9 @@ import os
 # so tests never write to the production Firestore.
 os.environ["FIREBASE_CREDENTIALS_PATH"] = ""
 os.environ["FIREBASE_CREDENTIALS_JSON"] = ""
+# Likewise never call Claude: tests that need it install a fake client.
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["ANTHROPIC_BASE_URL"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -14,7 +17,9 @@ from app.core import auth as core_auth  # noqa: E402
 from app.core import rate_limiter  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services import conversation_service, visitor_service  # noqa: E402
 from app.services.obsidian_notes import reset_notes  # noqa: E402
+from tests.fake_firestore import FakeFirestore  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +41,15 @@ def session_id(client):
     res = client.post("/api/visitors", json={"visitor_name": "Smoke QA"})
     assert res.status_code == 200, res.text
     return res.json()["session_id"]
+
+
+@pytest.fixture
+def db(monkeypatch):
+    """In-memory Firestore for visitors and conversations (create sessions after this fixture)."""
+    fake = FakeFirestore()
+    for module in (conversation_service, visitor_service):
+        monkeypatch.setattr(module, "get_firestore_client", lambda: fake)
+    return fake
 
 
 @pytest.fixture

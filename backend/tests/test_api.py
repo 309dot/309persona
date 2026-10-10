@@ -67,7 +67,7 @@ def test_profile_update_reaches_answer(client, session_id, monkeypatch):
 
     def capture(question, category, visitor):
         seen.update(visitor)
-        return "답변", []
+        return "답변", [], "local-model"
 
     monkeypatch.setattr(llm_service, "generate_persona_answer", capture)
     client.post("/api/chat", json={"session_id": session_id, "question": "디자인 시스템 경험 알려줘"})
