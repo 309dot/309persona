@@ -1,15 +1,21 @@
 """Visitor registration endpoints."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
-from .. import schemas
+from ...core.rate_limiter import client_ip, get_ip_session_limiter
 from ...services import visitor_service
+from .. import schemas
 
 router = APIRouter()
 
 
 @router.post("", response_model=schemas.VisitorResponse)
-def register_visitor(payload: schemas.VisitorCreate):
+def register_visitor(payload: schemas.VisitorCreate, request: Request):
+    if not get_ip_session_limiter().touch(client_ip(request)):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="잠시 후 다시 시도해 주세요.",
+        )
     record = visitor_service.create_visitor(payload.model_dump())
     return schemas.VisitorResponse(**record)
 

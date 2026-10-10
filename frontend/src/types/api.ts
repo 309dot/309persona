@@ -20,9 +20,20 @@ export interface SessionInfo {
   visitRef?: string;
 }
 
+export interface HistoryTurn {
+  question: string;
+  answer: string;
+}
+
 export interface ChatRequestPayload {
   sessionId: string;
   question: string;
+  history?: HistoryTurn[];
+}
+
+export interface ChatSource {
+  id: string;
+  label: string;
 }
 
 export interface ChatResponseBody {
@@ -32,9 +43,25 @@ export interface ChatResponseBody {
   reason?: string;
   category?: string;
   citations?: string[];
+  sources?: ChatSource[];
+  follow_ups?: string[];
+  conversation_id?: string | null;
   remaining?: number;
   limit?: number;
 }
+
+export interface ChatQuota {
+  remaining?: number;
+  limit?: number;
+}
+
+/** Final event of /api/chat/stream. */
+export type ChatOutcome =
+  | { type: 'done'; data: ChatResponseBody }
+  | { type: 'blocked'; data: ChatResponseBody }
+  | { type: 'error'; data: ChatQuota & { code: string; message: string; retryable: boolean } };
+
+export type FeedbackRating = 'up' | 'down';
 
 export interface StatPoint {
   label: string;
@@ -50,9 +77,17 @@ export interface FunnelStepStat {
 
 export interface DashboardKpis {
   total_sessions: number;
+  visits: number;
   avg_questions_per_session: number;
   blocked_rate: number;
   readiness_rate: number;
+  failure_rate: number;
+  latency_p50_ms?: number | null;
+  first_token_p50_ms?: number | null;
+  feedback_up: number;
+  feedback_down: number;
+  prompt_tokens: number;
+  completion_tokens: number;
 }
 
 export interface DashboardStats {
@@ -84,5 +119,18 @@ export interface ConversationRecord {
   category?: string;
   is_blocked?: boolean;
   timestamp?: string;
+  pipeline?: string | null;
+  model?: string | null;
+  latency_ms?: number | null;
+  first_token_ms?: number | null;
+  error?: string | null;
+  feedback?: FeedbackRating | null;
+  sources?: string[];
+}
+
+export interface SessionDetail {
+  session_id: string;
+  visitor?: VisitorRecord | null;
+  conversations: ConversationRecord[];
 }
 

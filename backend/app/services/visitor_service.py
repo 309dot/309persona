@@ -18,7 +18,9 @@ def create_visitor(payload: Dict[str, str]) -> Dict[str, str]:
     """Persist visitor metadata and return the session descriptor."""
     session_id = str(uuid4())
 
-    clean = lambda value: (value or "").strip()
+    def clean(value: Optional[str]) -> str:
+        return (value or "").strip()
+
     record = {
         "visitor_name": clean(payload.get("visitor_name", "")),
         "visitor_affiliation": clean(payload.get("visitor_affiliation", "")),

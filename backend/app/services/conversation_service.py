@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import statistics
 from collections import Counter, defaultdict
-import math
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from ..core.config import settings
 from ..core.firebase import get_firestore_client
@@ -23,11 +25,16 @@ def log_conversation(
     answer: str,
     category: Optional[str],
     is_blocked: bool,
-) -> None:
-    """Persist a conversation entry."""
+    **metrics: Any,
+) -> Optional[str]:
+    """Persist a conversation entry and return its document id.
+
+    `metrics` carries pipeline, model, latency_ms, first_token_ms, token counts,
+    sources, follow_ups and error (a code when the answer failed).
+    """
     try:
         client = get_firestore_client()
-        client.collection("conversations").add(
+        _, ref = client.collection("conversations").add(
             {
                 "session_id": session_id,
                 "visitor_id": visitor_id,
@@ -35,11 +42,29 @@ def log_conversation(
                 "answer": answer,
                 "category": category,
                 "is_blocked": is_blocked,
+                **{key: value for key, value in metrics.items() if value is not None},
                 "timestamp": firestore.SERVER_TIMESTAMP,
             }
         )
+        return ref.id
     except Exception as exc:
         logger.warning("Failed to persist conversation log: %s", exc)
+        return None
+
+
+def record_feedback(session_id: str, conversation_id: str, rating: str) -> bool:
+    """Store a visitor's 👍/👎 on one of their own answers. False if it isn't theirs or can't be saved."""
+    try:
+        client = get_firestore_client()
+        ref = client.collection("conversations").document(conversation_id)
+        snap = ref.get()
+        if not snap.exists or (snap.to_dict() or {}).get("session_id") != session_id:
+            return False
+        ref.update({"feedback": rating, "feedback_at": firestore.SERVER_TIMESTAMP})
+        return True
+    except Exception as exc:
+        logger.warning("Failed to record feedback: %s", exc)
+        return False
 
 
 def log_funnel_event(session_id: str, event: str, properties: Optional[Dict] = None) -> None:
@@ -86,14 +111,33 @@ def _safe_ratio(numerator: float, denominator: float) -> float:
     return round((numerator / denominator) * 100, 2)
 
 
-def _build_funnel_steps_from_events(client) -> List[Dict]:
-    stage_defs = [
-        ("chat_input_started", "대화창 입력"),
-        ("profile_submitted", "사용자 프로필 등록"),
-        ("five_questions_reached", "5회 질문 달성"),
-        ("proposal_email_sent", "이메일 보내기(제안하기)"),
-    ]
+def fetch_session_conversations(session_id: str) -> List[Dict]:
+    """All logged questions of one chat session, oldest first."""
+    client = get_firestore_client()
+    # Equality filter only: ordering in Python avoids needing a composite index.
+    snapshots = client.collection("conversations").where(filter=FieldFilter("session_id", "==", session_id)).stream()
+    rows = []
+    for snap in snapshots:
+        doc = snap.to_dict() or {}
+        doc["id"] = snap.id
+        rows.append(doc)
+    oldest = datetime.min.replace(tzinfo=timezone.utc)
+    rows.sort(key=lambda row: row.get("timestamp") if isinstance(row.get("timestamp"), datetime) else oldest)
+    return rows
 
+
+# Funnel stages counted per visit (funnel events are keyed by the per-tab visit id).
+FUNNEL_STAGES = [
+    ("landing_view", "방문"),
+    ("chat_input_started", "대화창 입력"),
+    ("first_answer_rendered", "첫 답변 확인"),
+    ("profile_submitted", "프로필 등록"),
+    ("five_questions_reached", "5회 질문 달성"),
+    ("proposal_email_sent", "제안하기 클릭"),
+]
+
+
+def _build_funnel_steps_from_events(client) -> List[Dict]:
     snapshots = (
         client.collection("funnel_events")
         .order_by("timestamp", direction=firestore.Query.DESCENDING)
@@ -101,7 +145,7 @@ def _build_funnel_steps_from_events(client) -> List[Dict]:
         .stream()
     )
 
-    stage_sessions: Dict[str, set] = {key: set() for key, _ in stage_defs}
+    stage_sessions: Dict[str, set] = {key: set() for key, _ in FUNNEL_STAGES}
     for snap in snapshots:
         data = snap.to_dict() or {}
         session_id = data.get("session_id")
@@ -112,7 +156,7 @@ def _build_funnel_steps_from_events(client) -> List[Dict]:
 
     steps: List[Dict] = []
     prev_value = None
-    for key, label in stage_defs:
+    for key, label in FUNNEL_STAGES:
         value = len(stage_sessions[key])
         steps.append(
             {
@@ -126,27 +170,50 @@ def _build_funnel_steps_from_events(client) -> List[Dict]:
     return steps
 
 
-def _build_kpis(conversations: List[Dict], visitors_count: int) -> Dict:
+def _median(values: List[float]) -> Optional[int]:
+    return int(statistics.median(values)) if values else None
+
+
+def _build_kpis(conversations: List[Dict], visitors_count: int, visits: int) -> Dict:
     by_session: Dict[str, Dict[str, int]] = defaultdict(lambda: {"total": 0, "blocked": 0})
+    answered: List[Dict] = []
+    failures = 0
     for row in conversations:
+        if row.get("error"):
+            # Failed answers were refunded to the visitor; they are not questions asked.
+            failures += 1
+            continue
         session_id = row.get("session_id") or ""
         if not session_id:
             continue
         by_session[session_id]["total"] += 1
         if row.get("is_blocked"):
             by_session[session_id]["blocked"] += 1
+        else:
+            answered.append(row)
 
     total_questions = sum(item["total"] for item in by_session.values())
     blocked_questions = sum(item["blocked"] for item in by_session.values())
     active_sessions = len(by_session)
     readiness_sessions = sum(1 for item in by_session.values() if item["total"] >= 2 and item["blocked"] == 0)
 
+    def numbers(key: str) -> List[float]:
+        return [row[key] for row in answered if isinstance(row.get(key), (int, float))]
+
     denominator_sessions = visitors_count or active_sessions
     return {
         "total_sessions": visitors_count,
+        "visits": visits,
         "avg_questions_per_session": round(total_questions / active_sessions, 2) if active_sessions else 0.0,
         "blocked_rate": _safe_ratio(blocked_questions, total_questions),
         "readiness_rate": _safe_ratio(readiness_sessions, denominator_sessions),
+        "failure_rate": _safe_ratio(failures, len(answered) + failures),
+        "latency_p50_ms": _median(numbers("latency_ms")),
+        "first_token_p50_ms": _median(numbers("first_token_ms")),
+        "feedback_up": sum(1 for row in answered if row.get("feedback") == "up"),
+        "feedback_down": sum(1 for row in answered if row.get("feedback") == "down"),
+        "prompt_tokens": int(sum(numbers("prompt_tokens"))),
+        "completion_tokens": int(sum(numbers("completion_tokens"))),
     }
 
 
@@ -172,15 +239,11 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
         ref_counter[ref] += 1
 
         # Track referrer (HTTP Referer header)
-        referrer = data.get("referrer", "").strip()
+        referrer = (data.get("referrer") or "").strip()
         if referrer:
-            # Extract domain from referrer URL
             try:
-                from urllib.parse import urlparse
-                parsed = urlparse(referrer)
-                domain = parsed.netloc or "direct"
-                referrer_counter[domain] += 1
-            except Exception:
+                referrer_counter[urlparse(referrer).netloc or "direct"] += 1
+            except ValueError:
                 referrer_counter["unknown"] += 1
         else:
             referrer_counter["direct"] += 1
@@ -200,7 +263,7 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
     category_counter = Counter(
         doc.get("category") or "general"
         for doc in conversation_docs
-        if not doc.get("is_blocked")
+        if not doc.get("is_blocked") and not doc.get("error")
     )
 
     try:
@@ -208,8 +271,9 @@ def build_dashboard_stats() -> Dict[str, List[Dict]]:
     except Exception as exc:
         logger.warning("Failed to build funnel steps: %s", exc)
         funnel_steps = []
+    visits = next((step["value"] for step in funnel_steps if step["key"] == "landing_view"), 0)
 
-    kpis = _build_kpis(conversation_docs, visitors_count=len(latest_visitors))
+    kpis = _build_kpis(conversation_docs, visitors_count=len(latest_visitors), visits=visits)
 
     return {
         "ref_stats": [{"label": ref, "value": count} for ref, count in ref_counter.most_common()],

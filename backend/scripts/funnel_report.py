@@ -8,10 +8,10 @@ Run (needs Firebase credentials):
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-import sys
 from typing import Any, Dict, Iterable, Tuple
 
 ROOT_DIR = Path(__file__).resolve().parents[1]

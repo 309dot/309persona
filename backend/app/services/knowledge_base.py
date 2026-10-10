@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from functools import lru_cache
 from math import sqrt
 from pathlib import Path
-import re
 from typing import Any, Dict, List, Tuple
 
 from ..core.config import settings
@@ -280,14 +280,6 @@ def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
         if filtered:
             return filtered[: max(1, top_k)]
     return result
-
-
-def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
-    chunks = retrieve_relevant_chunks(query, top_k=top_k)
-    if not chunks:
-        return ""
-    lines = [f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in chunks]
-    return "\n".join(lines)
 
 
 def get_allowed_topics() -> list[str]:

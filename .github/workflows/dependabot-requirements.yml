@@ -1,0 +1,35 @@
+name: Sync requirements.txt on Dependabot uv PRs
+
+# Dependabot updates backend/uv.lock but not the exported requirements.txt that
+# Render and the Docker image install from. Re-export it on the PR branch.
+on:
+  pull_request:
+    paths:
+      - backend/uv.lock
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          working-directory: backend
+      - name: Export requirements.txt from uv.lock
+        run: uv export --frozen --no-hashes --no-dev --format requirements-txt --quiet -o requirements.txt
+      - name: Commit if changed
+        run: |
+          git diff --quiet -- requirements.txt && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Export backend/requirements.txt from uv.lock" -- requirements.txt
+          git push

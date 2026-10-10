@@ -88,7 +88,7 @@ def main() -> None:
                     (chunk_id, doc_id, 0, text, token_count, "{}"),
                 )
 
-                emb = client.embeddings.create(model=EMBED_MODEL, input=text).data[0].embedding
+                emb = client.embeddings.create(model=EMBED_MODEL, input=text, encoding_format="float").data[0].embedding
                 emb_literal = "[" + ",".join(str(v) for v in emb) + "]"
 
                 cur.execute(

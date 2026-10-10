@@ -20,7 +20,6 @@ __pycache__/
 # Environment files
 .env
 .env.*
-.python-version
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -37,6 +36,11 @@ serviceAccountKey.json
 # Coverage / reports
 coverage/
 reports/
+# Eval runs (model answers); copy a run elsewhere to keep it as a baseline
+backend/evals/results/
+# Browser QA output
+qa/e2e/.logs/
+qa/e2e/shots/
 
 
 .vercel

@@ -15,13 +15,19 @@
    - `ALLOWED_ORIGINS` (쉼표 구분 또는 JSON 배열)
    - `ADMIN_ALLOWED_EMAILS` — **비어 있으면 대시보드 API가 모두 403**을 반환한다
    - `MAX_SESSION_QUESTIONS` (기본 5, 프론트 표시값도 이 값을 따른다)
-   - 선택: `LLM_TIMEOUT_SECONDS`(45), `LLM_MAX_RETRIES`(1), `ANSWER_TIME_BUDGET_SECONDS`(90), `ADMIN_REQUIRE_EMAIL_VERIFIED`(false)
-3. 실행 커맨드
-   ```
-   uvicorn app.main:app --host 0.0.0.0 --port 8080
-   ```
+   - `ANSWER_PIPELINE` — `legacy`(기본) 또는 `direct`. `direct`로 바꾸기 전에 `backend/evals`로 비교한다
+   - `TRUSTED_PROXY_HOPS` — 앱 앞에서 `X-Forwarded-For`를 덧붙이는 프록시 수(Render 1). IP 한도가 이 값으로 클라이언트 IP를 고른다
+   - 선택: `MAX_IP_QUESTIONS`(30)·`MAX_IP_SESSIONS`(20)·`IP_WINDOW_MINUTES`(60), `CHAT_HISTORY_TURNS`(3), `LLM_TEMPERATURE`(0.4), `LLM_MAX_OUTPUT_TOKENS`(1200), `LLM_STREAM_USAGE`(true, 스트림 토큰 사용량을 지원하지 않는 서버면 false), `LLM_TIMEOUT_SECONDS`(45), `LLM_MAX_RETRIES`(1), `ANSWER_TIME_BUDGET_SECONDS`(90), `ADMIN_REQUIRE_EMAIL_VERIFIED`(false)
+3. 실행
+   - 이미지 기본 명령이 `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}`이다. Render가 넣는 `PORT`를 그대로 쓰므로 Start Command를 따로 지정하지 않는다.
+   - 이미지는 Python 3.13 slim, 비루트 사용자(uid 10001)로 돈다. 의존성은 `backend/requirements.txt`(uv.lock에서 내보낸 파일)로 설치한다.
+   - Docker 없이 Render Python 런타임을 쓰는 경우: Root `backend`, Build `pip install -r requirements.txt`, Start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Python은 3.13이어야 한다(`backend/.python-version` 또는 Render의 `PYTHON_VERSION` 환경 변수로 지정).
 4. 헬스체크
-   - `/health` 엔드포인트가 `200 OK`를 반환해야 합니다.
+   - `/health` 엔드포인트가 `200 OK`를 반환해야 한다. 이미지에 `HEALTHCHECK`가 들어 있고, CI(`docker` 잡)가 매 푸시마다 이미지를 빌드해 `/health`와 지식베이스 로딩을 확인한다.
+5. 스트리밍
+   - 답변은 `POST /api/chat/stream`(Server-Sent Events)으로 나간다. 응답에 `X-Accel-Buffering: no`가 붙고, 모델이 늦게 시작해도 15초마다 ping 주석을 보내 연결이 끊기지 않게 한다. 앞단 프록시가 응답을 모아서 보내면 글자 단위 표시가 안 되므로 버퍼링을 끈다.
+   - `POST /api/chat`(JSON)도 그대로 둔다. 프론트·백엔드가 따로 배포되는 동안 구버전 프론트가 쓰고, 새 프론트도 스트림 경로가 없으면 이쪽으로 바꾼다.
+   - LLM 오류는 이제 고정 문단 대신 오류로 돌아간다(SSE `error`, JSON `503`). LLM 연결이 안 된 상태로 배포하면 방문자에게 "지금은 답변을 가져오지 못했어요"가 보인다.
 
 ## Frontend (Vercel)
 

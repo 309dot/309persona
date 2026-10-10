@@ -55,7 +55,7 @@ def main() -> None:
         else:
             eligible.sort(key=lambda x: (x[4], x[5]), reverse=True)
             winner = eligible[0]
-            out.append(f"- 상태: winner 확정 가능")
+            out.append("- 상태: winner 확정 가능")
             out.append(f"- Winner: {winner[0]}")
             out.append("- 다음 실험 2개:")
             out.append("  1) input_focus→first_submit 구간 카피/버튼 위치 미세 최적화")

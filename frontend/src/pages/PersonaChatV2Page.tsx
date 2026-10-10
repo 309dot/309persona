@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { v4 as uuid } from 'uuid';
 
 import agentAvatar from '@assets/images/agent-avatar.png';
 import iconEdit from '@assets/icons/name-edit.svg';
@@ -13,14 +12,22 @@ import logoFull from '@assets/icons/logo.svg';
 import {
   ApiError,
   createVisitor,
+  sendFeedback,
   sendQuestion,
+  streamQuestion,
+  StreamUnsupportedError,
   trackFunnelEvent as trackFunnelEventApi,
   updateVisitor,
 } from '../services/api';
 import { formatVisitorName } from '../lib/formatName';
+import { randomId } from '../lib/id';
+import { loadSavedChat, saveChat } from '../lib/savedChat';
 import { getVisitId } from '../lib/visit';
+import { inferVisitorProfile } from '../lib/visitorProfile';
+import { AnswerFeedback, AnswerSources, FailedAnswer, FollowUpChips } from './persona/AnswerExtras';
 import { AnimatedFormattedAnswer, CompletionModal, VisitorInfoModal } from './persona/PersonaResponseAndModals';
-import type { ChatResponseBody, SessionInfo } from '../types/api';
+import { PrivacyNotice } from './persona/PrivacyNotice';
+import type { ChatOutcome, ChatSource, FeedbackRating, HistoryTurn, SessionInfo } from '../types/api';
 
 const INTRO_MESSAGE =
   '안녕하세요, 309 성백곤입니다. Flow-Maker Product Designer로 어떤 문제를 어떻게 풀어왔는지 차근차근 공유드릴게요. 커피챗 목적(채용/협업/프로젝트)과 회사명을 알려주시면 맥락에 맞춰 바로 답변드리겠습니다. 😊';
@@ -43,32 +50,34 @@ const RESUME_URL =
 const OUT_OF_SCOPE_MESSAGE = '이 서비스는 309의 경력 관련 질문만 응답합니다. 프로덕트/UX/경력 맥락으로 다시 질문해 주세요.';
 const QUESTION_FIRST_EXPERIMENT = String(import.meta.env.VITE_EXPERIMENT_QUESTION_FIRST ?? 'true') === 'true';
 const EXPERIMENT_VARIANT = QUESTION_FIRST_EXPERIMENT ? 'on' : 'off';
+// Previous answers sent back so follow-up questions ("그 프로젝트는?") make sense.
+const HISTORY_TURNS = 3;
+
+type ThreadStatus = 'pending' | 'streaming' | 'done' | 'blocked' | 'error';
+type QuestionSource = 'manual' | 'quick' | 'follow_up' | 'retry';
 
 type PersonaThread = {
   id: string;
   question: string;
   questionAt: string;
-  answer?: string;
+  status: ThreadStatus;
+  answer: string;
   answerAt?: string;
-  blocked?: boolean;
   inferredCaption?: string;
+  /** Questions left after this one, as reported by the backend. */
+  remaining?: number;
+  sources?: ChatSource[];
+  followUps?: string[];
+  conversationId?: string | null;
+  feedback?: FeedbackRating;
 };
 
-
-function TypingText({
-  text,
-  onComplete,
-}: {
-  text: string;
-  speed?: number;
-  onComplete?: () => void;
-}) {
-  useEffect(() => {
-    onComplete?.();
-  }, [onComplete]);
-
-  return <span className="inline-block">{text}</span>;
+function sourceHref(source: ChatSource): string | undefined {
+  if (source.id === 'RESUME') return RESUME_URL;
+  if (/^P\d+$/.test(source.id)) return PORTFOLIO_URL;
+  return undefined;
 }
+
 
 function BrandBadge() {
   return (
@@ -88,7 +97,7 @@ function RemainingCounter({ used, total }: { used: number; total: number }) {
   const dashoffset = circumference * (1 - progress);
 
   return (
-    <div className="flex items-center gap-2 text-[12px] font-semibold text-[#14151A99]">
+    <div className="flex items-center gap-2 text-[12px] font-semibold text-graphite/60">
       <svg
         width={size}
         height={size}
@@ -132,7 +141,7 @@ function ProposalCard({ onClick }: { onClick?: () => void }) {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-3 rounded-full border border-transparent bg-white px-4 py-2 text-[15px] font-semibold text-[#14151A] shadow-[0_12px_30px_rgba(15,19,36,0.16)] transition hover:-translate-y-0.5"
+      className="inline-flex items-center gap-3 rounded-full border border-transparent bg-white px-4 py-2 text-[15px] font-semibold text-graphite shadow-[0_12px_30px_rgba(15,19,36,0.16)] transition hover:-translate-y-0.5"
       onClick={handleProposalClick}
     >
       <img src={iconMailSolid} alt="proposal" className="h-4 w-4" />
@@ -185,7 +194,7 @@ function InputPanel({
   const disabled = !question.trim() || loading || maxReached;
 
   return (
-    <div className="animate-slide-up w-full rounded-[36px] border border-[#ECEEF1] bg-white px-6 py-5 shadow-[0_12px_30px_rgba(15,19,36,0.14)]">
+    <div className="animate-slide-up w-full rounded-[36px] border border-line bg-white px-6 py-5 shadow-[0_12px_30px_rgba(15,19,36,0.14)]">
       <div className="flex flex-col gap-4">
         <input
           value={question}
@@ -193,7 +202,7 @@ function InputPanel({
           placeholder={maxReached ? `질문 ${questionLimit}회가 완료되었습니다` : INPUT_PLACEHOLDER}
           disabled={maxReached}
           maxLength={QUESTION_MAX_LENGTH}
-          className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-[#14151A] placeholder:text-[#C4C7CF] focus:outline-none disabled:cursor-not-allowed disabled:text-slate-400"
+          className="w-full border border-transparent bg-transparent px-1 text-[1rem] font-semibold leading-tight text-graphite placeholder:text-placeholder focus:outline-hidden disabled:cursor-not-allowed disabled:text-slate-400"
           onFocus={onInputFocus}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
@@ -208,19 +217,19 @@ function InputPanel({
             <button
               type="button"
               onClick={onEditVisitor}
-              className="ml-auto inline-flex items-center gap-1 text-[14px] font-semibold text-[#14151A99] transition hover:text-[#14151A]"
+              className="ml-auto inline-flex items-center gap-1 text-[14px] font-semibold text-graphite/60 transition hover:text-graphite"
             >
               <span>{withHonorific(name)}</span>
               <img src={iconEdit} alt="정보 수정" className="h-[10.5px] w-[10.5px]" />
             </button>
           ) : (
-            <span className="ml-auto text-[12px] font-semibold text-[#14151A66]">질문 먼저 시작해도 됩니다</span>
+            <span className="ml-auto text-[12px] font-semibold text-graphite/40">질문 먼저 시작해도 됩니다</span>
           )}
           <button
             type="button"
             onClick={() => onSubmit('manual')}
             disabled={disabled}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F1324] text-white transition hover:bg-black disabled:bg-slate-400"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-ink text-white transition hover:bg-black disabled:bg-slate-400"
             aria-label="전송"
           >
             <img src={iconSend} alt="질문 보내기" className="h-[10.5px] w-[10.5px]" />
@@ -231,83 +240,45 @@ function InputPanel({
   );
 }
 
-function ConsentModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/60 px-4">
-      <div className="max-w-xl rounded-3xl bg-white p-6 shadow-[0_35px_85px_rgba(15,19,36,0.35)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-slate-500">Privacy Notice</p>
-            <h3 className="text-2xl font-bold text-[#0F1324]">개인정보 이용 동의</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-200"
-          >
-            닫기
-          </button>
-        </div>
-        <ul className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600">
-          <li>
-            <span className="font-semibold text-slate-800">수집 항목:</span> 방문자 이름/이니셜, 소속,
-            초대 경로, 질문·대화 내용, 접속 시각
-          </li>
-          <li>
-            <span className="font-semibold text-slate-800">이용 목적:</span> 309 페르소나 기반 답변 제공,
-            대화 품질 개선, 문의 이력 모니터링, 악용 방지
-          </li>
-          <li>
-            <span className="font-semibold text-slate-800">보관 기간:</span> 대화 종료 후 최대 12개월,
-            혹은 삭제 요청 시 즉시 파기
-          </li>
-          <li>
-            <span className="font-semibold text-slate-800">제3자 제공:</span> 없음. 보관 중인 데이터는
-            Firebase / Firestore EU 리전에 암호화되어 저장됩니다.
-          </li>
-          <li>
-            <span className="font-semibold text-slate-800">문의/철회:</span> privacy@309designlab.com 으로
-            요청 시 열람·수정·삭제가 가능합니다.
-          </li>
-        </ul>
-        <p className="mt-4 text-xs text-slate-500">
-          * 서비스 이용 시 상기 항목에 동의한 것으로 간주되며, 동의 철회 시 일부 기능이 제한될 수
-          있습니다.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export function PersonaChatV2Page() {
-  const [visitorName, setVisitorName] = useState(DEFAULT_VISITOR_NAME);
-  const [visitorAffiliation, setVisitorAffiliation] = useState('');
+  // A reload in the same tab picks the conversation up where it was.
+  const [saved] = useState(() => loadSavedChat<PersonaThread>());
+  const [visitorName, setVisitorName] = useState(saved?.visitorName ?? DEFAULT_VISITOR_NAME);
+  const [visitorAffiliation, setVisitorAffiliation] = useState(saved?.visitorAffiliation ?? '');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
-  const [heroDone, setHeroDone] = useState(false);
-  const [showLoadingBubble, setShowLoadingBubble] = useState(false);
-  const [usedCount, setUsedCount] = useState(0);
-  const [questionLimit, setQuestionLimit] = useState(DEFAULT_QUESTION_LIMIT);
-  const [dockVisible, setDockVisible] = useState(false);
-  const [ctaVisible, setCtaVisible] = useState(false);
-  const [threads, setThreads] = useState<PersonaThread[]>([]);
+  const [usedCount, setUsedCount] = useState(saved?.usedCount ?? 0);
+  const [questionLimit, setQuestionLimit] = useState(saved?.questionLimit ?? DEFAULT_QUESTION_LIMIT);
+  const [ctaVisible, setCtaVisible] = useState(Boolean(saved?.threads.length));
+  const [threads, setThreads] = useState<PersonaThread[]>(saved?.threads ?? []);
   const [quickQuestionConsumed, setQuickQuestionConsumed] = useState(false);
-  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
   const [showVisitorInfoModal, setShowVisitorInfoModal] = useState(false);
   const [showProfileNudge, setShowProfileNudge] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  // The input dock is fixed over the bottom of the page; keep the latest message above it.
+  const [dockHeight, setDockHeight] = useState(0);
+  // The landing (logo and headline) stays in view until the first question.
+  const conversationStartedRef = useRef(Boolean(saved?.threads.length));
   const landingTrackedRef = useRef(false);
-  const chatViewTrackedRef = useRef(false);
   const inputFocusTrackedRef = useRef(false);
   // The chat session is created on the first question, not on page load.
-  const sessionPromiseRef = useRef<Promise<SessionInfo> | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
+  const sessionPromiseRef = useRef<Promise<SessionInfo> | null>(
+    saved ? Promise.resolve({ sessionId: saved.sessionId, visitorName: saved.visitorName }) : null,
+  );
+  const sessionIdRef = useRef<string | null>(saved?.sessionId ?? null);
   // Only profile values the visitor entered themselves are sent to the backend;
   // names guessed from question text stay on screen.
-  const confirmedProfileRef = useRef({ name: '', affiliation: '' });
+  const confirmedProfileRef = useRef(saved?.confirmedProfile ?? { name: '', affiliation: '' });
+  // Falls back to the JSON endpoint once if the backend has no /chat/stream yet.
+  const streamSupportedRef = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
+  // Streamed text is applied once per animation frame instead of once per chunk.
+  const pendingDeltaRef = useRef<{ threadId: string; text: string } | null>(null);
+  const frameRef = useRef<number | null>(null);
 
   const introTimestamp = useMemo(() => formatTimeLabel(), []);
   const displayName = visitorName || DEFAULT_VISITOR_NAME;
@@ -355,21 +326,81 @@ export function PersonaChatV2Page() {
     return sessionPromiseRef.current;
   }, []);
 
-  const askQuestion = useCallback(
-    async (text: string): Promise<ChatResponseBody> => {
+  const runQuestion = useCallback(
+    async (
+      text: string,
+      history: HistoryTurn[],
+      handlers: { onDelta: (delta: string) => void; onAnswerEnd: () => void },
+      signal: AbortSignal,
+    ): Promise<ChatOutcome> => {
+      const attempt = async (sessionId: string): Promise<ChatOutcome> => {
+        if (streamSupportedRef.current) {
+          try {
+            return await streamQuestion({ sessionId, question: text, history }, handlers, signal);
+          } catch (error) {
+            if (!(error instanceof StreamUnsupportedError)) throw error;
+            streamSupportedRef.current = false;
+          }
+        }
+        const response = await sendQuestion({ sessionId, question: text, history });
+        return { type: response.blocked ? 'blocked' : 'done', data: response };
+      };
+
       const active = await ensureSession();
       try {
-        return await sendQuestion({ sessionId: active.sessionId, question: text });
+        return await attempt(active.sessionId);
       } catch (error) {
         // The backend lost the session (e.g. restarted without Firestore): start a new one once.
         if (error instanceof ApiError && error.status === 404) {
           const fresh = await ensureSession(true);
-          return sendQuestion({ sessionId: fresh.sessionId, question: text });
+          return attempt(fresh.sessionId);
         }
         throw error;
       }
     },
     [ensureSession],
+  );
+
+  const updateThread = useCallback((threadId: string, changes: Partial<PersonaThread>) => {
+    setThreads((prev) => prev.map((thread) => (thread.id === threadId ? { ...thread, ...changes } : thread)));
+  }, []);
+
+  const flushDelta = useCallback(() => {
+    frameRef.current = null;
+    const pending = pendingDeltaRef.current;
+    if (!pending) return;
+    pendingDeltaRef.current = null;
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === pending.threadId
+          ? { ...thread, status: 'streaming', answer: thread.answer + pending.text }
+          : thread,
+      ),
+    );
+  }, []);
+
+  const appendDelta = useCallback(
+    (threadId: string, text: string) => {
+      const pending = pendingDeltaRef.current;
+      pendingDeltaRef.current =
+        pending && pending.threadId === threadId ? { threadId, text: pending.text + text } : { threadId, text };
+      if (frameRef.current === null) frameRef.current = requestAnimationFrame(flushDelta);
+    },
+    [flushDelta],
+  );
+
+  const dropPendingDelta = useCallback(() => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    pendingDeltaRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      dropPendingDelta();
+    },
+    [dropPendingDelta],
   );
 
   const scrollToBottom = useCallback(
@@ -392,8 +423,8 @@ export function PersonaChatV2Page() {
   );
 
   useEffect(() => {
-    scrollToBottom();
-  }, [threads, showLoadingBubble, scrollToBottom]);
+    if (conversationStartedRef.current) scrollToBottom();
+  }, [threads, scrollToBottom]);
 
   useEffect(() => {
     if (!loading) return;
@@ -402,11 +433,19 @@ export function PersonaChatV2Page() {
   }, [loading, scrollToBottom]);
 
   useEffect(() => {
+    const dock = dockRef.current;
+    if (!dock || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setDockHeight(dock.offsetHeight));
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const container = contentRef.current;
     if (!container || typeof ResizeObserver === 'undefined') return;
 
     const observer = new ResizeObserver(() => {
-      scrollToBottom();
+      if (conversationStartedRef.current) scrollToBottom();
     });
     observer.observe(container);
 
@@ -416,113 +455,124 @@ export function PersonaChatV2Page() {
   }, [scrollToBottom]);
 
   useEffect(() => {
-    setHeroDone(true);
-  }, []);
+    const sessionId = sessionIdRef.current;
+    const finished = threads.filter((thread) => thread.status === 'done' || thread.status === 'blocked');
+    if (!sessionId || !finished.length) return;
+    saveChat({
+      sessionId,
+      threads: finished,
+      usedCount,
+      questionLimit,
+      visitorName,
+      visitorAffiliation,
+      confirmedProfile: confirmedProfileRef.current,
+    });
+  }, [threads, usedCount, questionLimit, visitorName, visitorAffiliation]);
 
   useEffect(() => {
     if (landingTrackedRef.current) return;
     landingTrackedRef.current = true;
+    // The chat dock renders with the page, so the chat view starts with the landing.
     void trackFunnelEvent('landing_view');
+    void trackFunnelEvent('chat_view');
   }, [trackFunnelEvent]);
 
-  useEffect(() => {
-    if (!dockVisible || chatViewTrackedRef.current) return;
-    chatViewTrackedRef.current = true;
-    void trackFunnelEvent('chat_view');
-  }, [dockVisible, trackFunnelEvent]);
+  const answerThread = async (threadId: string, text: string, source: QuestionSource) => {
+    const firstAnswer = !threads.some((thread) => thread.status === 'done' || thread.status === 'blocked');
+    const history = threads
+      .filter((thread) => thread.status === 'done' && thread.id !== threadId)
+      .slice(-HISTORY_TURNS)
+      .map((thread) => ({ question: thread.question, answer: thread.answer }));
 
-  const inferVisitorProfile = (text: string) => {
-    const normalized = text.trim();
-    const firstSentence = normalized.split(/[\n?!]/)[0] ?? '';
-    const firstClause = firstSentence.split(/[.?!]/)[0]?.trim() ?? '';
-    const firstCommaClause = normalized.split(',')[0]?.trim() ?? '';
+    setUsedCount((count) => Math.min(questionLimit, count + 1));
+    setLoading(true);
+    scrollToBottom();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // Set once the answer text is complete; sources and follow-ups may still be on the way.
+    let answerEnded = false;
 
-    const cleanValue = (value: string | undefined | null) => {
-      const cleaned = value?.trim();
-      if (!cleaned) return null;
-      if (cleaned.length < 2 || cleaned.length > 60) return null;
-      return cleaned;
-    };
-
-    const nameMarkers: RegExp[] = [
-      /(저는|나는|제가)\s+([^,.\n]+?)(입니다|예요|에요|이고|이고요)?/i,
-      /(제\s*이름은)\s+([^,.\n]+?)(입니다|예요|에요)?/i,
-    ];
-    const affiliationMarkers: RegExp[] = [
-      /(소속|회사|팀|브랜드)\s*(은|는|이)?\s*([^,.\n]+?)(입니다|예요|에요|이고|이고요)?/i,
-    ];
-    const greetingNameMarkers: RegExp[] = [
-      /(반가워|안녕하세요|안녕|hello|hi)?\s*([^,.\n]+?)(입니다|이에요|예요|야|이야)/i,
-    ];
-
-    let nameCandidate: string | null = null;
-    let affiliationCandidate: string | null = null;
-
-    for (const regex of nameMarkers) {
-      const match = firstSentence.match(regex);
-      if (match && match[2]) {
-        nameCandidate = cleanValue(match[2]);
-        break;
+    try {
+      const outcome = await runQuestion(
+        text,
+        history,
+        {
+          onDelta: (delta) => appendDelta(threadId, delta),
+          onAnswerEnd: () => {
+            answerEnded = true;
+            flushDelta();
+            updateThread(threadId, { status: 'done', answerAt: new Date().toISOString() });
+            // Let the visitor ask the next question without waiting for the metadata.
+            if (abortRef.current === controller) setLoading(false);
+          },
+        },
+        controller.signal,
+      );
+      dropPendingDelta();
+      const { remaining, limit } = outcome.data;
+      if (typeof limit === 'number' && typeof remaining === 'number') {
+        setQuestionLimit(limit);
+        setUsedCount(Math.max(0, limit - remaining));
       }
-    }
 
-    for (const regex of affiliationMarkers) {
-      const match = firstSentence.match(regex);
-      if (match && match[3]) {
-        affiliationCandidate = cleanValue(match[3]);
-        break;
+      if (outcome.type === 'error') {
+        updateThread(threadId, { status: 'error', answer: '' });
+        return;
       }
-    }
-
-    if (!nameCandidate) {
-      for (const regex of greetingNameMarkers) {
-        const match = firstSentence.match(regex);
-        if (match && match[2]) {
-          nameCandidate = cleanValue(match[2]);
-          break;
+      const data = outcome.data;
+      updateThread(threadId, {
+        status: outcome.type,
+        answer:
+          outcome.type === 'blocked'
+            ? data.reason || data.answer || OUT_OF_SCOPE_MESSAGE
+            : data.answer || OUT_OF_SCOPE_MESSAGE,
+        answerAt: new Date().toISOString(),
+        remaining,
+        sources: data.sources ?? [],
+        followUps: data.follow_ups ?? [],
+        conversationId: data.conversation_id ?? null,
+      });
+      setCtaVisible(true);
+      if (firstAnswer) {
+        void trackFunnelEvent('first_answer_rendered', { source });
+        if (QUESTION_FIRST_EXPERIMENT) {
+          setShowProfileNudge(true);
         }
       }
-    }
-
-    if (!nameCandidate && firstCommaClause.length > 0 && firstCommaClause.length <= 30) {
-      const hasSpace = firstCommaClause.includes(' ');
-      const looksIntro = hasSpace && !/[?]/.test(firstCommaClause);
-      if (looksIntro) {
-        nameCandidate = cleanValue(firstCommaClause);
+      if (remaining === 0) {
+        void trackFunnelEvent('five_questions_reached', { usedCount: limit });
+        setShowCompletionModal(true);
+      }
+    } catch (error) {
+      dropPendingDelta();
+      if (controller.signal.aborted) return;
+      console.error('[Persona] 답변 실패', error);
+      if (answerEnded) return; // the answer arrived in full; only its metadata is missing
+      // The backend gives the question back when an answer fails.
+      setUsedCount((count) => Math.max(0, count - 1));
+      updateThread(threadId, { status: 'error', answer: '' });
+    } finally {
+      // A newer question may already be running; only the active request owns `loading`.
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setLoading(false);
       }
     }
-
-    if (!nameCandidate && firstClause.length > 0 && firstClause.length <= 30) {
-      const hasPronoun = /(저는|나는|제가|제\s*이름)/.test(firstClause);
-      if (hasPronoun) {
-        nameCandidate = cleanValue(firstClause);
-      }
-    }
-
-    const roleHints = ['pm', '프로덕트 매니저', 'product manager', '디자이너', 'designer', '개발자', 'engineer', '리크루터', 'hr', '채용 담당'];
-    const purposeHints = ['채용', '면접', '협업', '프로젝트', '파트너십', '외주', '검토'];
-    const role = roleHints.find((k) => normalized.toLowerCase().includes(k));
-    const purpose = purposeHints.find((k) => normalized.toLowerCase().includes(k));
-
-    return {
-      name: nameCandidate,
-      affiliation: affiliationCandidate,
-      role,
-      purpose,
-    };
   };
 
-  const handleSubmit = async (source: 'manual' | 'quick' = 'manual', questionOverride?: string) => {
+  const handleSubmit = async (source: QuestionSource = 'manual', questionOverride?: string) => {
     const trimmed = (questionOverride ?? question).trim();
-    if (!trimmed) return;
+    if (!trimmed || loading) return;
     if (usedCount >= questionLimit) {
       setShowCompletionModal(true);
       return;
     }
 
     const inferred = inferVisitorProfile(trimmed);
-    const nextName = inferred.name ?? visitorName;
-    const nextAffiliation = inferred.affiliation ?? visitorAffiliation;
+    // A name or affiliation the visitor typed into the profile form always wins over a guess.
+    const confirmed = confirmedProfileRef.current;
+    const nextName = confirmed.name ? visitorName : (inferred.name ?? visitorName);
+    const nextAffiliation = confirmed.affiliation ? visitorAffiliation : (inferred.affiliation ?? visitorAffiliation);
     const inferredCaption = inferred.role || inferred.purpose
       ? `질문에서 유추한 맥락: ${inferred.role ? `역할 ${inferred.role}` : ''}${inferred.role && inferred.purpose ? ' · ' : ''}${inferred.purpose ? `목적 ${inferred.purpose}` : ''}`
       : undefined;
@@ -531,73 +581,48 @@ export function PersonaChatV2Page() {
       setVisitorAffiliation(nextAffiliation);
     }
 
-    const threadId = uuid();
+    conversationStartedRef.current = true;
+    const threadId = randomId();
     const questionAt = new Date().toISOString();
-    const nextUsedCount = Math.min(questionLimit, usedCount + 1);
-    setThreads((prev) => [...prev, { id: threadId, question: trimmed, questionAt, inferredCaption }]);
-    setUsedCount(nextUsedCount);
+    setThreads((prev) => [
+      ...prev,
+      { id: threadId, question: trimmed, questionAt, inferredCaption, status: 'pending', answer: '' },
+    ]);
     setQuestion('');
-    setShowLoadingBubble(true);
-    setLoading(true);
-    scrollToBottom();
-    void trackFunnelEvent('question_submitted', { source, usedCount: nextUsedCount });
+    void trackFunnelEvent('question_submitted', { source, usedCount: Math.min(questionLimit, usedCount + 1) });
     if (usedCount === 0) {
       void trackFunnelEvent('first_submit', { source });
     }
-    if (nextUsedCount === questionLimit) {
-      void trackFunnelEvent('five_questions_reached', { usedCount: nextUsedCount });
-      setShowCompletionModal(true);
-    }
-
-    try {
-      const response = await askQuestion(trimmed);
-      if (typeof response.limit === 'number' && typeof response.remaining === 'number') {
-        setQuestionLimit(response.limit);
-        setUsedCount(Math.max(0, response.limit - response.remaining));
-      }
-      const normalizedAnswer =
-        response.blocked && (response.reason || !response.answer)
-          ? response.reason ?? OUT_OF_SCOPE_MESSAGE
-          : response.answer || OUT_OF_SCOPE_MESSAGE;
-      setThreads((prev) =>
-        prev.map((thread) =>
-          thread.id === threadId
-            ? {
-                ...thread,
-                answer: normalizedAnswer,
-                answerAt: new Date().toISOString(),
-                blocked: response.blocked,
-              }
-            : thread,
-        ),
-      );
-      setCtaVisible(true);
-      if (usedCount === 0) {
-        void trackFunnelEvent('first_answer_rendered', { source });
-        if (QUESTION_FIRST_EXPERIMENT) {
-          setShowProfileNudge(true);
-        }
-      }
-    } catch (error) {
-      console.error('[Persona] 답변 실패', error);
-      const fallback = '응답을 가져오지 못했어요. 잠시 후 다시 질문해 주세요.';
-      setThreads((prev) =>
-        prev.map((thread) =>
-          thread.id === threadId
-            ? {
-                ...thread,
-                answer: fallback,
-                answerAt: new Date().toISOString(),
-                blocked: true,
-              }
-            : thread,
-        ),
-      );
-    } finally {
-      setLoading(false);
-      setShowLoadingBubble(false);
-    }
+    await answerThread(threadId, trimmed, source);
   };
+
+  const handleRetry = (thread: PersonaThread) => {
+    if (loading) return;
+    if (usedCount >= questionLimit) {
+      setShowCompletionModal(true);
+      return;
+    }
+    updateThread(thread.id, { status: 'pending', answer: '' });
+    void trackFunnelEvent('answer_retried');
+    void answerThread(thread.id, thread.question, 'retry');
+  };
+
+  const handleFollowUp = (value: string) => {
+    void trackFunnelEvent('follow_up_clicked', { value });
+    void handleSubmit('follow_up', value);
+  };
+
+  const handleFeedback = (thread: PersonaThread, rating: FeedbackRating) => {
+    const sessionId = sessionIdRef.current;
+    if (!thread.conversationId || thread.feedback || !sessionId) return;
+    updateThread(thread.id, { feedback: rating });
+    void trackFunnelEvent('answer_feedback', { rating });
+    void sendFeedback({ sessionId, conversationId: thread.conversationId, rating }).catch((error) =>
+      console.error('[Persona] 피드백 저장 실패', error),
+    );
+  };
+
+  const closePrivacyNotice = useCallback(() => setShowPrivacyNotice(false), []);
 
   const handleInputFocus = () => {
     if (inputFocusTrackedRef.current) return;
@@ -644,6 +669,7 @@ export function PersonaChatV2Page() {
       <main
         ref={contentRef}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 overflow-y-auto px-4 pb-72 pt-10"
+        style={dockHeight ? { paddingBottom: dockHeight + 32 } : undefined}
       >
         <section className="flex flex-col gap-5">
           <div className="flex items-center justify-between gap-4">
@@ -651,7 +677,7 @@ export function PersonaChatV2Page() {
             <div className="h-10 w-10" />
           </div>
           <div className="space-y-4">
-            <p className="text-[32px] font-bold leading-snug text-[#0F1324] sm:text-[38px]">
+            <p className="text-[32px] font-bold leading-snug text-ink sm:text-[38px]">
               안녕하세요. 🙋 만나서 반갑습니다.
               <br />
               이 서비스는 저의 페르소나가 담긴 🤖 *AI Agent 기반 커피챗 서비스입니다.
@@ -664,58 +690,77 @@ export function PersonaChatV2Page() {
         </section>
 
         <section className="flex flex-col gap-6">
-          {heroDone && (
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
-                <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
+              <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+            </div>
+            <div className="flex w-full max-w-[540px] flex-col gap-1">
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                <span className="font-semibold text-slate-900">309</span>
+                <span>{introTimestamp}</span>
               </div>
-              <div className="flex w-full max-w-[540px] flex-col gap-1">
-                <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                  <span className="font-semibold text-slate-900">309</span>
-                  <span>{introTimestamp}</span>
-                </div>
-                <div className="text-[15px] leading-6 text-slate-900">
-                  <TypingText
-                    text={INTRO_MESSAGE}
-                    speed={6}
-                    onComplete={() => setDockVisible(true)}
-                  />
-                </div>
+              <div className="text-[15px] leading-6 text-slate-900">
+                <span className="inline-block">{INTRO_MESSAGE}</span>
               </div>
             </div>
-          )}
+          </div>
 
           {threads.length ? (
             <div className="flex flex-col gap-6">
               {threads.map((thread, index) => {
-                const remaining = Math.max(0, questionLimit - (index + 1));
+                const isLatest = index === threads.length - 1;
+                const showFollowUps =
+                  isLatest && thread.status === 'done' && !loading && usedCount < questionLimit;
                 return (
                   <div key={thread.id} className="space-y-3">
-                  <div className="flex justify-end">
-                      <div className="max-w-[420px] rounded-[22px] bg-[#0B98FF] px-5 py-3 text-[14px] leading-6 text-white shadow-[0_12px_28px_rgba(11,152,255,0.22)]">
-                      {thread.question}
-                    </div>
-                  </div>
-                    <p className="text-right text-[11px] font-medium text-[#0F1324] opacity-60">
-                      남은 질문 {remaining}/{questionLimit}
-                    </p>
-                  {thread.answer ? (
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
-                        <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+                    <div className="flex justify-end">
+                      <div className="max-w-[420px] rounded-[22px] bg-accent px-5 py-3 text-[14px] leading-6 text-white shadow-[0_12px_28px_rgba(11,152,255,0.22)]">
+                        {thread.question}
                       </div>
-                      <div className="flex w-full max-w-[540px] flex-col gap-1">
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                          <span className="font-semibold text-slate-900">309</span>
-                          <span>{formatTimeLabel(thread.answerAt || thread.questionAt)}</span>
+                    </div>
+                    {typeof thread.remaining === 'number' ? (
+                      <p className="text-right text-[11px] font-medium text-ink opacity-60">
+                        남은 질문 {thread.remaining}/{questionLimit}
+                      </p>
+                    ) : null}
+                    {thread.status === 'error' ? (
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
+                          <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
                         </div>
-                        {thread.inferredCaption ? (
-                          <p className="text-[11px] text-slate-500">{thread.inferredCaption}</p>
-                        ) : null}
-                        <AnimatedFormattedAnswer text={thread.answer} />
+                        <FailedAnswer disabled={loading} onRetry={() => handleRetry(thread)} />
                       </div>
-                    </div>
-                  ) : null}
+                    ) : thread.answer ? (
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
+                          <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex w-full max-w-[540px] flex-col gap-1">
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span className="font-semibold text-slate-900">309</span>
+                            <span>{formatTimeLabel(thread.answerAt || thread.questionAt)}</span>
+                          </div>
+                          {thread.inferredCaption ? (
+                            <p className="text-[11px] text-slate-500">{thread.inferredCaption}</p>
+                          ) : null}
+                          <AnimatedFormattedAnswer text={thread.answer} />
+                          {thread.status === 'done' ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <AnswerSources sources={thread.sources ?? []} hrefFor={sourceHref} />
+                              {thread.conversationId ? (
+                                <AnswerFeedback
+                                  value={thread.feedback}
+                                  onRate={(rating) => handleFeedback(thread, rating)}
+                                />
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : null}
+                    {showFollowUps ? (
+                      <FollowUpChips items={thread.followUps ?? []} disabled={loading} onPick={handleFollowUp} />
+                    ) : null}
                   </div>
                 );
               })}
@@ -724,16 +769,16 @@ export function PersonaChatV2Page() {
 
           {showProfileNudge && !loading ? (
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white shadow-xs">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
               </div>
-              <div className="w-full max-w-[540px] rounded-2xl border border-[#E7EBF3] bg-[#F8FAFE] px-4 py-3 text-[13px] leading-5 text-[#334155]">
+              <div className="w-full max-w-[540px] rounded-2xl border border-mist-line bg-mist px-4 py-3 text-[13px] leading-5 text-[#334155]">
                 <p>혹시 실례가 안 된다면 이름/소속을 알려주실 수 있을까요? 맥락에 맞춰 더 정확히 답변드릴 수 있어요 😊</p>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
                     onClick={() => setShowVisitorInfoModal(true)}
-                    className="rounded-full bg-[#0F1324] px-3 py-1.5 text-xs font-semibold text-white"
+                    className="rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     입력하기
                   </button>
@@ -749,12 +794,12 @@ export function PersonaChatV2Page() {
             </div>
           ) : null}
 
-          {showLoadingBubble && loading ? (
+          {threads.some((thread) => thread.status === 'pending') ? (
             <div className="mt-2 flex items-start gap-3">
               <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white">
                 <img src={agentAvatar} alt="309 avatar" className="h-full w-full object-cover" />
               </div>
-              <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[13px] font-medium text-slate-500 backdrop-blur">
+              <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-[13px] font-medium text-slate-500 backdrop-blur-sm">
                 <span>답변을 정리하고 있어요</span>
                 <span className="flex gap-1">
                   <span className="inline-block h-[4px] w-[4px] rounded-full bg-slate-500" style={{ animation: 'dotPulseMove 680ms ease-in-out infinite', animationDelay: '0ms' }} />
@@ -764,71 +809,74 @@ export function PersonaChatV2Page() {
               </div>
             </div>
           ) : null}
-          <div ref={bottomRef} className="h-1 w-full" />
+          <div ref={bottomRef} className="h-1 w-full" style={{ scrollMarginBottom: dockHeight + 16 }} />
         </section>
 
       </main>
 
-      {dockVisible ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-white/60 pb-6 pt-4">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
-            {ctaVisible ? (
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <ProposalCard onClick={() => void trackFunnelEvent('proposal_email_sent')} />
-                <div className="flex items-center gap-4 text-[13px] font-semibold text-[#0F1324]">
-                  <a
-                    href={PORTFOLIO_URL}
-                    className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[#0F1324] opacity-80 transition hover:opacity-100"
-                    download
+      <div ref={dockRef} className="fixed inset-x-0 bottom-0 z-20 bg-linear-to-t from-white via-white/95 to-white/60 pb-6 pt-4">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4">
+          {ctaVisible ? (
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <ProposalCard onClick={() => void trackFunnelEvent('proposal_email_sent')} />
+              <div className="flex items-center gap-4 text-[13px] font-semibold text-ink">
+                <a
+                  href={PORTFOLIO_URL}
+                  className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-ink opacity-80 transition hover:opacity-100"
+                  download
+                >
+                  <img src={iconPortfolio} alt="portfolio" className="h-4 w-4" />
+                  포트폴리오
+                </a>
+                <a
+                  href={RESUME_URL}
+                  className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-ink opacity-80 transition hover:opacity-100"
+                  download
+                >
+                  <img src={iconResume} alt="resume" className="h-4 w-4" />
+                  이력서
+                </a>
+              </div>
+            </div>
+          ) : null}
+          <div className="space-y-3">
+            {!quickQuestionConsumed ? (
+              <div className="flex flex-wrap gap-2 px-1">
+                {QUICK_QUESTIONS.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => handleQuickQuestion(q)}
+                    className="rounded-full border border-mist-line bg-mist px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-mist-hover"
                   >
-                    <img src={iconPortfolio} alt="portfolio" className="h-4 w-4" />
-                    포트폴리오
-                  </a>
-                  <a
-                    href={RESUME_URL}
-                    className="inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[#0F1324] opacity-80 transition hover:opacity-100"
-                    download
-                  >
-                    <img src={iconResume} alt="resume" className="h-4 w-4" />
-                    이력서
-                  </a>
-                </div>
+                    {q}
+                  </button>
+                ))}
               </div>
             ) : null}
-            <div className="space-y-3">
-              {!quickQuestionConsumed ? (
-                <div className="flex flex-wrap gap-2 px-1">
-                  {QUICK_QUESTIONS.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => handleQuickQuestion(q)}
-                      className="rounded-full border border-[#E7EBF3] bg-[#F8FAFE] px-3 py-1 text-[12px] font-semibold text-[#445067] transition hover:bg-[#EEF3FC]"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              <InputPanel
-                name={displayName}
-                question={question}
-                onQuestionChange={setQuestion}
-                onSubmit={handleSubmit}
-                loading={loading}
-                usedCount={usedCount}
-                questionLimit={questionLimit}
-                onEditVisitor={() => setShowVisitorInfoModal(true)}
-                onInputFocus={handleInputFocus}
-                showIdentityEdit={showIdentityEdit}
-                maxReached={usedCount >= questionLimit}
-              />
-
-            </div>
+            <InputPanel
+              name={displayName}
+              question={question}
+              onQuestionChange={setQuestion}
+              onSubmit={handleSubmit}
+              loading={loading}
+              usedCount={usedCount}
+              questionLimit={questionLimit}
+              onEditVisitor={() => setShowVisitorInfoModal(true)}
+              onInputFocus={handleInputFocus}
+              showIdentityEdit={showIdentityEdit}
+              maxReached={usedCount >= questionLimit}
+            />
+            <p className="px-2 text-center text-[11px] text-slate-400">
+              질문과 입력하신 정보는 답변과 서비스 개선에만 써요.{' '}
+              <button type="button" onClick={() => setShowPrivacyNotice(true)} className="underline hover:text-slate-600">
+                개인정보 안내
+              </button>
+            </p>
           </div>
         </div>
-      ) : null}
-      <ConsentModal open={showConsentModal} onClose={() => setShowConsentModal(false)} />
+      </div>
+      <PrivacyNotice open={showPrivacyNotice} onClose={closePrivacyNotice} />
       <VisitorInfoModal
         key={`visitor-${showVisitorInfoModal ? 'open' : 'closed'}-${visitorName}-${visitorAffiliation}`}
         open={showVisitorInfoModal}

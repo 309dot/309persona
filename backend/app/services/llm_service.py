@@ -1,12 +1,13 @@
-"""Wrapper around OpenAI to keep persona responses consistent."""
+"""Legacy answer pipeline: retrieval + quality-gate retries (ANSWER_PIPELINE=legacy).
+
+Kept until evals/ shows the direct pipeline scoring at least as well (plan Phase 3).
+"""
 
 from __future__ import annotations
 
-from functools import lru_cache
-import json
-from pathlib import Path
-import subprocess
 import time
+from functools import lru_cache
+from pathlib import Path
 from typing import Dict, Optional
 
 from openai import OpenAI
@@ -108,56 +109,6 @@ def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_pa
     )
 
 
-OPENCLAW_AGENT_TEMP_DISABLED = True
-
-
-def _complete_with_openclaw_agent(system_prompt: str, user_payload: str) -> str:
-    prompt = (
-        "당신은 309persona 답변 전용 에이전트다. 아래 system prompt와 user payload를 따라 짧고 정확하게 답하라. "
-        "가능하면 4~6문장 이내로 요약하라.\n\n"
-        f"[SYSTEM PROMPT]\n{system_prompt}\n\n"
-        f"[USER PAYLOAD]\n{user_payload}\n"
-    )
-    result = subprocess.run(
-        [
-            "openclaw",
-            "agent",
-            "--agent",
-            settings.openclaw_answer_agent_id,
-            "--message",
-            prompt,
-            "--json",
-            "--thinking",
-            "off",
-            "--timeout",
-            str(settings.openclaw_answer_timeout_seconds),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=settings.openclaw_answer_timeout_seconds,
-        check=False,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "openclaw agent failed")
-    output = (result.stdout or "").strip()
-    if not output:
-        raise RuntimeError("empty answer from openclaw agent")
-    try:
-        payload = json.loads(output)
-        text = (
-            payload.get("response")
-            or payload.get("message")
-            or payload.get("text")
-            or (payload.get("result", {}).get("payloads", [{}])[0].get("text") if isinstance(payload.get("result"), dict) else "")
-            or ""
-        )
-        if text:
-            return str(text).strip()
-    except Exception:
-        pass
-    return output
-
-
 def _within_budget(started: float) -> bool:
     """Whether there is still time left for an optional quality retry."""
     return time.monotonic() - started < settings.answer_time_budget_seconds
@@ -169,20 +120,13 @@ def build_rag_rescue_answer(question: str, category: Optional[str] = None) -> tu
     return build_rag_fallback_answer(question, reranked), [c["source"] for c in reranked][:5]
 
 
-def force_intent_answer(question: str, category: Optional[str]) -> tuple[str, list[str]]:
-    rag_chunks = retrieve_relevant_chunks(question, top_k=settings.rag_top_k)
-    citations = [c["source"] for c in rag_chunks][:5]
-    return build_rag_fallback_answer(question, rag_chunks), citations
-
-
 def generate_persona_answer(
     question: str,
     category: Optional[str],
     visitor: Dict[str, str],
 ) -> tuple[str, list[str]]:
-    """Generate persona answer via OpenClaw agent first, then OpenAI-compatible fallback."""
+    """Generate a persona answer with the OpenAI-compatible model and the legacy quality gates."""
     started = time.monotonic()
-    lowered_q = question.lower()
 
     base_context = build_context_block()
     plan = build_retrieval_plan(question)
@@ -212,18 +156,6 @@ def generate_persona_answer(
     )
     system_prompt = load_system_prompt().format(knowledge_block=knowledge_block)
     user_payload = build_user_payload(question, category, visitor)
-
-
-    if settings.use_openclaw_agent and not OPENCLAW_AGENT_TEMP_DISABLED:
-        try:
-            answer = _complete_with_openclaw_agent(system_prompt, user_payload)
-            if not answer or contains_internal_artifact(answer) or is_low_quality_answer(answer):
-                answer = build_rag_fallback_answer(question, rag_chunks)
-            answer = ensure_markdown_answer(answer)
-            citations = [c["source"] for c in rag_chunks][:5]
-            return answer, citations
-        except Exception:
-            pass
 
     client = get_openai_client()
     completion = None

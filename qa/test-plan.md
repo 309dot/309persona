@@ -1,46 +1,40 @@
 # QA 시나리오
 
+자동화된 확인: 백엔드 `cd backend && uv run pytest`(API·스트리밍·한도·대시보드 집계), 답변 품질 `uv run python -m evals.run`(실제 LLM), 화면 `qa/e2e/`(가짜 LLM으로 브라우저 조작 + DB 대조). 아래 항목 옆 괄호는 그 항목을 자동으로 확인하는 곳이다.
+
 ## 1. 방문자 플로우
-- [ ] `/persona` 첫 진입 시에는 세션이 만들어지지 않고, 첫 질문 때 `POST /api/visitors` 후 `POST /api/chat`이 호출되는지 확인
-- [ ] 프로필 입력(이름/소속) 저장 시 세션이 있으면 `PATCH /api/visitors/{id}`가 호출되는지 확인
-- [ ] 진입 직후 `landing_view`, 입력창 포커스 시 `chat_input_started` 퍼널 이벤트가 기록되는지 확인
+- [ ] `/persona` 첫 진입만으로는 세션이 생기지 않고, 첫 질문 때 `POST /api/visitors` → `POST /api/chat/stream` 순서로 호출된다 (e2e.cjs 1·2)
+- [ ] 진입 직후 `landing_view`·`chat_view`, 입력창 포커스 시 `chat_input_started` 퍼널 이벤트가 탭별 방문 ID로 기록된다 (e2e.cjs 1)
+- [ ] 프로필(이름/소속) 저장 시 세션이 있으면 `PATCH /api/visitors/{id}`가 호출되고, 직접 입력한 이름이 질문 문장에서 추정한 이름보다 우선한다 (e2e.cjs 3·4)
+- [ ] 같은 탭에서 새로고침하면 대화·남은 질문 수·프로필이 복원되고, 이어서 질문해도 같은 세션으로 이력과 함께 전송된다. 탭을 닫으면 지워진다(sessionStorage) (e2e.cjs 7, e2e_stream.cjs A1·A2)
+- [ ] "개인정보 안내"가 열리고 ESC·바깥 클릭으로 닫힌다 (e2e_stream.cjs H)
 
 ## 2. 질문/답변
-- [ ] 정상 질문 시 LLM 응답이 표시되고 카테고리 태그가 붙는지 확인
-- [ ] 탈옥 키워드("규칙 무시", "system prompt") 입력 시 차단 메시지 출력 및 로그 저장 여부 (범위 밖 일반 질문 처리 정책은 Phase 3에서 재정의)
-- [ ] 세션당 `MAX_SESSION_QUESTIONS`(기본 5)회를 넘기면 Rate Limiting 메시지가 나오고, 남은 질문 수 표시가 응답의 `remaining`과 일치하는지 확인
-- [ ] 추천 질문 템플릿 클릭 → 입력창에 값이 반영되는지 확인
-- [ ] 시스템 프롬프트/가드레일 노출 요구("system prompt", "시스템 메시지") 시 차단 메시지 출력
-- [ ] 도메인 외 질문 시 `프로덕트/UX/경력 맥락으로 다시 질문` 안내 문구 노출
-- [ ] 컨텍스트 블록에 Speaking Style, QA Templates, Guardrails 섹션이 포함되어 응답 품질에 반영되는지 확인
+- [ ] 답변이 글자 단위로 나눠 표시되고(스트리밍), 끝나면 근거 칩·피드백 버튼이 붙는다. 근거 칩 중 이력서는 이력서 PDF, 프로젝트는 포트폴리오 PDF로 연결된다 (e2e_stream.cjs A)
+- [ ] 본문이 끝나면 근거·후속 질문이 오기 전에도 다음 질문을 보낼 수 있다 (e2e_stream.cjs A2)
+- [ ] (direct) 후속 질문 칩은 최신 답변 아래에만 보이고, 누르면 직전 대화가 이력으로 함께 전송된다 (e2e_stream.cjs B)
+- [ ] 👍/👎는 답변당 한 번만 누를 수 있고 대화 로그에 저장된다 (e2e_stream.cjs C, tests/test_dashboard.py)
+- [ ] 탈옥·프롬프트 요구("시스템 프롬프트", "ignore previous instructions")는 LLM 호출 없이 차단 문구로 답한다 (tests/test_api.py, test_chat_stream.py)
+- [ ] 범위 밖 질문(코드 작성, 날씨, 번역): direct는 짧게 범위를 알리고 309에게 물을 만한 질문을 제안한다. legacy는 일반 질문으로 답한다 (evals `oos-*`)
+- [ ] 자료에 없는 사실(다른 회사 근무, 팀 규모)을 지어내지 않는다 (evals `unknown-*`, `grounded_numbers`)
+- [ ] 세션당 `MAX_SESSION_QUESTIONS`(기본 5)회를 넘기면 차단되고, 남은 질문 수 표시가 응답의 `remaining`과 일치한다. 5번째 답변 뒤 완료 모달이 뜨고 입력창이 잠긴다 (e2e.cjs 4·6, e2e_stream.cjs F)
+- [ ] 같은 IP에서 `MAX_IP_QUESTIONS`·`MAX_IP_SESSIONS`를 넘기면 새 세션으로도 우회되지 않는다 (tests/test_chat_stream.py)
 
-## 3. 대시보드 (관리자)
-- [ ] Firebase Email/Password 로그인 성공/실패 시 메시지 확인
-- [ ] 통계 카드(누적 방문자, 유입 경로, 인기 카테고리) 값 검증
-- [ ] 최근 질문 목록에서 차단 여부 배지 표시
-- [ ] 새로고침 버튼 클릭 시 최신 데이터로 업데이트
+## 3. 실패·회복
+- [ ] LLM 오류 시 "지금은 답변을 가져오지 못했어요" + "다시 시도"가 보이고, 그 질문은 남은 질문 수에서 빠지지 않는다. 대화 로그에는 `error=llm_unavailable`로 남는다 (e2e_stream.cjs D)
+- [ ] 모델이 느릴 때 첫 글자 전까지 "답변을 정리하고 있어요"가 보이고 전송 버튼이 잠긴다 (e2e_stream.cjs E)
+- [ ] 백엔드가 꺼졌다 켜져 세션이 사라지면(404) 새 세션으로 한 번 다시 보낸다 (e2e.cjs 8)
+- [ ] 백엔드에 `/api/chat/stream`이 없으면 `/api/chat`(JSON)으로 바꿔 답한다 (e2e_stream.cjs G)
 
-## 4. 보안/예외
-- [ ] Authorization 헤더 없이 `/api/dashboard/*` 호출 시 401 반환
-- [ ] 허용되지 않은 이메일로 로그인 후 API 요청 시 403 반환
-- [ ] Knowledge base 파일이 없을 때 서버가 명확한 에러를 로그에 남기는지 확인
-- [ ] Firebase 설정이 비어 있을 때 대시보드에서 안내 메시지를 출력하는지 확인
+## 4. 대시보드 (관리자)
+- [ ] Firebase 설정이 없으면 안내 문구가 뜨고, 관리자 화면 코드는 `/admin`에 들어갈 때만 내려받는다 (e2e.cjs 9)
+- [ ] 지표: 방문(landing_view 기준), 질문한 방문자, 평균 질문 수, 준비도, 차단 비율, 답변 실패율, 응답 시간 p50(첫 글자/완료), 피드백 👍/👎가 저장된 데이터와 일치한다 (e2e_admin.cjs, tests/test_dashboard.py)
+- [ ] 퍼널: 방문 → 대화창 입력 → 첫 답변 확인 → 프로필 등록 → 5회 질문 → 제안하기 클릭, 단계별 전환율 (e2e_admin.cjs)
+- [ ] 로그에서 실패·차단·피드백·지연이 배지로 보이고, 누르면 그 방문자의 대화 전체가 시간순으로 열린다. ESC로 닫힌다 (e2e_admin.cjs)
+- [ ] 새로고침 버튼으로 최신 데이터가 다시 불린다
 
-## 5. 성능/회복력
-- [ ] OpenAI API 에러 시 사용자용 안내 메시지가 표시되고, 시스템 메시지가 채팅에 추가되는지 확인
-- [ ] 브라우저 새로고침 후에도 대화 이력이 로컬 스토리지에서 복원되는지 확인
-
----
-
-## 실행 로그 (2025-12-03)
-
-| 시나리오 | 커맨드 | 결과 |
-| --- | --- | --- |
-| 헬스체크 | `curl http://127.0.0.1:8000/health` | `{"status":"ok"}` |
-| 세션 생성 | `POST /api/visitors` | `session_id=a0f6...4356` 생성 |
-| 금지 질문 차단 | `POST /api/chat` (오늘 날씨) | 차단 메시지 및 `blocked=true` |
-| Rate Limit | 동일 세션으로 4회 연속 질문 | 4번째 요청에서 `세션당 허용된 질문 수 초과` 반환 |
-| 관리자 보호 | `dashboard_smoke.py --id-token fake-token` | `401 Invalid token` |
-
-- 모든 테스트는 `OPENAI_API_KEY=dummy` 환경에서 실행하여 guardrail과 세션 로직만 검증했습니다.
-- 실제 답변 품질 검증은 `backend/scripts/persona_smoke.py`에 유효한 OpenAI 키를 주입해 수행하세요.
+## 5. 보안/예외
+- [ ] Authorization 헤더 없이 `/api/dashboard/*` 호출 시 401, 허용 목록에 없는 이메일·`ADMIN_ALLOWED_EMAILS` 비어 있음은 403 (tests/test_api.py)
+- [ ] 다른 세션의 답변에는 피드백을 남길 수 없다 (tests/test_dashboard.py)
+- [ ] 입력 길이 제한(질문 1000자, 이력 10개, 방문자 필드 자르기)과 퍼널 `properties` 크기 제한 (tests/test_api.py, test_chat_stream.py)
+- [ ] 지식베이스 파일이 없으면 서버가 경로를 담은 에러를 남긴다

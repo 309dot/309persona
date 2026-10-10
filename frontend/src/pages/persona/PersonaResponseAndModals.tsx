@@ -20,12 +20,12 @@ function MarkdownAnswer({ text }: { text: string }) {
   }, []);
 
   if (!markdownMod || !remarkGfm) {
-    return <div className="max-w-none whitespace-pre-wrap text-[14px] leading-6 text-[#0F1324]">{text}</div>;
+    return <div className="max-w-none whitespace-pre-wrap text-[14px] leading-6 text-ink">{text}</div>;
   }
 
   const ReactMarkdown = markdownMod as (props: { children: string; remarkPlugins?: unknown[] }) => ReactElement;
   return (
-    <div className="max-w-none text-[14px] leading-6 text-[#0F1324]">
+    <div className="max-w-none text-[14px] leading-6 text-ink">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
@@ -54,7 +54,7 @@ export function VisitorInfoModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/60 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -65,7 +65,7 @@ export function VisitorInfoModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-slate-500">309 coffee chat</p>
-            <h3 className="text-2xl font-bold text-[#0F1324]">잠깐, 자기소개 좀 부탁드릴게요 ☕</h3>
+            <h3 className="text-2xl font-bold text-ink">잠깐, 자기소개 좀 부탁드릴게요 ☕</h3>
             <p className="mt-1 text-sm text-slate-500">이름과 소속을 알려주시면 질문 맥락에 맞춰 더 정확하게 답변드릴 수 있어요. (선택)</p>
           </div>
         </div>
@@ -76,7 +76,7 @@ export function VisitorInfoModal({
             name="visitorName"
             value={localName}
             onChange={(event) => setLocalName(event.target.value)}
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-hidden"
             placeholder="예) 최백호"
           />
           <label className="block text-sm font-semibold text-slate-700" htmlFor="visitor-affiliation">회사 / 팀</label>
@@ -85,13 +85,13 @@ export function VisitorInfoModal({
             name="visitorAffiliation"
             value={localAffiliation}
             onChange={(event) => setLocalAffiliation(event.target.value)}
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-hidden"
             placeholder="예) 울진상사 전략팀"
           />
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onClose} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-300">다음에 할게요</button>
-          <button type="submit" className="rounded-full bg-[#0F1324] px-5 py-2 text-sm font-semibold text-white hover:bg-black">저장</button>
+          <button type="submit" className="rounded-full bg-ink px-5 py-2 text-sm font-semibold text-white hover:bg-black">저장</button>
         </div>
       </form>
     </div>
@@ -119,7 +119,7 @@ export function CompletionModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0F1324]/60 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -129,7 +129,7 @@ export function CompletionModal({
         className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-[0_18px_45px_rgba(15,19,36,0.25)]"
       >
         <p className="text-sm font-semibold text-slate-500">{questionLimit}개 질문 완료</p>
-        <h3 className="text-2xl font-bold text-[#0F1324]">마지막으로 프로필과 제안 정보를 남겨주세요</h3>
+        <h3 className="text-2xl font-bold text-ink">마지막으로 프로필과 제안 정보를 남겨주세요</h3>
         <p className="mt-1 text-sm text-slate-500">이름/소속을 입력하고, 필요하면 바로 제안 메일을 보낼 수 있어요.</p>
         <div className="mt-4 space-y-4">
           <input value={localName} onChange={(event) => setLocalName(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" placeholder="이름 또는 이니셜" />
@@ -145,7 +145,7 @@ export function CompletionModal({
           >
             나에게 제안하기
           </button>
-          <button type="submit" className="rounded-full bg-[#0F1324] px-5 py-2 text-sm font-semibold text-white">저장하고 닫기</button>
+          <button type="submit" className="rounded-full bg-ink px-5 py-2 text-sm font-semibold text-white">저장하고 닫기</button>
         </div>
       </form>
     </div>

@@ -1,56 +1,72 @@
-@import url('./assets/fonts/Pretendard/web/variable/pretendardvariable.css');
+/* Dynamic subset: the browser only downloads the glyph ranges a page actually uses. */
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css' layer(base);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
 
-:root {
-  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    sans-serif;
-  color: #0f172a;
-  background-color: #ffffff;
-}
+@theme {
+  --font-sans: 'Pretendard Variable', Inter, system-ui, sans-serif;
 
-body {
-  font-family: inherit;
-  background-color: #ffffff;
-  color: #0f172a;
-}
+  /* Visitor chat palette */
+  --color-ink: #0f1324;
+  --color-graphite: #14151a;
+  --color-accent: #0b98ff;
+  --color-mist: #f8fafe;
+  --color-mist-hover: #eef3fc;
+  --color-mist-line: #e7ebf3;
+  --color-line: #eceef1;
+  --color-placeholder: #c4c7cf;
 
-:root {
-  font-family: 'Pretendard Variable', 'Inter', system-ui, sans-serif;
-  color: #0f172a;
-  background-color: #f4f6fb;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-}
+  /* Admin dashboard */
+  --color-brand-50: #f2f6ff;
+  --color-brand-100: #e0e9ff;
+  --color-brand-200: #bcd1ff;
+  --color-brand-300: #8ab1ff;
+  --color-brand-400: #598dff;
+  --color-brand-500: #336bfd;
+  --color-brand-600: #214fda;
+  --color-brand-700: #163bb1;
+  --color-brand-800: #102a82;
+  --color-brand-900: #0a1c59;
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: radial-gradient(circle at top, rgba(51, 107, 253, 0.05), transparent),
-    #f7f8fd;
-}
+  --animate-slide-up: slide-up 360ms ease-out forwards;
 
-#root {
-  min-height: 100vh;
-}
-
-.glass-panel {
-  @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-lg;
-}
-
-.animate-slide-up {
-  animation: slide-up 360ms ease-out forwards;
-}
-
-@keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+}
+
+@layer base {
+  :root {
+    color: #0f172a;
+    background-color: #f4f6fb;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    min-height: 100vh;
+    background: radial-gradient(circle at top, rgba(51, 107, 253, 0.05), transparent), #f7f8fd;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  /* Tailwind v3 defaults kept for the existing design. */
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
   }
 }

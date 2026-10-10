@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+import { randomId } from './id';
 
 const VISIT_KEY = 'persona-visit-id';
 let fallbackVisitId: string | null = null;
@@ -11,11 +11,11 @@ export function getVisitId(): string {
   try {
     const existing = sessionStorage.getItem(VISIT_KEY);
     if (existing) return existing;
-    const created = uuid();
+    const created = randomId();
     sessionStorage.setItem(VISIT_KEY, created);
     return created;
   } catch {
-    fallbackVisitId ??= uuid();
+    fallbackVisitId ??= randomId();
     return fallbackVisitId;
   }
 }

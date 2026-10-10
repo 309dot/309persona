@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 309(성백곤)의 이력서·포트폴리오를 바탕으로 방문자(리크루터·면접관)의 질문에 309의 말투로 답하는 "AI 커피챗" 서비스. 프론트는 `309designlab.com` 메인 페이지로 운영된다. 문서·UI 문구는 한국어, 커밋 메시지는 영어 명령형 한 줄.
 
-현재 로드맵과 알려진 버그 목록(B1~B12)은 `docs/upgrade-plan-2026-10.md`에 있다. 작업 전에 해당 Phase를 확인할 것.
+로드맵, 진행 현황, 알려진 버그 목록(B1~B12)은 `docs/upgrade-plan-2026-10.md`에 있다. 작업 전에 해당 Phase와 "남은 일"을 확인할 것.
 
 ## 명령
 
@@ -14,43 +14,57 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm ci
-npm run dev        # Vite, http://localhost:5173
-npm run lint       # ESLint (flat config)
+npm run dev        # Vite 8, http://localhost:5173
+npm run lint       # ESLint 10 (flat config)
 npm run build      # tsc -b && vite build — 타입체크는 이 명령으로 한다
+npm run size       # 빌드 후 첫 화면 JS·CSS(gzip) 예산 검사, CI에서도 돈다
 ```
 
 백엔드 (`backend/`)
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload --port 8000
+uv sync                                   # uv.lock → .venv (Python 3.13, pytest·ruff 포함)
+uv run uvicorn app.main:app --reload --port 8000
 
-# 테스트: pytest 없이 단독 실행 스크립트. Firebase·LLM 없이 돈다
-.venv/bin/python scripts/answer_quality_smoke_test.py
-.venv/bin/python scripts/api_smoke_test.py
-# 테스트 함수 하나만
-.venv/bin/python -c "import scripts.answer_quality_smoke_test as t; t.test_quality_gate()"
+# 테스트·린트: Firebase·LLM 없이 돈다 (tests/conftest.py가 자격 증명을 비운다)
+uv run pytest
+uv run pytest tests/test_chat_stream.py -k failure   # 일부만
+uv run ruff check .
 
-# LLM 호출 없이 프롬프트·컨텍스트만 확인
-.venv/bin/python scripts/persona_smoke.py --dry-run --question "디자인 시스템 경험 알려줘"
+# 답변 평가: 실제 LLM을 호출한다 (evals/README.md)
+uv run python -m evals.run --pipeline both
+
+# LLM 호출 없이 legacy 프롬프트·컨텍스트만 확인
+uv run python scripts/persona_smoke.py --dry-run --question "디자인 시스템 경험 알려줘"
 
 # Firestore 자격 증명이 필요한 스크립트는 backend/에서 PYTHONPATH=. 로 실행
-PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
+PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 ```
+
+의존성은 `pyproject.toml` + `uv.lock`이 원본이다. 바꾼 뒤에는 `uv export --no-hashes --no-dev --format requirements-txt --quiet -o requirements.txt`로 `requirements.txt`를 다시 내보낸다(Render·Docker가 이 파일로 설치하고, CI가 어긋나면 실패한다. Dependabot PR은 `dependabot-requirements.yml`이 대신 내보낸다).
+
+브라우저 E2E(가짜 LLM + 인메모리 Firestore로 화면을 실제로 조작)는 `qa/e2e/README.md`.
 
 ## 구조
 
 ### 질문 1건의 흐름
 
-1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`, 실제 서비스 화면)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고 질문을 `POST /api/chat`으로 보낸다. 퍼널 이벤트는 세션과 별개인 탭별 방문 ID(`src/lib/visit.ts`)로 `POST /api/events/funnel`에 기록한다. 프로필(이름·소속)을 직접 입력하면 `PATCH /api/visitors/{id}`로 보낸다. API 주소는 `src/services/api.ts`의 `resolveBaseUrl()`이 `VITE_API_BASE_URL` → (로컬이면) `http://localhost:8000/api` → 같은 출처 `/api` 순으로 정한다.
-2. `backend/app/api/routes/chat.py`: 방문자 조회 → 세션별 in-memory 슬라이딩 윈도우 한도(`core/rate_limiter.py`, `MAX_SESSION_QUESTIONS`) → `services/question_filter.py`(탈옥 정규식만 차단, 분류 못 하면 `general`로 허용) → `services/llm_service.generate_persona_answer()`.
-3. `llm_service`: 지식팩 요약(최대 8000자) + lexical 검색(`knowledge_base.retrieve_relevant_chunks`) + 키워드 rerank(`rag_fallback.rerank_chunks`) + 검색 계획(`context_planner`)을 `app/prompts/system_prompt.txt`의 `{knowledge_block}`에 넣고 OpenAI 호환 API(기본 Ollama `qwen3:32b`)를 호출한다. 이후 `answer_quality`의 게이트에 걸리면 최대 3회 재호출하고, 그래도 안 되면 `rag_fallback.build_rag_fallback_answer()`의 고정 문단으로 대체한다.
-4. 채팅 엔드포인트는 세션이 없을 때(404)를 빼면 예외가 나도 500 대신 대체 답변을 돌려준다. 그래서 LLM 장애가 응답 코드로 드러나지 않는다.
+1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고 질문을 `POST /api/chat/stream`(SSE)으로 보낸다. 직전 답변 3개를 `history`로 함께 보낸다. 이벤트는 `start` → `delta`… → `answer_end`(본문 끝, 이때부터 다음 질문 가능) → `done`(근거·후속 질문·`conversation_id`·남은 질문 수) 또는 `error`, 차단이면 `blocked` 하나. 백엔드에 스트림 경로가 없으면(404 "Not Found") 한 번 확인 후 `POST /api/chat`(JSON)으로 바꾼다. SSE 파서와 API 주소 결정(`resolveBaseUrl()`)은 `src/services/api.ts`.
+2. `backend/app/api/routes/chat.py` → `services/chat_runner.py`: `prepare_turn()`이 방문자 조회 → 세션 한도·IP 한도(`core/rate_limiter.py`, 메모리) → `question_filter`(탈옥 정규식만 차단)를 처리하고, `run_turn()`이 `ANSWER_PIPELINE`에 따라 답을 만든다.
+   - `direct`(`services/direct_pipeline.py`): `app/prompts/persona_direct.txt` + 지식베이스 전체(`knowledge_document.render_knowledge_block()`, 출처 id `PROFILE`·`P1..`·`RESUME`·`NOTES`) + 대화 이력 + 방문자 정보로 LLM을 **한 번** 스트리밍 호출한다. 모델은 답변 뒤에 `<<<META>>>`와 JSON(sources, follow_ups, topic)을 쓰고, `StreamParser`가 이 부분과 `<think>` 블록을 화면에서 숨긴다. 예비 모델(`OPENAI_FALLBACK_MODEL`)은 첫 글자가 나가기 전 실패에만 쓴다.
+   - `legacy`(`services/llm_service.py`, 기본값): 지식팩 요약 + lexical 검색 + 키워드 rerank를 `system_prompt.txt`에 넣고 호출한 뒤 `answer_quality` 게이트로 최대 3회 재호출, 그래도 안 되면 `rag_fallback`의 고정 문단. 이력은 쓰지 않는다.
+3. LLM 예외는 SSE `error` / JSON `503`으로 그대로 알리고, 그 질문은 한도에서 돌려준다(`release`). 가짜 답변으로 덮지 않는다. 화면은 "다시 시도" 버튼을 보여 준다.
+4. 대화 로그(`conversations`)에 pipeline, model, latency_ms, first_token_ms, 토큰 수, sources, follow_ups, error(실패 코드)를 남기고, 방문자 피드백은 `POST /api/chat/feedback`이 같은 문서에 `feedback`으로 쓴다(자기 세션의 답변만).
+
+### 평가 (`backend/evals/`)
+
+- `golden.jsonl` 44문항(범위 안·자료에 없는 사실·범위 밖·프롬프트 공격·개인정보·이력이 필요한 후속 질문)과 LLM 판정 없는 체크(`checks.py`: 근거 없는 숫자, 내부 문구 유출, 말투, 프로젝트 언급 등).
+- `ANSWER_PIPELINE`을 `direct`로 바꾸거나 `persona_direct.txt`를 고치기 전후에 돌려 비교한다. 결과(`evals/results/`)는 gitignore.
 
 ### 지식베이스
 
-- 폴더별 역할은 `knowledge_base/README.md`. 요약하면: 지식팩 JSON은 프롬프트에, `309files/*.md`(사실만)는 RAG 색인에 쓰이고, `instructions/`(지시문)와 `drafts/`(검토 전 초안)는 읽지 않는다.
-- 지시문을 `309files/`에 넣지 말 것. 사실처럼 검색돼 답변에 새어 나온다. RAG 출처 이름은 `doc:파일명#번호`.
+- 폴더별 역할은 `knowledge_base/README.md`. 지식팩 JSON과 `309files/*.md`(사실만)를 런타임이 읽는다. legacy는 `309files`를 빈 줄 기준으로 쪼개 검색하고(`doc:파일명#번호`), direct는 전부 프롬프트에 넣는다. `instructions/`(지시문)와 `drafts/`(검토 전 초안)는 읽지 않는다.
+- 지시문을 `309files/`에 넣지 말 것. 사실로 쓰여 답변에 새어 나온다. 전화번호 줄은 로딩 때 빠진다.
 - `309files/pdf/`는 프론트가 GitHub raw 주소로 직접 링크하므로 경로를 바꾸지 않는다.
 - `knowledge_base/topic_aliases.json`은 `question_filter`가 레포 기준 상대 경로로 읽는다.
 - 로딩 함수가 `lru_cache`라 지식베이스 수정 후에는 서버를 재시작해야 반영된다.
@@ -58,25 +72,33 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 ### 데이터·인증
 
 - 백엔드만 Firebase Admin SDK로 Firestore에 쓴다: `visitors`(문서 ID = session_id), `conversations`, `funnel_events`. 자격 증명(`FIREBASE_CREDENTIALS_PATH` 또는 `FIREBASE_CREDENTIALS_JSON`)이 없으면 쓰기는 경고만 남기고 넘어가고 방문자 세션은 메모리에 둔다 — 로컬 개발은 자격 증명 없이 가능.
-- 프론트의 Firebase는 `/admin` 로그인(Auth)용이다. 대시보드 데이터는 `GET /api/dashboard/*`가 ID 토큰을 검증하고 `ADMIN_ALLOWED_EMAILS`와 대조해 내려준다.
-- `backend/scripts/funnel_report.py`, `funnel_winner_decision.py`는 `personaFunnelEvents`를 읽지만 서버는 `funnel_events`에 쓴다(계획서 B3).
+- 프론트의 Firebase는 `/admin` 로그인(Auth)용이다. `GET /api/dashboard/stats|logs|sessions/{id}`가 ID 토큰을 검증하고 `ADMIN_ALLOWED_EMAILS`와 대조한다. 세션 조회는 복합 색인이 필요 없도록 `session_id` 같음 조건만 쓰고 정렬은 파이썬에서 한다.
+- `funnel_events`의 `session_id`에는 채팅 세션이 아니라 탭별 방문 ID(`src/lib/visit.ts`)가 들어간다. 대시보드 퍼널과 리포트 스크립트(`funnel_report.py`, `funnel_winner_decision.py`)는 이 단위로 센다.
 
 ### 설정
 
 - `backend/app/core/config.py`의 pydantic-settings가 **`backend/.env.local`** 을 읽는다(`.env` 아님). 샘플은 `backend/env.sample`.
-- `ALLOWED_ORIGINS`, `ADMIN_ALLOWED_EMAILS`는 쉼표 구분과 JSON 배열 둘 다 받는다(`NoDecode` + `split_list`). `ADMIN_ALLOWED_EMAILS`가 비어 있으면 대시보드는 모두 403이다(fail-closed).
-- 질문 한도는 백엔드 `MAX_SESSION_QUESTIONS`(기본 5)가 기준이다. `/api/chat` 응답의 `remaining`·`limit`을 프론트가 그대로 표시한다(첫 답변 전에는 기본값 5).
-- 프론트 경로 별칭 `@assets`는 `frontend/vite.config.ts`와 `tsconfig.app.json` 양쪽에 정의돼 있다.
+- `ALLOWED_ORIGINS`, `ADMIN_ALLOWED_EMAILS`는 쉼표 구분과 JSON 배열 둘 다 받는다. `ADMIN_ALLOWED_EMAILS`가 비어 있으면 대시보드는 모두 403이다(fail-closed).
+- `ANSWER_PIPELINE`(legacy|direct), `CHAT_HISTORY_TURNS`, `LLM_TEMPERATURE`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_STREAM_USAGE`(스트림 토큰 사용량 요청, 지원 안 하는 서버면 false).
+- 질문 한도는 백엔드 `MAX_SESSION_QUESTIONS`(기본 5)가 기준이고 응답의 `remaining`·`limit`을 프론트가 그대로 표시한다. 같은 IP는 `MAX_IP_QUESTIONS`/`MAX_IP_SESSIONS`(`IP_WINDOW_MINUTES`)로 막는다. 클라이언트 IP는 `X-Forwarded-For`의 오른쪽에서 `TRUSTED_PROXY_HOPS`번째 값이다(Render 1). 한도는 프로세스 메모리라 재배포 때 초기화되고 인스턴스끼리 공유되지 않는다.
+
+### 프론트
+
+- Tailwind 4: 설정 파일 없이 `src/index.css`의 `@theme`에 토큰을 둔다(`ink` #0F1324, `graphite` #14151A, `accent` #0B98FF, `mist*`, `line`, `placeholder`, 관리자용 `brand-*`). 새 색은 토큰으로 추가한다.
+- 폰트는 `pretendard` 패키지의 dynamic-subset CSS다(쓰인 글자 조각만 받는다).
+- 청크: `vite.config.ts`의 `codeSplitting.groups`가 React 코어만 고정 청크로 뺀다. 마크다운 렌더러와 `/admin`(Firebase)은 지연 로딩이라 첫 화면에 들어가면 안 된다 — `npm run size`가 잡는다.
+- 경로 별칭 `@assets`는 `vite.config.ts`와 `tsconfig.app.json` 양쪽에 정의돼 있다.
 
 ## 배포
 
 - 프론트: Vercel이 루트 `vercel.json`으로 `frontend/`를 빌드한다(Node 24.x, 출력 `frontend/dist`). `main` 푸시 시 운영 배포, 다른 브랜치는 프리뷰.
-- 백엔드: Render(`https://three09persona.onrender.com/api`). `backend/Dockerfile`은 레포 루트를 컨텍스트로 빌드하며 지식베이스를 `/knowledge_base`에 복사한다(`KNOWLEDGE_PACK_PATH=/knowledge_base/309_knowledge_pack.json`).
-- 스테이징: `infra/docker-compose.staging.yml`(API + nginx로 `frontend/dist` 서빙).
+- 백엔드: Render(`https://three09persona.onrender.com/api`). `backend/Dockerfile`(Python 3.13, 비루트 사용자, `PORT` 환경 변수 사용)은 레포 루트를 컨텍스트로 빌드하며 지식베이스를 `/knowledge_base`에 복사한다(`KNOWLEDGE_PACK_PATH=/knowledge_base/309_knowledge_pack.json`). PDF·`drafts/`·`instructions/`는 루트 `.dockerignore`로 이미지에서 빠진다. CI가 이미지를 빌드해 `/health`와 지식베이스 로딩을 확인한다.
+- 프론트와 백엔드는 따로 배포되므로 API를 바꿀 때 구버전 상대와도 동작하게 둔다(예: 스트림 404 → JSON 폴백, `/api/chat` 유지).
+- 스테이징: `infra/docker-compose.staging.yml`(API + nginx로 `frontend/dist` 서빙). SSE는 응답의 `X-Accel-Buffering: no`로 nginx 버퍼링을 끈다.
 
 ## 주의
 
-- 레포가 public이다. 서비스 계정 키·`.env*`뿐 아니라 방문자 질문·이름 같은 Firestore 데이터 export도 커밋하지 않는다(`reports/`는 gitignore됨).
-- 라우트는 `/persona`(방문자)와 `/admin`(지연 로딩, Firebase Auth)뿐이다. 방문자 경로에 Firebase를 import하지 말 것 — 첫 화면 번들이 다시 커진다.
-- `docs/archive/`는 이전 개발 기록(Cursor 기획, Taskmaster 작업 목록, 일자별 로그, 개발 에이전트 메모리)이다. 앱이 읽지 않으며 프롬프트에 연결하지 않는다.
-- 답변 품질 문제를 키워드 리스트나 재시도 추가로 막지 않는다. 휴리스틱 계층은 계획서 Phase 3에서 교체 대상이다.
+- 레포가 public이다. 서비스 계정 키·`.env*`뿐 아니라 방문자 질문·이름 같은 Firestore 데이터 export도 커밋하지 않는다(`reports/`, `backend/evals/results/`는 gitignore됨). 평가셋에 실제 질문을 넣을 때는 일반 질문으로 바꿔 넣는다.
+- 라우트는 `/persona`(방문자)와 `/admin`(지연 로딩, Firebase Auth)뿐이다. 방문자 경로에 Firebase를 import하지 말 것.
+- `docs/archive/`는 이전 개발 기록이다. 앱이 읽지 않으며 프롬프트에 연결하지 않는다.
+- 답변 품질 문제를 키워드 리스트나 재시도 추가로 막지 않는다. 고칠 곳은 `persona_direct.txt`와 지식베이스이고, 효과는 `evals`로 확인한다. legacy 휴리스틱(`answer_quality`, `rag_fallback`, `answer_sanitize`, `context_planner`)은 direct가 평가에서 같거나 나으면 지운다.

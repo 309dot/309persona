@@ -16,6 +16,83 @@
 
 ---
 
+## 진행 현황 (2026-10-10)
+
+아래 §1~§2는 계획 작성 시점(운영 배포 `8f7f581`) 기준이다. 실행 결과는 여기에 모은다.
+
+| Phase | 상태 | 결과 |
+|---|---|---|
+| 0 작업 기반 | 완료(운영값 확인·사용량 집계 대기) | CLAUDE.md, Node 24 고정, SessionStart 훅, CI, 개발 산출물 정리 |
+| 1 버그·설정 | 완료 | B1~B11 수정, B6·B12 일부(아래 표) |
+| 2 의존성·툴체인 | 완료 | 미룬 메이저 4개 빼고 최신. 첫 화면 JS gzip 약 250KB → 93.8KB, 폰트 2.06MB → 339KB(13조각) |
+| 3 LLM 파이프라인 | 코드 완료, 전환 대기 | direct 파이프라인·스트리밍·평가셋 구현. 실제 LLM 평가 후 `ANSWER_PIPELINE=direct` 전환과 휴리스틱 삭제 |
+| 4 제품 고도화 | 외부 계정 불필요 항목 완료 | 근거 칩, 후속 질문, 피드백, 대시보드 v2, 개인정보 안내 |
+
+**버그 상태**
+
+| # | 상태 | 조치 |
+|---|---|---|
+| B1 | ✅ | `NoDecode` + `split_list`: 쉼표·JSON 배열 둘 다 받음 |
+| B2 | ✅ | 한도는 백엔드 `MAX_SESSION_QUESTIONS` 하나, 응답의 `remaining`·`limit`을 프론트가 표시 |
+| B3 | ✅ | `funnel_events`로 통일, `variant` 최상위, 이벤트는 탭별 방문 ID로 세션 전에도 기록 |
+| B4 | ✅ | 죽은 메모리 주입 코드 제거 |
+| B5 | ✅ | 지시문은 `knowledge_base/instructions/`(읽지 않음), `309files/`는 사실만 |
+| B6 | ◐ | 중복 사본 제거. 케이스 스터디는 `knowledge_base/drafts/`에 두고 이력서와 대조한 것만 `309files/`로 옮긴다(309 확인 필요) |
+| B7 | ✅ | "(맥락: …)" 꼬리 제거 |
+| B8 | ✅ | `PATCH /api/visitors/{id}`로 프로필 반영 |
+| B9 | ✅ | 세션은 첫 질문 때 생성, 같은 탭 새로고침은 대화·한도 복원(sessionStorage), 같은 IP 질문·세션 수 제한 |
+| B10 | ✅ | LLM 타임아웃 45초·재시도 1회·답변 시간 예산 |
+| B11 | ✅ | 허용 목록이 비면 403(fail-closed), 이메일 인증 옵션 |
+| B12 | ◐ | direct는 모델이 범위를 판단해 짧게 안내(평가셋 `oos-*`), legacy는 그대로. QA 문서 정책 갱신 |
+
+**Phase 2 결과**
+
+- 백엔드: uv + `pyproject.toml` + `uv.lock`, Python 3.13(3.14는 Firestore 자격 증명으로 스모크 테스트를 못 해 보류), ruff + pytest, Dockerfile 비루트·HEALTHCHECK·지식베이스만 복사, CI가 이미지 빌드 후 `/health`·지식베이스 로딩 확인
+- 프론트: React 19.3, React Router 7.18(`react-router` 패키지), Vite 8(Rolldown, `codeSplitting`), Tailwind 4(`@tailwindcss/vite`, `@theme` 토큰), ESLint 10, TypeScript 6.0, lucide-react 1.x, firebase 12.19, `uuid` 제거, Pretendard dynamic subset(커밋돼 있던 폰트 67MB 삭제)
+- 시각 회귀: 업그레이드마다 Playwright 스크린샷 10장(데스크톱·모바일 × 5화면)을 기준과 비교. 방문자 화면은 픽셀 단위로 같았고, Tailwind 4의 OKLCH 팔레트로 채널당 최대 4/255 차이, 관리자 화면 글자 안티앨리어싱 0.2% 차이
+- 재발 방지: Dependabot 주간 묶음 업데이트(npm·uv·Actions, uv PR은 `requirements.txt` 자동 재생성), CI 번들 예산(`npm run size`, 첫 화면 JS 110KB·CSS 25KB)
+- 미룬 것: TypeScript 7(typescript-eslint 미지원), React Router 8, firebase 13, `@types/node` 26(런타임 Node 24)
+
+**Phase 3 결과**
+
+- [x] 평가셋 `backend/evals/`: 44문항 + LLM 판정 없는 체크(근거 없는 숫자, 내부 문구 유출, 범위 밖·공격·개인정보 응대, 말투, 프로젝트 언급, 길이), legacy·direct 나란히 비교
+- [x] direct 파이프라인(`ANSWER_PIPELINE=direct`): 지식베이스 전체 + 방문자 정보 + 직전 대화 3개로 LLM 한 번 호출, 근거·후속 질문·주제를 메타데이터로 함께 받음. 기본값은 평가 전까지 `legacy`
+- [x] SSE 스트리밍(`/api/chat/stream`), 본문이 끝나면 바로 다음 질문 가능(`answer_end`), 구버전 백엔드면 JSON으로 폴백
+- [x] 실패하면 "지금 답변을 가져오지 못했어요" + 다시 시도, 그 질문은 한도에서 돌려줌(가짜 답변 금지)
+- [x] 로그에 pipeline·model·지연·첫 토큰·토큰 수·에러, 대시보드에 실패율·응답 시간 p50
+- [x] IP 기준 질문·세션 수 제한(메모리), `TRUSTED_PROXY_HOPS`로 `X-Forwarded-For` 위조 방지
+- [ ] 실제 LLM으로 평가 → 베이스라인 저장 → direct 전환 → legacy 휴리스틱 삭제 (D1 결정과 LLM 접근 필요)
+- [ ] 레이트리밋 외부 저장소(Firestore/Redis) — 인스턴스를 여러 개 띄우거나 Vercel로 옮길 때(D2)
+- [ ] 세션 발급 봇 방어(Cloudflare Turnstile 등) — 계정 필요
+- 완료 기준 중 "첫 토큰 p50 2초"는 실제 모델로만 잴 수 있다. 대시보드와 평가 결과에 첫 토큰 p50이 나온다
+
+**Phase 4 결과**
+
+- [x] 답변 아래 근거 칩(이력서·포트폴리오 PDF로 연결), 후속 질문 칩, 👍/👎 피드백
+- [x] 대시보드 v2: 방문 퍼널(방문 → 입력 → 첫 답변 → 프로필 → 5질문 → 제안), 답변 실패율·응답 시간·토큰·피드백 지표, 로그를 누르면 방문자별 대화 전체
+- [x] 개인정보 안내 복구(확인되지 않은 "EU 리전" 문구는 뺌)
+- [ ] 지식베이스 최신화(2025~2026 작업, D3)와 `drafts/` 검토 — 309의 자료와 확인 필요
+- [ ] "제안하기" 폼 + 메일/슬랙 알림 — 알림 채널 결정 필요(지금은 mailto)
+- [ ] 보관 기간 정책 + Firestore TTL — 정책을 정한 뒤 개인정보 안내에 기간을 적는다
+- [ ] Sentry, 업타임 모니터, LLM 실패율 알림 — 계정 필요
+- [ ] (선택) 영어 모드
+
+**검증**
+
+- 백엔드 `uv run pytest` 59개(스트리밍 이벤트 순서, 실패 시 한도 환불, 예비 모델은 첫 글자 전만, IP 한도, 대시보드 집계, 피드백 권한, 평가 체크)
+- 브라우저 E2E(`qa/e2e/`, 가짜 LLM + 인메모리 Firestore): 기본 흐름 50개, 스트리밍·근거·후속 질문·피드백·실패 재시도 48개, 대시보드 22개 모두 통과
+
+**남은 일 (사용자 확인 필요, 우선순위 순)**
+
+1. 운영 배포 전 Render 환경 변수: `ADMIN_ALLOWED_EMAILS`(비면 대시보드 403), `TRUSTED_PROXY_HOPS`(Render 1), LLM 연결 상태(이제 장애가 화면에 오류로 보인다)
+2. D1(LLM) 결정 → `uv run python -m evals.run --pipeline both` → direct 전환 여부 판단
+3. Firestore 자격 증명이 있는 환경에서 `scripts/usage_report.py --months 6` → 비용 산정, 평가셋 보강
+4. 개인정보 보관 기간 결정 → 안내 문구·Firestore TTL
+5. `knowledge_base/drafts/` 검토 → 확인된 것만 `309files/`로
+6. 모바일 첫 화면에서 빠른 질문 칩이 309의 인사말을 가린다(기존 디자인, 계획 작성 시점부터 있음) — 칩을 가로 스크롤 한 줄로 바꿀지 디자인 결정
+
+---
+
 ## 1. 현재 구성
 
 | 영역 | 현재 | 비고 |

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 import json
+from functools import lru_cache
 from typing import Annotated, Any, List, Optional
 
 from pydantic import Field, field_validator
@@ -43,17 +43,19 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:11434/v1",
         description="OpenAI-compatible base URL (e.g. Ollama /v1)",
     )
-    use_openclaw_agent: bool = Field(
-        default=False,
-        description="Route persona answers through OpenClaw answer agent",
+    answer_pipeline: str = Field(
+        default="legacy",
+        description="legacy: retrieval + quality-gate retries; direct: one streamed call with the full "
+        "knowledge base (docs/upgrade-plan-2026-10.md Phase 3). Switch after comparing both with evals/",
     )
-    openclaw_answer_agent_id: str = Field(
-        default="persona-answer-local",
-        description="OpenClaw agent id for persona answers",
-    )
-    openclaw_answer_timeout_seconds: int = Field(default=70)
     llm_timeout_seconds: float = Field(default=45, description="Timeout for a single LLM request")
     llm_max_retries: int = Field(default=1, description="SDK-level retries on connection errors")
+    llm_temperature: float = Field(default=0.4, description="direct pipeline sampling temperature")
+    llm_max_output_tokens: int = Field(default=1200, description="direct pipeline answer + metadata budget")
+    llm_stream_usage: bool = Field(
+        default=True, description="Ask for token usage in streamed responses (stream_options.include_usage)"
+    )
+    chat_history_turns: int = Field(default=3, description="Previous Q&A pairs sent back to the model")
     answer_time_budget_seconds: float = Field(
         default=90, description="Skip optional quality retries once an answer has taken this long"
     )
@@ -92,6 +94,14 @@ class Settings(BaseSettings):
     max_session_questions: int = Field(default=5)
     session_window_minutes: int = Field(
         default=30, description="Time window for counting rate limited questions"
+    )
+    max_ip_questions: int = Field(default=30, description="Questions per client IP per ip_window_minutes")
+    max_ip_sessions: int = Field(default=20, description="New chat sessions per client IP per ip_window_minutes")
+    ip_window_minutes: int = Field(default=60)
+    trusted_proxy_hops: int = Field(
+        default=1,
+        description="Proxies in front of the app that append to X-Forwarded-For (Render: 1). "
+        "0 ignores the header and uses the socket address",
     )
     analytics_limit: int = Field(
         default=200, description="Max records returned for dashboard lists"

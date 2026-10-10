@@ -15,13 +15,13 @@ root. That folder is gitignored: questions are visitor data, never commit them.
 from __future__ import annotations
 
 import argparse
+import json
+import re
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-import json
 from pathlib import Path
-import re
-import sys
 from typing import Any, Iterable
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
