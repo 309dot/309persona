@@ -42,7 +42,7 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 
 ### 질문 1건의 흐름
 
-1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`, 실제 서비스 화면)가 마운트 시 `POST /api/visitors`로 세션을 만들고, 질문을 `POST /api/chat`으로 보낸다. API 주소는 `src/services/api.ts`의 `resolveBaseUrl()`이 `VITE_API_BASE_URL` → (로컬이면) `http://localhost:8000/api` → 같은 출처 `/api` 순으로 정한다.
+1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`, 실제 서비스 화면)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고 질문을 `POST /api/chat`으로 보낸다. 퍼널 이벤트는 세션과 별개인 탭별 방문 ID(`src/lib/visit.ts`)로 `POST /api/events/funnel`에 기록한다. 프로필(이름·소속)을 직접 입력하면 `PATCH /api/visitors/{id}`로 보낸다. API 주소는 `src/services/api.ts`의 `resolveBaseUrl()`이 `VITE_API_BASE_URL` → (로컬이면) `http://localhost:8000/api` → 같은 출처 `/api` 순으로 정한다.
 2. `backend/app/api/routes/chat.py`: 방문자 조회 → 세션별 in-memory 슬라이딩 윈도우 한도(`core/rate_limiter.py`, `MAX_SESSION_QUESTIONS`) → `services/question_filter.py`(탈옥 정규식만 차단, 분류 못 하면 `general`로 허용) → `services/llm_service.generate_persona_answer()`.
 3. `llm_service`: 지식팩 요약(최대 8000자) + lexical 검색(`knowledge_base.retrieve_relevant_chunks`) + 키워드 rerank(`rag_fallback.rerank_chunks`) + 검색 계획(`context_planner`)을 `app/prompts/system_prompt.txt`의 `{knowledge_block}`에 넣고 OpenAI 호환 API(기본 Ollama `qwen3:32b`)를 호출한다. 이후 `answer_quality`의 게이트에 걸리면 최대 3회 재호출하고, 그래도 안 되면 `rag_fallback.build_rag_fallback_answer()`의 고정 문단으로 대체한다.
 4. 채팅 엔드포인트는 세션이 없을 때(404)를 빼면 예외가 나도 500 대신 대체 답변을 돌려준다. 그래서 LLM 장애가 응답 코드로 드러나지 않는다.
@@ -65,7 +65,7 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 
 - `backend/app/core/config.py`의 pydantic-settings가 **`backend/.env.local`** 을 읽는다(`.env` 아님). 샘플은 `backend/env.sample`.
 - `ALLOWED_ORIGINS`, `ADMIN_ALLOWED_EMAILS`는 쉼표 구분과 JSON 배열 둘 다 받는다(`NoDecode` + `split_list`). `ADMIN_ALLOWED_EMAILS`가 비어 있으면 대시보드는 모두 403이다(fail-closed).
-- 질문 한도는 두 군데에 따로 있다: 프론트 `TOTAL_QUESTIONS`(5), 백엔드 `MAX_SESSION_QUESTIONS`(기본 3) (B2).
+- 질문 한도는 백엔드 `MAX_SESSION_QUESTIONS`(기본 5)가 기준이다. `/api/chat` 응답의 `remaining`·`limit`을 프론트가 그대로 표시한다(첫 답변 전에는 기본값 5).
 - 프론트 경로 별칭 `@assets`는 `frontend/vite.config.ts`와 `tsconfig.app.json` 양쪽에 정의돼 있다.
 
 ## 배포
@@ -77,6 +77,6 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 ## 주의
 
 - 레포가 public이다. 서비스 계정 키·`.env*`뿐 아니라 방문자 질문·이름 같은 Firestore 데이터 export도 커밋하지 않는다(`reports/`는 gitignore됨).
-- `/entry`, `/chat` 라우트와 `src/components/` 일부는 레거시다. 새 기능은 `/persona` 기준으로 작업한다.
+- 라우트는 `/persona`(방문자)와 `/admin`(지연 로딩, Firebase Auth)뿐이다. 방문자 경로에 Firebase를 import하지 말 것 — 첫 화면 번들이 다시 커진다.
 - `docs/archive/`는 이전 개발 기록(Cursor 기획, Taskmaster 작업 목록, 일자별 로그, 개발 에이전트 메모리)이다. 앱이 읽지 않으며 프롬프트에 연결하지 않는다.
 - 답변 품질 문제를 키워드 리스트나 재시도 추가로 막지 않는다. 휴리스틱 계층은 계획서 Phase 3에서 교체 대상이다.

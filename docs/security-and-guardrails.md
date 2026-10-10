@@ -6,7 +6,7 @@
 - **시스템 프롬프트 고정**: `app/prompts/system_prompt.txt`에 역할과 답변 톤을 명시하고, 지식베이스 외 내용을 만들지 않도록 명령합니다.
 - **LLM 컨텍스트 제한**: `knowledge_base/309_knowledge_pack.json`만 컨텍스트에 주입하여 데이터 유출을 차단합니다.
 - **Rate Limiting**: 세션당 `MAX_SESSION_QUESTIONS` 만큼만 질문 가능하도록 슬라이딩 윈도우 제한을 적용합니다.
-- **Firebase Auth + Allowlist**: 대시보드 접근은 Firebase ID Token 검증 후 `ADMIN_ALLOWED_EMAILS`와 대조합니다.
+- **Firebase Auth + Allowlist**: 대시보드 접근은 Firebase ID Token 검증 후 `ADMIN_ALLOWED_EMAILS`와 대조합니다. 목록이 비어 있으면 모두 거부합니다(fail-closed). `ADMIN_REQUIRE_EMAIL_VERIFIED=true`로 이메일 인증도 요구할 수 있습니다.
 
 ## 2. UX 기반 방어
 

@@ -2,15 +2,20 @@
 
 ## Backend (FastAPI)
 
-1. Docker 이미지 빌드
+운영은 Render(`https://three09persona.onrender.com`)에서 돈다.
+
+1. Docker 이미지 빌드 (레포 루트에서)
    ```bash
    docker build -f backend/Dockerfile -t 309-agent-api .
    ```
-2. Cloud Run / Railway 환경 변수
-   - `OPENAI_API_KEY`
+2. 환경 변수 (Render 대시보드 → Environment)
+   - `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` — OpenAI 호환 LLM 엔드포인트
    - `FIREBASE_CREDENTIALS_JSON` 또는 `FIREBASE_CREDENTIALS_PATH`
    - `KNOWLEDGE_PACK_PATH=/knowledge_base/309_knowledge_pack.json` (Docker 기본 복사 경로)
-   - `ADMIN_ALLOWED_EMAILS`, `ALLOWED_ORIGINS`
+   - `ALLOWED_ORIGINS` (쉼표 구분 또는 JSON 배열)
+   - `ADMIN_ALLOWED_EMAILS` — **비어 있으면 대시보드 API가 모두 403**을 반환한다
+   - `MAX_SESSION_QUESTIONS` (기본 5, 프론트 표시값도 이 값을 따른다)
+   - 선택: `LLM_TIMEOUT_SECONDS`(45), `LLM_MAX_RETRIES`(1), `ANSWER_TIME_BUDGET_SECONDS`(90), `ADMIN_REQUIRE_EMAIL_VERIFIED`(false)
 3. 실행 커맨드
    ```
    uvicorn app.main:app --host 0.0.0.0 --port 8080
@@ -18,20 +23,17 @@
 4. 헬스체크
    - `/health` 엔드포인트가 `200 OK`를 반환해야 합니다.
 
-## Frontend (Vercel/Netlify)
+## Frontend (Vercel)
 
 1. 환경 변수
    - `VITE_API_BASE_URL=https://<backend-domain>/api`
-   - Firebase SDK 관련 `VITE_FIREBASE_*`
-2. 빌드 명령
-   ```
-   npm install
-   npm run build
-   ```
-3. 배포 산출물
-   - `frontend/dist` 폴더 전체
-4. CDN 캐싱
-   - 정적 파일에 대해 gzip/브로틀리 압축을 활성화하면 초기 로딩 속도가 개선됩니다.
+   - Firebase SDK 관련 `VITE_FIREBASE_*` (관리자 로그인용)
+2. 빌드·배포
+   - 루트 `vercel.json`이 `frontend/`를 빌드하고 `frontend/dist`를 배포한다(Node 24.x)
+   - `main` 푸시 시 운영 배포, 다른 브랜치는 프리뷰 배포
+3. 라우팅·헤더
+   - SPA 경로는 `rewrites`로 `index.html`에 연결된다
+   - `/assets/*`(해시 파일명)는 1년 immutable 캐시, 모든 경로에 `nosniff`·`Referrer-Policy`·`Permissions-Policy` 헤더
 
 ## 공통 체크리스트
 
