@@ -133,7 +133,9 @@ function createEngine(canvas: HTMLCanvasElement, graph: KnowledgeGraph, variant:
 
   function positions(now: number) {
     const { unit, cx, cy } = frameOf();
-    const elapsed = now - born;
+    // A frame's timestamp marks when the frame began, which can be just before `born`; a negative
+    // time would make the intro radii negative, and the canvas throws on those.
+    const elapsed = Math.max(0, now - born);
     const drift = variant === 'hero' ? 2.2 : 3;
     nodes.forEach((node, i) => {
       const point = layout?.get(node.id) ?? { x: 0, y: 0 };

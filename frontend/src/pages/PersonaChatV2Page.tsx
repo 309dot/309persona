@@ -26,7 +26,7 @@ import { loadSavedChat, saveChat } from '../lib/savedChat';
 import { getVisitId } from '../lib/visit';
 import { inferVisitorProfile } from '../lib/visitorProfile';
 import { AnswerFeedback, AnswerSources, FailedAnswer, FollowUpChips } from './persona/AnswerExtras';
-import { MapHero } from './persona/map/MapHero';
+import { MapEntry } from './persona/map/MapEntry';
 import type { MapPhase, MapSignals } from './persona/map/nodes';
 import { AnimatedFormattedAnswer, CompletionModal, VisitorInfoModal } from './persona/PersonaResponseAndModals';
 import { parsePages, PORTFOLIO_PDF_URL, RESUME_PDF_URL } from './persona/portfolio/chapters';
@@ -286,7 +286,6 @@ export function PersonaChatV2Page() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   // Knowledge map: the graph, what the AI is doing with it, and the full view.
   const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
-  const [graphMissing, setGraphMissing] = useState(false);
   const [activity, setActivity] = useState<{ phase: MapPhase; related: string[] }>({ phase: 'idle', related: [] });
   const [mapView, setMapView] = useState<{ focusId: string | null } | null>(null);
   const [focusedSource, setFocusedSource] = useState<string | null>(null);
@@ -351,8 +350,8 @@ export function PersonaChatV2Page() {
     const timer = window.setTimeout(() => {
       void getKnowledgeGraph().then((data) => {
         if (cancelled) return;
+        // No graph (older backend): the map's buttons simply don't show.
         if (data?.nodes.length) setGraph(data);
-        else setGraphMissing(true);
       });
     }, 120);
     return () => {
@@ -726,9 +725,9 @@ export function PersonaChatV2Page() {
     );
   };
 
-  const openMap = (from: 'hero' | 'dock', node?: GraphNode) => {
-    setMapView({ focusId: node?.id ?? null });
-    void trackFunnelEvent('map_opened', { from, ...(node ? { node: node.id } : {}) });
+  const openMap = (from: 'header' | 'dock') => {
+    setMapView({ focusId: null });
+    void trackFunnelEvent('map_opened', { from });
   };
 
   const closeMap = useCallback(() => setMapView(null), []);
@@ -821,22 +820,17 @@ export function PersonaChatV2Page() {
         <section className="flex flex-col gap-5">
           <div className="flex items-center justify-between gap-4">
             <BrandBadge />
-            <div className="h-10 w-10" />
+            {/* The map is one tap away; the greeting and the first question get the first screen. */}
+            {graph ? <MapEntry graph={graph} active={activity.phase !== 'idle'} onOpen={() => openMap('header')} /> : null}
           </div>
-          <div className="space-y-4">
-            <p className="animate-rise text-[32px] font-bold leading-snug text-ink sm:text-[38px]">
-              안녕하세요. 🙋 만나서 반갑습니다.
-              <br />
-              이 서비스는 저의 페르소나가 담긴 🤖 *AI Agent 기반 커피챗 서비스입니다.
-            </p>
-            <p className="animate-rise text-sm font-medium text-[#767676]" style={{ animationDelay: '100ms' }}>
-              *저의 경력과 일하는 방식을 AI가 자연스럽게 재현해 면접 전에 후보자 이해도를 높이고, 채용담당자가 보다 효율적이고 정확한 평가를
-              할 수 있도록 돕는 사전 인터뷰 에이전트입니다.
+          <div className="space-y-2">
+            <h1 className="animate-rise text-[24px] font-bold leading-tight text-ink sm:text-[28px]">
+              309의 페르소나가 담긴 AI 커피챗 🤖
+            </h1>
+            <p className="animate-rise text-[13px] font-medium leading-5 text-[#767676] sm:text-sm" style={{ animationDelay: '100ms' }}>
+              제 경력과 일하는 방식을 AI가 재현해, 면접 전에 저를 미리 이해하고 평가할 수 있도록 돕는 사전 인터뷰 에이전트예요.
             </p>
           </div>
-          {graphMissing ? null : (
-            <MapHero graph={graph} signals={mapSignals} onOpen={(node) => openMap('hero', node)} />
-          )}
         </section>
 
         <section className="flex flex-col gap-6">

@@ -89,3 +89,21 @@ def test_retry_budget(monkeypatch):
     monkeypatch.setattr(settings, "answer_time_budget_seconds", 0)
     llm_service.generate_persona_answer("디자인 시스템 경험 알려줘", "design_system", {})
     assert len(calls) == 1, calls
+
+
+def test_legacy_call_uses_configured_temperature_and_reasoning(monkeypatch):
+    """LLM_TEMPERATURE and LLM_REASONING_EFFORT reach the legacy call too (Gemini setup in docs/deployment.md)."""
+    seen = []
+
+    def create(**kwargs):
+        seen.append(kwargs)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="답변"))])
+
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    monkeypatch.setattr(settings, "llm_temperature", 1.0)
+    monkeypatch.setattr(settings, "llm_reasoning_effort", "low")
+    monkeypatch.setattr(settings, "llm_max_output_tokens", 4096)
+    llm_service._complete_with_model(fake_client, "gemini-3.5-flash-lite", "system", "user")
+    assert seen[0]["temperature"] == 1.0
+    assert seen[0]["reasoning_effort"] == "low"
+    assert seen[0]["max_tokens"] == 4096

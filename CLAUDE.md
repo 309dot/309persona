@@ -59,7 +59,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 ### 기록 지도와 모션
 
 - `GET /api/knowledge/graph`(`services/knowledge_graph.py`): 309(중심)·프로젝트·문서·주제(`allowed_topics`, 노트 태그)·노트를 점과 선으로. 제목과 연결만 나가고 노트 본문은 나가지 않는다. `related_nodes()`는 질문 단어(라벨·`topic_aliases.json`·노트 별칭/태그)로 고른 추측이고, 답의 실제 근거는 `done`의 sources다.
-- 프론트 `pages/persona/map/`: `KnowledgeMapCanvas`(캔버스, 시드 고정 레이아웃, 그리기 루프는 React 밖)와 `MapOverlay`는 지연 로딩이다. 첫 화면 `MapHero`, 입력창의 "기록 지도" 버튼. 그래프 API가 없으면(404) 지도만 숨긴다.
+- 프론트 `pages/persona/map/`: `KnowledgeMapCanvas`(캔버스, 시드 고정 레이아웃, 그리기 루프는 React 밖)와 `MapOverlay`는 지연 로딩이다. 로고 옆 "309의 기록 지도" 버튼(`MapEntry`)과 입력창의 "기록 지도" 버튼으로 연다. 첫 화면에는 캔버스를 그리지 않는다(인사말·방문 목적·추천 질문이 첫 화면에 보이도록, e2e_map이 확인). 그래프 API가 없으면(404) 지도 버튼만 숨긴다.
 - 상태 모션은 CSS(`index.css`의 `ai-glow`·`avatar-presence`·`ink-in`·`stream-caret`)와 `pages/persona/Presence.tsx`. 모든 움직임은 `prefers-reduced-motion`에서 멈추고, 시각 회귀 스크린샷은 그 설정으로 찍는다.
 
 ### 포트폴리오 뷰어·방문 목적·요약
