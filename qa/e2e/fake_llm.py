@@ -156,6 +156,10 @@ def get_calls():
         "last_user": last["messages"][-1]["content"] if last else None,
         "last_roles": [m["role"] for m in last["messages"]] if last else [],
         "last_stream": bool(last and last.get("stream")),
+        "last_model": last.get("model") if last else None,
+        "last_keys": sorted(last) if last else [],
+        "last_reasoning_effort": last.get("reasoning_effort") if last else None,
+        "last_max_tokens": last.get("max_tokens") if last else None,
     }
 
 

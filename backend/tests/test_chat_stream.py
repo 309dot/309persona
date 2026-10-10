@@ -36,7 +36,7 @@ def direct(monkeypatch):
     calls = []
 
     def install(parts=None, fail_after=None, error=None):
-        def create(model, messages):
+        def create(model, messages, provider="openai"):
             calls.append({"model": model, "messages": messages})
             if error:
                 raise error
@@ -103,7 +103,7 @@ def test_fallback_model_only_before_first_token(client, session_id, direct, monk
     monkeypatch.setattr(settings, "openai_fallback_model", "backup-model")
     calls = []
 
-    def create(model, messages):
+    def create(model, messages, provider="openai"):
         calls.append(model)
         if model == settings.openai_model:
             raise ConnectionError("primary down")

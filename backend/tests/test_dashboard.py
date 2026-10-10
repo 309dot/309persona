@@ -88,7 +88,7 @@ class FakeStream:
 def test_feedback_only_for_your_own_answer(client, db, monkeypatch):
     monkeypatch.setattr(settings, "answer_pipeline", "direct")
     monkeypatch.setattr(
-        direct_pipeline, "_create_stream", lambda model, messages: FakeStream(["페이히어에서 토큰을 정리했어요.", "\n<<<META>>>\n{}"])
+        direct_pipeline, "_create_stream", lambda model, messages, provider="openai": FakeStream(["페이히어에서 토큰을 정리했어요.", "\n<<<META>>>\n{}"])
     )
     mine = client.post("/api/visitors", json={"visitor_name": "QA"}).json()["session_id"]
     other = client.post("/api/visitors", json={"visitor_name": "QA2"}).json()["session_id"]

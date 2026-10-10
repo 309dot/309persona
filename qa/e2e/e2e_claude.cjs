@@ -1,5 +1,6 @@
-// Claude fallback browser QA (QA_CLAUDE=1): the OpenAI-compatible model goes down, Claude answers, then both go down.
-// Runs against either pipeline: ANSWER_PIPELINE=direct (streamed) or legacy (default).
+// Claude fallback browser QA (QA_CLAUDE=1): the first model goes down, Claude answers, then both go down.
+// Runs against either pipeline: ANSWER_PIPELINE=direct (streamed) or legacy (default), and with QA_GEMINI=1
+// (Gemini first, set up like production) or without it (OPENAI_* first).
 const { chromium } = require('playwright') // resolved via NODE_PATH, see README.md;
 const fs = require('fs');
 const path = require('path');
@@ -69,6 +70,13 @@ const snippet = (answer) =>
   console.log(`pipeline: ${pipeline}`);
   check('기본 모델이 답함(Claude 호출 없음)', a1.shown && a1.doc.model !== CLAUDE && (await getJson(`${LLM}/__claude_calls`)).count === 0,
     JSON.stringify({ model: a1.doc.model }));
+  const gemini = (a1.doc.model || '').startsWith('gemini');
+  if (gemini) {
+    const g = await getJson(`${LLM}/__calls`);
+    check('Gemini 요청: temperature 없음·reasoning_effort low·max_tokens ≥ 4096', !g.last_keys.includes('temperature') && g.last_reasoning_effort === 'low' && g.last_max_tokens >= 4096,
+      JSON.stringify({ keys: g.last_keys, effort: g.last_reasoning_effort, max: g.last_max_tokens }));
+    if (pipeline === 'direct') check('Gemini 스트림: stream_options 안 보냄', !g.last_keys.includes('stream_options'), g.last_keys.join(','));
+  }
 
   // ---------------------------------------------------------------- B. 기본 모델 장애 → Claude
   screen = 'B. 기본 모델 장애 → Claude';
@@ -79,6 +87,11 @@ const snippet = (answer) =>
   check('Claude 답변이 화면에 보임 + 실패 문구 없음', a2.shown && (await page.getByText(FAILURE).count()) === 0, snippet(a2.doc.answer));
   check('DB: model = claude-haiku-5-5, 오류 없음', a2.doc.model === CLAUDE && !a2.doc.error, JSON.stringify({ model: a2.doc.model, error: a2.doc.error }));
   check('카운터 2/5', await dock.getByText('2/5', { exact: true }).isVisible());
+  if (gemini) {
+    // OPENAI_API_KEY is set but OPENAI_BASE_URL is the local default: Gemini → Claude with no attempt in between.
+    const log = fs.readFileSync(path.join(__dirname, '.logs', 'backend.log'), 'utf8');
+    check('Gemini 장애 → 로컬 기본 주소는 건너뛰고 바로 Claude', !log.includes('qwen3:32b'), log.split('\n').filter((l) => l.includes('failed')).slice(-2).join(' | '));
+  }
   const req = await getJson(`${LLM}/__claude_calls`);
   check('요청: API 키 헤더·anthropic-version·모델', req.api_key && req.version && req.model === CLAUDE, JSON.stringify({ k: req.api_key, v: req.version, m: req.model }));
   check('요청: temperature·top_p 없음(Haiku 5.5는 거부)', !req.keys.includes('temperature') && !req.keys.includes('top_p'), req.keys.join(','));
@@ -148,6 +161,6 @@ const snippet = (answer) =>
   const failedChecks = results.filter((r) => !r.ok);
   console.log(`\n${results.length - failedChecks.length}/${results.length} passed`);
   fs.mkdirSync(path.join(__dirname, '.logs'), { recursive: true });
-  fs.writeFileSync(path.join(__dirname, '.logs', `results_claude_${pipeline}.json`), JSON.stringify(results, null, 2));
+  fs.writeFileSync(path.join(__dirname, '.logs', `results_claude_${pipeline}${gemini ? '_gemini' : ''}.json`), JSON.stringify(results, null, 2));
   process.exit(failedChecks.length ? 1 : 0);
 })().catch((err) => { console.error(err); process.exit(2); });

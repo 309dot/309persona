@@ -9,11 +9,11 @@ import logging
 import time
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from openai import OpenAI
 
-from ..core.config import settings
+from ..core.config import LOCAL_OPENAI_BASE_URL, settings
 from . import claude_client
 from .answer_quality import (
     contains_internal_artifact,
@@ -29,9 +29,12 @@ from .visitor_service import purpose_label
 
 logger = logging.getLogger(__name__)
 
-OPENAI, CLAUDE = "openai", "claude"
+OPENAI, GEMINI, CLAUDE = "openai", "gemini", "claude"
+# Gemini 3 models always think, and thinking tokens count toward max_tokens.
+GEMINI_MIN_MAX_TOKENS = 4096
 
 _openai_client: Optional[OpenAI] = None
+_gemini_client: Optional[OpenAI] = None
 
 
 def get_openai_client() -> OpenAI:
@@ -48,6 +51,23 @@ def get_openai_client() -> OpenAI:
             kwargs["base_url"] = settings.openai_base_url
         _openai_client = OpenAI(**kwargs)
     return _openai_client
+
+
+def get_gemini_client() -> OpenAI:
+    """Gemini through its OpenAI-compatible endpoint (GEMINI_API_KEY)."""
+    global _gemini_client
+    if _gemini_client is None:
+        _gemini_client = OpenAI(
+            api_key=settings.gemini_api_key.strip(),
+            base_url=settings.gemini_base_url,
+            timeout=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
+        )
+    return _gemini_client
+
+
+def client_for(provider: str) -> OpenAI:
+    return get_gemini_client() if provider == GEMINI else get_openai_client()
 
 
 @lru_cache
@@ -105,16 +125,20 @@ def build_user_payload(
 def model_chain() -> List[Tuple[str, str]]:
     """(provider, model) pairs to try in order; each one only after the ones before it failed.
 
-    OPENAI_MODEL, then OPENAI_FALLBACK_MODEL, then Claude when ANTHROPIC_API_KEY is set.
+    Gemini (GEMINI_API_KEY), then the OpenAI-compatible endpoint (OPENAI_MODEL, OPENAI_FALLBACK_MODEL),
+    then Claude (ANTHROPIC_API_KEY or CLAUDE_API_KEY).
     """
+    gemini, claude = bool(settings.gemini_api_key.strip()), claude_client.enabled()
     chain: List[Tuple[str, str]] = []
-    # Without a key the OpenAI-compatible endpoint only works locally (Ollama); skip it when Claude can answer.
-    if settings.openai_api_key.strip() or not claude_client.enabled():
+    if gemini:
+        chain.append((GEMINI, settings.gemini_model))
+    # The default OPENAI_BASE_URL is a local Ollama, which can only fail on a server: skip it when a cloud model is set.
+    if settings.openai_base_url.rstrip("/") != LOCAL_OPENAI_BASE_URL or not (gemini or claude):
         chain.append((OPENAI, settings.openai_model))
         fallback = (settings.openai_fallback_model or "").strip()
         if fallback and fallback != settings.openai_model:
             chain.append((OPENAI, fallback))
-    if claude_client.enabled():
+    if claude:
         chain.append((CLAUDE, settings.anthropic_model))
     return chain
 
@@ -130,21 +154,29 @@ def _legacy_max_tokens() -> int:
     return 420 if quality == "quality" else 260
 
 
-def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
-    max_tokens = _legacy_max_tokens()
+def sampling_kwargs(provider: str, max_tokens: int) -> Dict[str, Any]:
+    """temperature, max_tokens and reasoning_effort for an OpenAI-compatible call."""
+    if provider == GEMINI:
+        # Gemini 3 wants its default temperature (1.0), so none is sent.
+        effort = settings.gemini_reasoning_effort.strip()
+        kwargs: Dict[str, Any] = {"max_tokens": max(max_tokens, GEMINI_MIN_MAX_TOKENS)}
+        if effort:
+            kwargs["reasoning_effort"] = effort
+        return kwargs
     if reasoning_kwargs():
-        # Thinking tokens share the output budget; the short legacy budget would cut answers off.
+        # Thinking tokens share the output budget; a short budget would cut answers off.
         max_tokens = max(max_tokens, settings.llm_max_output_tokens)
+    return {"temperature": settings.llm_temperature, "max_tokens": max_tokens, **reasoning_kwargs()}
+
+
+def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str, provider: str = OPENAI):
     return client.chat.completions.create(
         model=model,
-        # Same setting as the direct pipeline (Gemini 3 models want their default of 1.0).
-        temperature=settings.llm_temperature,
-        max_tokens=max_tokens,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_payload},
         ],
-        **reasoning_kwargs(),
+        **sampling_kwargs(provider, _legacy_max_tokens()),
     )
 
 
@@ -152,7 +184,7 @@ def _ask(provider: str, model: str, system_prompt: str, user_payload: str) -> st
     if provider == CLAUDE:
         text, _usage = claude_client.complete(system_prompt, user_payload, _legacy_max_tokens())
         return text
-    completion = _complete_with_model(get_openai_client(), model, system_prompt, user_payload)
+    completion = _complete_with_model(client_for(provider), model, system_prompt, user_payload, provider)
     return (completion.choices[0].message.content or "").strip()
 
 

@@ -6,7 +6,7 @@ import json
 from functools import lru_cache
 from typing import Annotated, Any, List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -25,6 +25,10 @@ def split_list(value: Any) -> Any:
     return [item.strip() for item in trimmed.split(",") if item.strip()]
 
 
+# Local Ollama, the development default for the OpenAI-compatible endpoint.
+LOCAL_OPENAI_BASE_URL = "http://127.0.0.1:11434/v1"
+
+
 class Settings(BaseSettings):
     """Environment driven configuration."""
 
@@ -40,11 +44,23 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="qwen3:32b")
     openai_fallback_model: str = Field(default="", description="Tried when openai_model fails; empty: none")
     openai_base_url: str = Field(
-        default="http://127.0.0.1:11434/v1",
-        description="OpenAI-compatible base URL (e.g. Ollama /v1)",
+        default=LOCAL_OPENAI_BASE_URL,
+        description="OpenAI-compatible base URL (e.g. Ollama /v1). Left at the local default, it is skipped "
+        "when a Gemini or Claude key is set",
     )
-    # Claude through the Anthropic API, tried after the OpenAI-compatible models (claude_client.py).
-    anthropic_api_key: str = Field(default="", description="Claude API key; empty: no Claude fallback")
+    # Google Gemini through its OpenAI-compatible endpoint, tried first when GEMINI_API_KEY is set.
+    gemini_api_key: str = Field(default="", description="Gemini API key (AI Studio); empty: not used")
+    gemini_model: str = Field(default="gemini-3.5-flash-lite")
+    gemini_reasoning_effort: str = Field(
+        default="low", description="reasoning_effort sent to Gemini (Gemini 3 always thinks); empty: not sent"
+    )
+    gemini_base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta/openai/")
+    # Claude through the Anthropic API, tried after the other models (claude_client.py).
+    anthropic_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("anthropic_api_key", "claude_api_key"),
+        description="Claude API key (ANTHROPIC_API_KEY or CLAUDE_API_KEY); empty: no Claude fallback",
+    )
     anthropic_model: str = Field(default="claude-haiku-5-5")
     anthropic_effort: str = Field(
         default="low", description="output_config.effort (low | medium | high); empty: the model's default"
