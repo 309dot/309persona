@@ -41,7 +41,7 @@ def test_fallback_shape() -> None:
         },
         {
             "text": "디자인 시스템 구축 및 전사적 리뉴얼 주도",
-            "source": "extra:98",
+            "source": "doc:resume#9",
             "score": "0.55",
         },
     ]

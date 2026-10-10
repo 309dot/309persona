@@ -49,8 +49,9 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 
 ### 지식베이스
 
-- 런타임은 `KNOWLEDGE_PACK_PATH`의 JSON과 **그 파일 옆 `309files/*.md`만** 읽는다(빈 줄 기준으로 쪼개 RAG 청크로 씀). 기본값 기준 `knowledge_base/309agent_knowledge_base/`는 쓰이지 않는다.
-- `309files/`에는 지시문 문서(`developer_prompt.md`, `guardrails.md` 등)도 있어 그대로 색인된다. 사실과 지시문을 섞지 말 것.
+- 폴더별 역할은 `knowledge_base/README.md`. 요약하면: 지식팩 JSON은 프롬프트에, `309files/*.md`(사실만)는 RAG 색인에 쓰이고, `instructions/`(지시문)와 `drafts/`(검토 전 초안)는 읽지 않는다.
+- 지시문을 `309files/`에 넣지 말 것. 사실처럼 검색돼 답변에 새어 나온다. RAG 출처 이름은 `doc:파일명#번호`.
+- `309files/pdf/`는 프론트가 GitHub raw 주소로 직접 링크하므로 경로를 바꾸지 않는다.
 - `knowledge_base/topic_aliases.json`은 `question_filter`가 레포 기준 상대 경로로 읽는다.
 - 로딩 함수가 `lru_cache`라 지식베이스 수정 후에는 서버를 재시작해야 반영된다.
 

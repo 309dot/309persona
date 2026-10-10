@@ -46,7 +46,7 @@ def source_type_from(source: str) -> str:
         return "project"
     if source.startswith("pack:"):
         return "style"
-    if source.startswith("extra:"):
+    if source.startswith("doc:"):
         return "portfolio"
     return "misc"
 

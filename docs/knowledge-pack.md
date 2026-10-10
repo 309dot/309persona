@@ -29,6 +29,7 @@
 - `allowed_topics`는 질문 필터가 허용하는 키워드를 확장할 때 사용합니다.
 - 프로젝트 배열에는 3~5개의 대표 사례를 넣고, `impact` 필드에 지표나 결과를 명시합니다.
 - 새로운 버전을 만들 때는 `knowledge_base/` 폴더에 날짜별 JSON을 저장한 뒤, `backend/.env.local`에서 `KNOWLEDGE_PACK_PATH`를 해당 파일로 변경하면 됩니다.
+- 검색(RAG) 대상 문서는 팩 파일 옆 `309files/`의 사실 문서뿐입니다. 지시문은 `instructions/`, 검토 전 초안은 `drafts/`에 둡니다(`knowledge_base/README.md`).
 
 ## LLM 스모크 테스트
 
