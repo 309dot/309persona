@@ -36,6 +36,16 @@ class VisitorCreate(BaseModel):
         return _truncate(value, VISITOR_FIELD_LIMITS[info.field_name]) if isinstance(value, str) else value
 
 
+class VisitorUpdate(BaseModel):
+    visitor_name: Optional[str] = None
+    visitor_affiliation: Optional[str] = None
+
+    @field_validator("visitor_name", "visitor_affiliation", mode="before")
+    @classmethod
+    def truncate_fields(cls, value, info):
+        return _truncate(value, VISITOR_FIELD_LIMITS[info.field_name]) if isinstance(value, str) else value
+
+
 class VisitorResponse(BaseModel):
     session_id: str
     visitor_name: str
@@ -56,6 +66,8 @@ class ChatResponse(BaseModel):
     reason: Optional[str] = None
     category: Optional[str] = None
     citations: List[str] = Field(default_factory=list)
+    remaining: Optional[int] = None
+    limit: Optional[int] = None
 
 
 class StatPoint(BaseModel):

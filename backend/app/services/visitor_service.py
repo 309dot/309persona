@@ -46,6 +46,30 @@ def create_visitor(payload: Dict[str, str]) -> Dict[str, str]:
     return record
 
 
+def update_visitor(session_id: str, updates: Dict[str, Optional[str]]) -> Optional[Dict[str, str]]:
+    """Update the visitor's name/affiliation; return the merged record or None if unknown."""
+    visitor = get_visitor_by_session(session_id)
+    if not visitor:
+        return None
+
+    changes = {key: value for key, value in updates.items() if value is not None}
+    if not changes:
+        return visitor
+
+    if session_id in _ephemeral_visitors:
+        _ephemeral_visitors[session_id].update(changes)
+        return _ephemeral_visitors[session_id]
+
+    try:
+        client = get_firestore_client()
+        client.collection("visitors").document(session_id).update(
+            {**changes, "updated_at": firestore.SERVER_TIMESTAMP}
+        )
+    except Exception as exc:
+        logger.warning("Failed to update visitor in Firestore: %s", exc)
+    return {**visitor, **changes}
+
+
 def get_visitor_by_session(session_id: str) -> Optional[Dict[str, str]]:
     """Return visitor metadata by session id."""
     if not session_id:

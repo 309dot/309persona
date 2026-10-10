@@ -17,20 +17,28 @@ class SlidingWindowLimiter:
         self.window = timedelta(minutes=window_minutes)
         self._events: Dict[str, Deque[datetime]] = defaultdict(deque)
 
+    def _recent(self, key: str, now: datetime) -> Deque[datetime]:
+        queue = self._events[key]
+        window_start = now - self.window
+        while queue and queue[0] < window_start:
+            queue.popleft()
+        return queue
+
     def touch(self, key: str) -> bool:
         """Record a hit and return whether it is allowed."""
         now = datetime.now(tz=timezone.utc)
-        window_start = now - self.window
-        queue = self._events[key]
-
-        while queue and queue[0] < window_start:
-            queue.popleft()
+        queue = self._recent(key, now)
 
         if len(queue) >= self.limit:
             return False
 
         queue.append(now)
         return True
+
+    def remaining(self, key: str) -> int:
+        """Hits still allowed for `key` in the current window."""
+        queue = self._recent(key, datetime.now(tz=timezone.utc))
+        return max(0, self.limit - len(queue))
 
 
 _session_rate_limiter: Optional[SlidingWindowLimiter] = None
@@ -45,5 +53,3 @@ def get_session_rate_limiter() -> SlidingWindowLimiter:
             window_minutes=settings.session_window_minutes,
         )
     return _session_rate_limiter
-
-
