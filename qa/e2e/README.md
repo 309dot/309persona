@@ -21,7 +21,7 @@ node qa/e2e/e2e.cjs
 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_stream.cjs
 
-# 3) 기록 지도·모션: 첫 화면 지도, 생각 중 관련 기록, 쓰는 중 잉크 효과, 근거 표시, 지도에서 질문, 움직임 줄이기, 지도 없는 백엔드 (35개)
+# 3) 기록 지도·모션: 로고 옆 지도 버튼·첫 화면 높이, 생각 중 관련 기록, 쓰는 중 잉크 효과, 근거 표시, 지도에서 질문, 움직임 줄이기, 지도 없는 백엔드, 첫 프레임 시각 (37개)
 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_map.cjs
 

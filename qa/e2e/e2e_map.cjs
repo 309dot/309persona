@@ -1,4 +1,4 @@
-// Knowledge map and motion QA (ANSWER_PIPELINE=direct, QA_NOTES=1): the map on the landing,
+// Knowledge map and motion QA (ANSWER_PIPELINE=direct, QA_NOTES=1): the map's entry next to the logo,
 // related records while thinking, streamed ink, cited records, asking from the map, fallbacks.
 const { chromium } = require('playwright') // resolved via NODE_PATH, see README.md;
 const fs = require('fs');
@@ -48,27 +48,32 @@ const canvasInk = (locator) =>
   const page = await context.newPage();
   const consoleErrors = [];
   const graphRequests = [];
+  const scripts = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
-  page.on('request', (r) => { if (r.url().endsWith('/api/knowledge/graph')) graphRequests.push(r.url()); });
+  page.on('request', (r) => {
+    if (r.url().endsWith('/api/knowledge/graph')) graphRequests.push(r.url());
+    if (r.url().endsWith('.js')) scripts.push(r.url().split('/').pop());
+  });
   const dock = page.locator('div.fixed.inset-x-0.bottom-0');
   const input = dock.locator('input');
-  const hero = page.getByRole('region', { name: '309의 기록 지도' });
+  const entry = page.getByRole('button', { name: /^309의 기록 지도 보기/ });
 
-  // ---------------------------------------------------------------- I. 첫 화면 지도
-  screen = 'I. 첫 화면 지도';
+  // ---------------------------------------------------------------- I. 첫 화면
+  screen = 'I. 첫 화면';
   check('그래프 API: 노트가 노드로 들어오고 본문은 없음', graph.nodes.some((n) => n.id === 'N:리뷰-루프' && n.kind === 'note') && !JSON.stringify(graph).includes('매주 같은 화면'));
   check('그래프 API: 템플릿·주석은 빠짐', !graph.nodes.some((n) => n.label.includes('템플릿')) && !JSON.stringify(graph).includes('주석'));
   await page.goto(`${WEB}/persona`, { waitUntil: 'networkidle' });
-  await hero.waitFor();
-  const heroCanvas = hero.locator('canvas');
-  await heroCanvas.waitFor({ timeout: 5000 });
-  await page.waitForTimeout(1800);
+  await entry.waitFor({ timeout: 5000 });
   check('그래프를 한 번만 받음', graphRequests.length === 1, graphRequests.join(', '));
-  check('지도 요약: 프로젝트 7 · 주제 · 노트 2', await hero.getByText(/프로젝트 7 · 주제 \d+ · 노트 2/).isVisible());
-  let heroInk = 0;
-  await waitFor(async () => (heroInk = await canvasInk(heroCanvas)) > 500, 6000);
-  check('캔버스에 지도가 그려짐', heroInk > 500, `칠해진 점 ${heroInk}`);
+  check('로고 옆 지도 버튼: 프로젝트 7 · 주제 · 노트 2', /\(프로젝트 7 · 주제 \d+ · 노트 2\)$/.test(await entry.getAttribute('aria-label')), await entry.getAttribute('aria-label'));
+  check('첫 화면엔 지도 캔버스 없음(지도 코드는 열 때 받음)', (await page.locator('canvas').count()) === 0 && !scripts.some((s) => s.startsWith('MapOverlay-')), scripts.join(', '));
+  // The point of the compact header: greeting, purpose and suggestions sit above the input dock.
+  const fold = await page.evaluate(() => ({
+    dock: document.querySelector('div.fixed.inset-x-0.bottom-0').getBoundingClientRect().top,
+    suggestions: document.querySelector('[aria-label="추천 질문"]').getBoundingClientRect().bottom,
+  }));
+  check('인사말·방문 목적·추천 질문이 첫 화면(입력창 위)에', fold.suggestions < fold.dock, JSON.stringify(fold));
   check('추천 질문은 인사말 아래(입력창 밖)', (await page.locator('main').getByRole('button', { name: /최근 2년 안에/ }).count()) === 1 && (await dock.getByRole('button', { name: /최근 2년 안에/ }).count()) === 0);
   check('입력창에 기록 지도 버튼', await dock.getByRole('button', { name: '309의 기록 지도 열기' }).isVisible());
   await page.screenshot({ path: path.join(SHOTS, 'I-landing.png') });
@@ -84,7 +89,7 @@ const canvasInk = (locator) =>
   check('생각 중: 질문과 관련된 기록 이름', relatedText.includes('디자인 시스템 · 페이히어 디자인 시스템'), relatedText);
   check('생각 중: 아바타 링', (await page.locator('[data-presence="thinking"]').count()) === 1);
   check('생각 중: 입력창 빛 테두리', (await dock.locator('.ai-glow[data-busy]').count()) === 1);
-  check('생각 중: 지도 버튼 활성', (await dock.locator('.map-icon.is-active').count()) === 1);
+  check('생각 중: 지도 버튼 활성(입력창·로고 옆)', (await dock.locator('.map-icon.is-active').count()) === 1 && (await entry.locator('.map-icon.is-active').count()) === 1);
   check('추천 질문은 대화가 시작되면 사라짐', (await page.getByRole('button', { name: /최근 2년 안에/ }).count()) === 0);
   await page.screenshot({ path: path.join(SHOTS, 'J-thinking.png') });
   await page.locator('[data-streaming="true"]').waitFor({ timeout: 6000 }).catch(() => undefined);
@@ -122,7 +127,7 @@ const canvasInk = (locator) =>
   // ---------------------------------------------------------------- L. 지도에서 질문
   screen = 'L. 지도에서 질문';
   await page.locator('main').evaluate((el) => el.scrollTo(0, 0));
-  await hero.getByRole('button', { name: '지도 크게 보기' }).click();
+  await entry.click();
   await dialog.waitFor();
   await dialog.getByRole('navigation', { name: '기록 목록' }).getByRole('button', { name: 'AI 프로덕트' }).click();
   await dialog.getByRole('button', { name: /이 질문으로 물어보기/ }).click();
@@ -131,7 +136,7 @@ const canvasInk = (locator) =>
   check('지도의 질문으로 답변', (await page.getByText('AI 프로덕트 관련 경험을 알려줘', { exact: true }).count()) === 1 && (await page.getByText(FAKE_END).count()) === 2);
   const funnel = docs(await db(), 'funnel_events');
   const opened = funnel.filter((e) => e.event === 'map_opened').map((e) => e.properties.from);
-  check('map_opened 기록(dock, hero)', JSON.stringify(opened) === '["dock","hero"]', JSON.stringify(opened));
+  check('map_opened 기록(dock, header)', JSON.stringify(opened) === '["dock","header"]', JSON.stringify(opened));
   check('map_question_asked 기록', funnel.some((e) => e.event === 'map_question_asked' && e.properties.node === 'T:AI 프로덕트' && e.properties.kind === 'topic'));
   check('question_submitted source=map', funnel.some((e) => e.event === 'question_submitted' && e.properties.source === 'map'));
   check('카운터 2/5', await dock.getByText('2/5', { exact: true }).isVisible());
@@ -141,13 +146,15 @@ const canvasInk = (locator) =>
   const reduced = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
   const page2 = await reduced.newPage();
   await page2.goto(`${WEB}/persona`, { waitUntil: 'networkidle' });
-  const hero2 = page2.getByRole('region', { name: '309의 기록 지도' });
-  await hero2.locator('canvas').waitFor({ timeout: 5000 });
-  await page2.waitForTimeout(600);
-  check('정지 화면으로 지도가 그려짐', (await canvasInk(hero2.locator('canvas'))) > 300);
-  const animation = await page2.locator('h1, p.animate-rise').first().evaluate((el) => getComputedStyle(el).animationName);
+  const animation = await page2.locator('h1').evaluate((el) => getComputedStyle(el).animationName);
   check('등장 애니메이션 꺼짐', animation === 'none', animation);
   await page2.screenshot({ path: path.join(SHOTS, 'M-reduced-mobile.png') });
+  await page2.getByRole('button', { name: /^309의 기록 지도 보기/ }).click();
+  const dialog2 = page2.getByRole('dialog', { name: '309의 기록 지도' });
+  await dialog2.locator('canvas').waitFor({ timeout: 5000 });
+  await page2.waitForTimeout(600);
+  check('정지 화면으로 지도가 그려짐(모바일)', (await canvasInk(dialog2.locator('canvas'))) > 300);
+  await page2.screenshot({ path: path.join(SHOTS, 'M-reduced-mobile-map.png') });
   await reduced.close();
 
   // ---------------------------------------------------------------- N. 구버전 백엔드
@@ -156,12 +163,31 @@ const canvasInk = (locator) =>
   await page3.route('**/api/knowledge/graph', (route) => route.fulfill({ status: 404, contentType: 'application/json', body: '{"detail":"Not Found"}' }));
   await page3.goto(`${WEB}/persona`, { waitUntil: 'networkidle' });
   await page3.waitForTimeout(500);
-  check('지도 영역과 버튼이 사라짐', (await page3.getByRole('region', { name: '309의 기록 지도' }).count()) === 0 && (await page3.getByRole('button', { name: '309의 기록 지도 열기' }).count()) === 0);
+  check('지도 버튼들이 사라짐(로고 옆·입력창)', (await page3.getByRole('button', { name: /^309의 기록 지도 보기/ }).count()) === 0 && (await page3.getByRole('button', { name: '309의 기록 지도 열기' }).count()) === 0);
   const dock3 = page3.locator('div.fixed.inset-x-0.bottom-0');
   await dock3.locator('input').fill('지도 없는 백엔드 질문입니다');
   await dock3.locator('input').press('Enter');
   check('대화는 그대로 됨', await waitFor(async () => (await page3.getByText(FAKE_END).count()) === 1, 15000));
   await page3.close();
+
+  // ---------------------------------------------------------------- O. 첫 프레임 시각
+  screen = 'O. 첫 프레임 시각';
+  // A frame's timestamp can predate the map's own start time; that once threw in ctx.ellipse and left the map blank.
+  const page4 = await context.newPage();
+  const frameErrors = [];
+  page4.on('pageerror', (e) => frameErrors.push(e.message));
+  await page4.addInitScript(() => {
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb) => raf((t) => cb(t - 50));
+  });
+  await page4.goto(`${WEB}/persona`, { waitUntil: 'networkidle' });
+  await page4.getByRole('button', { name: /^309의 기록 지도 보기/ }).click();
+  const earlyCanvas = page4.getByRole('dialog', { name: '309의 기록 지도' }).locator('canvas');
+  await earlyCanvas.waitFor({ timeout: 5000 });
+  let earlyInk = 0;
+  await waitFor(async () => (earlyInk = await canvasInk(earlyCanvas)) > 500, 6000);
+  check('프레임 시각이 지도보다 이르더라도 그려지고 오류 없음', earlyInk > 500 && frameErrors.length === 0, `칠해진 점 ${earlyInk} ${frameErrors.join(' | ')}`);
+  await page4.close();
 
   screen = '콘솔 오류';
   const unexpected = consoleErrors.filter((e) => !e.includes('status of 404') && !e.includes('net::ERR'));

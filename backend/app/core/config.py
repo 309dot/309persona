@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     )
     llm_timeout_seconds: float = Field(default=45, description="Timeout for a single LLM request")
     llm_max_retries: int = Field(default=1, description="SDK-level retries on connection errors")
-    llm_temperature: float = Field(default=0.4, description="direct pipeline sampling temperature")
+    llm_temperature: float = Field(default=0.4, description="sampling temperature (both pipelines)")
     llm_max_output_tokens: int = Field(default=1200, description="direct pipeline answer + metadata budget")
     llm_stream_usage: bool = Field(
         default=True, description="Ask for token usage in streamed responses (stream_options.include_usage)"

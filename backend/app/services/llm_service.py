@@ -104,14 +104,14 @@ def reasoning_kwargs() -> Dict[str, str]:
 
 def _complete_with_model(client: OpenAI, model: str, system_prompt: str, user_payload: str):
     quality = (settings.answer_quality_mode or "balanced").lower()
-    temperature = 0.45 if quality == "quality" else 0.35
     max_tokens = 420 if quality == "quality" else 260
     if reasoning_kwargs():
         # Thinking tokens share the output budget; the short legacy budget would cut answers off.
         max_tokens = max(max_tokens, settings.llm_max_output_tokens)
     return client.chat.completions.create(
         model=model,
-        temperature=temperature,
+        # Same setting as the direct pipeline (Gemini 3 models want their default of 1.0).
+        temperature=settings.llm_temperature,
         max_tokens=max_tokens,
         messages=[
             {"role": "system", "content": system_prompt},

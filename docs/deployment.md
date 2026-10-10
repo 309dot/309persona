@@ -34,18 +34,19 @@
 
 OpenAI 호환 주소를 그대로 쓰므로 코드 변경 없이 환경 변수만 바꾼다.
 
-1. Google AI Studio에서 API 키를 만든다. 모델 목록에서 최신 Flash와 Flash-Lite 모델 id를 확인한다(무료 등급에 포함되는지, 하루 요청 한도가 얼마인지도 같은 화면에 나온다).
-2. Render 환경 변수:
+1. Google AI Studio(aistudio.google.com)에서 API 키를 만든다. 무료 등급에 들어가는 모델과 하루 요청 한도는 AI Studio의 rate limit 화면에서 확인한다.
+2. Render 환경 변수(2026-10 기준 모델 id):
    ```
    OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
    OPENAI_API_KEY=<AI Studio 키>
-   OPENAI_MODEL=<최신 Flash 모델 id>
-   OPENAI_FALLBACK_MODEL=<최신 Flash-Lite 모델 id>
+   OPENAI_MODEL=gemini-3.5-flash-lite
+   OPENAI_FALLBACK_MODEL=gemini-3.8-flash
    LLM_REASONING_EFFORT=low
    LLM_MAX_OUTPUT_TOKENS=4096
    LLM_TEMPERATURE=1.0
    ```
-   - 예비 모델은 첫 글자가 나가기 전에 실패할 때(하루 한도 초과 포함)만 쓴다. Flash-Lite는 보통 하루 한도가 더 넉넉하다.
+   - 무료 등급은 최신 Flash(`gemini-3.8-flash`)의 하루 요청 수가 매우 적다(포럼 보고 하루 20회, 공식 값은 AI Studio에서 확인). legacy 파이프라인은 질문 하나에 LLM을 여러 번 부를 수 있어 금방 바닥나므로, 무료로 운영할 때는 한도가 넉넉한 Flash-Lite를 기본으로 두고 Flash를 예비로 둔다. 결제를 켜면 둘을 바꿔도 된다.
+   - 예비 모델은 첫 글자가 나가기 전에 실패할 때(하루 한도 초과 포함)만 쓴다.
    - Gemini의 Flash 계열은 생각하는 모델이라 생각 토큰도 출력 한도에 들어간다. 추론 강도를 낮추고 출력 한도를 올려 두지 않으면 답이 잘린다.
    - 대시보드의 토큰 수가 계속 0이면 `LLM_STREAM_USAGE=false`.
 3. 바꾼 뒤 `backend/evals`로 legacy와 direct를 비교하고(`uv run python -m evals.run --pipeline both`), 같거나 나으면 `ANSWER_PIPELINE=direct`로 바꾼다.
