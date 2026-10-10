@@ -20,7 +20,7 @@ from . import claude_client
 from .claude_client import Usage
 from .knowledge_base import load_knowledge_pack
 from .knowledge_document import render_knowledge_block, source_ids
-from .llm_service import CLAUDE, get_openai_client, model_chain, reasoning_kwargs
+from .llm_service import CLAUDE, GEMINI, OPENAI, client_for, model_chain, sampling_kwargs
 from .obsidian_notes import notes_version
 from .visitor_service import purpose_label
 
@@ -185,24 +185,29 @@ def parse_meta(text: str) -> Dict[str, Any]:
     return {"sources": list(dict.fromkeys(sources)), "follow_ups": follow_ups[:MAX_FOLLOW_UPS], "topic": topic}
 
 
-def _create_stream(model: str, messages: List[Dict[str, str]]):
+def _create_stream(model: str, messages: List[Dict[str, str]], provider: str = OPENAI):
     kwargs: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "temperature": settings.llm_temperature,
-        "max_tokens": settings.llm_max_output_tokens,
         "stream": True,
+        **sampling_kwargs(provider, settings.llm_max_output_tokens),
     }
-    if settings.llm_stream_usage:
+    # Gemini puts usage in its last chunk unasked; stream_options isn't documented there.
+    if settings.llm_stream_usage and provider != GEMINI:
         kwargs["stream_options"] = {"include_usage": True}
-    return get_openai_client().chat.completions.create(**kwargs, **reasoning_kwargs())
+    return client_for(provider).chat.completions.create(**kwargs)
 
 
 def _stream_openai(
-    model: str, messages: List[Dict[str, str]], on_text: Callable[[str], None], should_stop: Callable[[], bool]
+    provider: str,
+    model: str,
+    messages: List[Dict[str, str]],
+    on_text: Callable[[str], None],
+    should_stop: Callable[[], bool],
 ) -> Usage:
+    """Stream from an OpenAI-compatible endpoint (OPENAI_* or Gemini)."""
     usage = None
-    with _create_stream(model, messages) as stream:
+    with _create_stream(model, messages, provider) as stream:
         for chunk in stream:
             if should_stop():
                 break
@@ -256,7 +261,7 @@ def stream_answer(
             if provider == CLAUDE:
                 usage = claude_client.stream(messages, on_text, cancel.is_set)
             else:
-                usage = _stream_openai(model, messages, on_text, cancel.is_set)
+                usage = _stream_openai(provider, model, messages, on_text, cancel.is_set)
             break
         except Exception as exc:
             if parser.answer_complete:

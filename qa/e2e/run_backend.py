@@ -3,6 +3,8 @@
 QA_FAKE_ADMIN=1 accepts any Firebase ID token as owner@309.so (dashboard QA only).
 QA_NOTES=1 loads the fake Obsidian notes in qa/e2e/notes/309-persona as private notes.
 QA_CLAUDE=1 adds Claude as the last fallback, pointed at fake_llm.py's /v1/messages.
+QA_GEMINI=1 sets things up like production on Render: Gemini first (fake_llm.py's OpenAI-compatible
+endpoint), and an unused OPENAI_API_KEY with OPENAI_BASE_URL left at the local default.
 """
 import json
 import os
@@ -15,11 +17,16 @@ os.chdir(BACKEND)
 os.environ.update(
     OPENAI_BASE_URL="http://127.0.0.1:11500/v1", OPENAI_API_KEY="x",
     FIREBASE_CREDENTIALS_PATH="", FIREBASE_CREDENTIALS_JSON="",
-    # Never the real Claude API from QA, even when the shell has a key.
-    ANTHROPIC_API_KEY="", ANTHROPIC_BASE_URL="",
+    # Never the real Claude or Gemini API from QA, even when the shell has a key.
+    ANTHROPIC_API_KEY="", CLAUDE_API_KEY="", ANTHROPIC_BASE_URL="", GEMINI_API_KEY="",
 )
 if os.environ.get("QA_CLAUDE") == "1":
     os.environ.update(ANTHROPIC_API_KEY="qa-key", ANTHROPIC_BASE_URL="http://127.0.0.1:11500")
+if os.environ.get("QA_GEMINI") == "1":
+    os.environ.update(
+        GEMINI_API_KEY="qa-key", GEMINI_BASE_URL="http://127.0.0.1:11500/v1",
+        OPENAI_API_KEY="sk-proj-unused", OPENAI_BASE_URL="http://127.0.0.1:11434/v1",
+    )
 if os.environ.get("QA_NOTES") == "1":
     os.environ.update(NOTES_DIR=str(Path(__file__).resolve().parent / "notes"), NOTES_SUBDIR="309-persona")
 

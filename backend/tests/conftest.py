@@ -6,9 +6,9 @@ import os
 # so tests never write to the production Firestore.
 os.environ["FIREBASE_CREDENTIALS_PATH"] = ""
 os.environ["FIREBASE_CREDENTIALS_JSON"] = ""
-# Likewise never call Claude: tests that need it install a fake client.
-os.environ["ANTHROPIC_API_KEY"] = ""
-os.environ["ANTHROPIC_BASE_URL"] = ""
+# Likewise never call Claude or Gemini: tests that need them install a fake client.
+for name in ("ANTHROPIC_API_KEY", "CLAUDE_API_KEY", "ANTHROPIC_BASE_URL", "GEMINI_API_KEY"):
+    os.environ[name] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

@@ -40,6 +40,11 @@ QA_CLAUDE=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_claude.cjs
 QA_CLAUDE=1 qa/e2e/stack.sh restart
 node qa/e2e/e2e_claude.cjs
+#    운영과 같은 구성(Gemini 1순위, 쓰지 않는 OPENAI_API_KEY): direct 27개, legacy 23개
+QA_GEMINI=1 QA_CLAUDE=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
+node qa/e2e/e2e_claude.cjs
+QA_GEMINI=1 QA_CLAUDE=1 qa/e2e/stack.sh restart
+node qa/e2e/e2e_claude.cjs
 
 qa/e2e/stack.sh stop
 ```
@@ -47,6 +52,7 @@ qa/e2e/stack.sh stop
 - 각 스크립트는 체크마다 `PASS`/`FAIL`을 찍고, 하나라도 실패하면 종료 코드 1이다.
 - `QA_FAKE_ADMIN=1`은 어떤 ID 토큰이든 `owner@309.so`로 받아 준다. QA 스택(`run_backend.py`)에서만 쓰인다.
 - `QA_NOTES=1`은 `qa/e2e/notes/309-persona/`의 가짜 옵시디언 노트를 비공개 노트로 읽힌다(실제 노트가 아니다).
+- `QA_GEMINI=1`은 운영 Render와 같은 구성을 만든다: Gemini 1순위(가짜 LLM의 OpenAI 호환 주소), 쓰이지 않는 `OPENAI_API_KEY`와 기본값 그대로인 `OPENAI_BASE_URL`(건너뛰는지 백엔드 로그로 확인).
 - `QA_CLAUDE=1`은 Claude 예비 연결을 켜고 `fake_llm.py`의 `/v1/messages`(Anthropic Messages API 흉내)로 보낸다. 이 값이 없으면 QA 스택은 셸에 키가 있어도 Claude를 쓰지 않는다. 가짜 LLM은 `{"claude_mode": "fail" | "refusal"}`로 Claude 장애·거절을 낸다.
 - 가짜 LLM은 `POST /__mode {"chunk_delay": 0.08}`처럼 글자 조각 사이 간격을 늘려 스트리밍 모션을 눈으로 볼 수 있다. `{"sources": ["P4", "P5"]}`는 답변 근거를 바꾼다(`null`이면 기본값).
 - 각 스위트는 DB 값을 처음부터 센다. 스위트마다 스택을 새로 띄운다.

@@ -120,6 +120,7 @@
 - legacy 파이프라인도 `LLM_TEMPERATURE`를 따르게 함(고정 0.35/0.45였음). Gemini 3 계열은 기본값 1.0을 권장한다
 - 기록 지도가 가끔 빈 화면이 되던 원인: 첫 프레임 시각이 지도 생성 시각보다 이르면 경과 시간이 음수가 되어 궤도 반지름이 음수 → `ctx.ellipse` 예외로 그리기 루프가 멈춤. 경과 시간을 0 아래로 내려가지 않게 고침. E2E가 처리 안 된 예외를 실패로 세면서 드러났고, 프레임 시각을 앞당겨 매번 재현하는 검사를 넣음
 - Claude 예비 연결(사용자 결정: Gemini 기본, 예비는 Claude Haiku 5.5): `ANTHROPIC_API_KEY`가 있으면 두 파이프라인 모두 OpenAI 호환 모델이 첫 글자 전에 실패할 때 Claude가 답한다(`services/claude_client.py`, 공식 `anthropic` SDK). OpenAI 호환 키 없이 Claude 키만 있으면 Claude만 쓴다. temperature는 보내지 않고(Haiku 5.5는 400), 지식베이스 시스템 프롬프트는 캐시, 거절(refusal)은 실패로 처리. 대화 로그의 모델은 실제로 답한 모델. legacy 품질 재호출이 실패하면 앞 답을 쓴다(예전에는 질문 전체가 실패). `OPENAI_FALLBACK_MODEL` 기본값을 비움(같은 주소에 없는 `qwen3:32b`를 부르던 문제). 가짜 Claude(`fake_llm.py`의 `/v1/messages`)로 실제 SDK를 돌리는 브라우저 검사 `e2e_claude.cjs`(direct 24·legacy 21)
+- 운영 확인(Vercel 임시 실행 환경에서 운영 백엔드로 테스트 질문): 서버·기록 지도·세션은 정상, 답변은 1초 만에 실패. Render 변수가 `Gemini_api_key`·`claude_API_KEY`·`OPENAI_API_KEY`(OpenAI 키, 주소 없음)로 들어 있어 코드가 Gemini·Claude 키를 못 읽고 기본값인 로컬 Ollama 주소로 요청하고 있었다 → 사용자 요청대로 적힌 이름 그대로 읽게 함: `GEMINI_API_KEY`로 Gemini를 1순위로(기본 모델 gemini-3.5-flash-lite, 추론 low, temperature·`stream_options` 안 보냄, `max_tokens` 4096 이상), `CLAUDE_API_KEY`를 `ANTHROPIC_API_KEY` 별칭으로(이름은 대소문자 무관), `OPENAI_BASE_URL`이 로컬 기본값이면 Gemini·Claude 키가 있을 때 건너뜀. QA 스택에 운영과 같은 구성(`QA_GEMINI=1`)을 더해 `e2e_claude.cjs` direct 27·legacy 23
 
 **남은 일 (사용자 확인 필요, 우선순위 순)**
 
