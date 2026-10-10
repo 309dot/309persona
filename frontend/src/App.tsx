@@ -1,18 +1,26 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
-import { ChatPage } from './pages/ChatPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { EntryPage } from './pages/EntryPage';
 import { PersonaChatV2Page } from './pages/PersonaChatV2Page';
+
+// The admin dashboard pulls in Firebase Auth; keep it out of the visitor bundle.
+const DashboardPage = lazy(() =>
+  import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
+);
 
 export function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/persona" replace />} />
-      <Route path="/entry" element={<EntryPage />} />
-      <Route path="/chat" element={<ChatPage />} />
       <Route path="/persona" element={<PersonaChatV2Page />} />
-      <Route path="/admin" element={<DashboardPage />} />
+      <Route
+        path="/admin"
+        element={
+          <Suspense fallback={null}>
+            <DashboardPage />
+          </Suspense>
+        }
+      />
       <Route path="*" element={<Navigate to="/persona" replace />} />
     </Routes>
   );

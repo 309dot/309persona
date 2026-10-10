@@ -36,15 +36,6 @@ export interface ChatResponseBody {
   limit?: number;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: 'visitor' | 'agent' | 'system';
-  text: string;
-  timestamp: string;
-  category?: string | null;
-  blocked?: boolean;
-}
-
 export interface StatPoint {
   label: string;
   value: number;
