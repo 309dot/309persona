@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter
 
-from .. import schemas
 from ...services import conversation_service
+from .. import schemas
 
 router = APIRouter()
 

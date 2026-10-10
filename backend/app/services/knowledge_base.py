@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from ..core.config import settings
+from .obsidian_notes import NOTE_PREFIX, get_notes, notes_version
+from .redaction import redact_contacts
 from .vector_retrieval import retrieve_vector_chunks
 
 
@@ -77,31 +79,27 @@ def build_context_block() -> str:
 
 
 @lru_cache
-def load_extra_documents(limit_chars: int = 20000) -> str:
-    """Load raw markdown files from knowledge_base/309files directory."""
+def load_fact_documents() -> List[Tuple[str, str]]:
+    """Return (file stem, text) for fact documents in 309files/ next to the knowledge pack.
+
+    Only facts belong there; prompt instructions live in knowledge_base/instructions/
+    and unreviewed drafts in knowledge_base/drafts/, neither of which is indexed.
+    """
     pack_path = Path(settings.knowledge_pack_path).resolve()
     base_dir = pack_path.parent / "309files"
-    if not base_dir.exists() or not base_dir.is_dir():
-        return ""
+    if not base_dir.is_dir():
+        return []
 
-    documents: List[str] = []
+    documents: List[Tuple[str, str]] = []
     for md_file in sorted(base_dir.glob("*.md")):
         try:
-            content = md_file.read_text(encoding="utf-8").strip()
+            content = md_file.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        if not content:
-            continue
-        heading = md_file.stem.replace("_", " ").title()
-        documents.append(f"=== 309 FILE: {heading} ===\n{content}")
-
-    if not documents:
-        return ""
-
-    combined = "\n\n".join(documents)
-    if len(combined) > limit_chars:
-        combined = combined[:limit_chars].rstrip() + "\n... (truncated)"
-    return combined
+        content = redact_contacts(content).strip()
+        if content:
+            documents.append((md_file.stem, content))
+    return documents
 
 
 def _tokenize(text: str) -> List[str]:
@@ -124,22 +122,26 @@ def _cosine(a: Counter, b: Counter) -> float:
     return dot / (na * nb)
 
 
-@lru_cache
 def build_rag_chunks() -> List[Tuple[str, str, str]]:
-    """Return (source, text, source_type) chunks from the knowledge pack and markdown docs."""
+    """Return (source, text, source_type) chunks from the knowledge pack, markdown docs and notes."""
+    return _build_rag_chunks(notes_version())
+
+
+@lru_cache(maxsize=2)
+def _build_rag_chunks(_notes_version: int) -> List[Tuple[str, str, str]]:
     pack = load_knowledge_pack()
     chunks: List[Tuple[str, str, str]] = []
 
-    for key in ["summary", "collaboration_style", "values", "speaking_style", "guardrails"]:
+    # speaking_style and guardrails are instructions: they reach the model through
+    # build_context_block(), not as retrievable evidence.
+    for key in ["summary", "collaboration_style", "values"]:
         value = pack.get(key)
         if isinstance(value, str) and value.strip():
-            source_type = "guardrail" if key == "guardrails" else "profile"
-            chunks.append((f"pack:{key}", value.strip(), source_type))
+            chunks.append((f"pack:{key}", value.strip(), "profile"))
         elif isinstance(value, list):
             text = "\n".join(str(v).strip() for v in value if str(v).strip())
             if text:
-                source_type = "guardrail" if key == "guardrails" else "profile"
-                chunks.append((f"pack:{key}", text, source_type))
+                chunks.append((f"pack:{key}", text, "profile"))
 
     for project in pack.get("projects", []) if isinstance(pack.get("projects"), list) else []:
         title = str(project.get("title", "project")).strip()
@@ -149,9 +151,8 @@ def build_rag_chunks() -> List[Tuple[str, str, str]]:
         if merged:
             chunks.append((f"project:{title}", merged, "project"))
 
-    extra = load_extra_documents(limit_chars=120000)
-    if extra:
-        for idx, block in enumerate(extra.split("\n\n"), start=1):
+    for stem, content in load_fact_documents():
+        for idx, block in enumerate(content.split("\n\n"), start=1):
             text = block.strip()
             lowered = text.lower()
             if any(
@@ -169,7 +170,14 @@ def build_rag_chunks() -> List[Tuple[str, str, str]]:
             ):
                 continue
             if len(text) >= 40:
-                chunks.append((f"extra:{idx}", text, "portfolio"))
+                chunks.append((f"doc:{stem}#{idx}", text, "portfolio"))
+
+    for note in get_notes().notes:
+        slug = note.id.removeprefix(NOTE_PREFIX)
+        for idx, block in enumerate(note.text.split("\n\n"), start=1):
+            text = block.strip()
+            if len(text) >= 40:
+                chunks.append((f"note:{slug}#{idx}", f"[{note.title}]\n{text}", "portfolio"))
 
     return chunks
 
@@ -271,7 +279,7 @@ def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
                 )
                 and (
                     str(c.get("source", "")).startswith("project:")
-                    or str(c.get("source", "")).startswith("extra:")
+                    or str(c.get("source", "")).startswith("doc:")
                     or str(c.get("source", "")).startswith("pack:summary")
                     or str(c.get("source", "")).startswith("pack:values")
                 )
@@ -280,14 +288,6 @@ def retrieve_relevant_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]
         if filtered:
             return filtered[: max(1, top_k)]
     return result
-
-
-def retrieve_relevant_context(query: str, top_k: int = 6) -> str:
-    chunks = retrieve_relevant_chunks(query, top_k=top_k)
-    if not chunks:
-        return ""
-    lines = [f"- [{c['source']}] (score={c['score']}) {c['text']}" for c in chunks]
-    return "\n".join(lines)
 
 
 def get_allowed_topics() -> list[str]:

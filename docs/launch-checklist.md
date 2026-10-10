@@ -19,12 +19,12 @@
 - [ ] OpenAI Usage 페이지에서 월별 한도 알림 설정
 
 ## 4. 배포 절차
-- [ ] `frontend/.env`와 `backend/.env` 운영 값을 Secret Manager/Vercel Secrets에 업로드
+- [ ] `frontend/.env`와 `backend/.env.local` 운영 값을 Secret Manager/Vercel Secrets에 업로드
 - [ ] `infra/docker-compose.staging.yml`로 최종 스테이징 연습 배포 완료
 - [ ] `docs/deployment.md`에 운영 도메인/CORS 값 업데이트
 
 ## 5. 커뮤니케이션
-- [ ] `history_log/YYYY-MM-DD.md`에 릴리즈 결정과 변경 사항 기록
+- [ ] 릴리즈 결정과 변경 사항을 커밋·PR 설명에 기록
 - [ ] 309용 온보딩 문서(사용법, 제한사항, 지원 채널)를 정리해 공유
 - [ ] ref 링크 전략 및 초대 대상 리스트 검토
 

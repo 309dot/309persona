@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 BAD_ARTIFACT_MARKERS = [
     "resume context",
     "rag retrieved context",

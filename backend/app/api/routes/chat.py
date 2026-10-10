@@ -1,124 +1,103 @@
-"""Chat endpoints for question/answer workflow."""
+"""Chat endpoints: JSON (/api/chat), Server-Sent Events (/api/chat/stream) and answer feedback."""
 
-import logging
+from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+import asyncio
+import json
+import threading
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
+
+from ...core.rate_limiter import client_ip
+from ...services import chat_runner, conversation_service
+from ...services.direct_pipeline import HistoryTurn
 from .. import schemas
-from ...core.config import settings
-from ...core.rate_limiter import get_session_rate_limiter
-from ...services import (
-    conversation_service,
-    llm_service,
-    question_filter,
-    visitor_service,
-)
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+
+# Comment lines keep proxies from closing the connection while the model is slow to start.
+PING_SECONDS = 15
+SESSION_NOT_FOUND = "세션을 찾을 수 없습니다."
+
+
+def _prepare(payload: schemas.ChatRequest, request: Request) -> chat_runner.Turn:
+    history = [HistoryTurn(question=item.question, answer=item.answer) for item in payload.history]
+    try:
+        return chat_runner.prepare_turn(payload.session_id, payload.question, history, client_ip(request))
+    except chat_runner.SessionNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SESSION_NOT_FOUND) from exc
 
 
 @router.post("", response_model=schemas.ChatResponse)
-def ask_question(payload: schemas.ChatRequest):
-    try:
-        visitor = visitor_service.get_visitor_by_session(payload.session_id)
-        if not visitor:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="세션을 찾을 수 없습니다."
-            )
+def ask_question(payload: schemas.ChatRequest, request: Request):
+    """Whole answer in one response. Kept for clients that don't stream."""
+    turn = _prepare(payload, request)
+    if turn.blocked:
+        return schemas.ChatResponse(session_id=payload.session_id, **turn.blocked)
 
-        limiter = get_session_rate_limiter()
-        if not limiter.touch(payload.session_id):
-            reason = "세션당 허용된 질문 수를 초과했습니다. 새 세션으로 다시 시도해 주세요."
-            conversation_service.log_conversation(
-                session_id=payload.session_id,
-                visitor_id=visitor.get("id", payload.session_id),
-                question=payload.question,
-                answer=reason,
-                category=None,
-                is_blocked=True,
-            )
-            return schemas.ChatResponse(
-                session_id=payload.session_id,
-                answer=reason,
-                blocked=True,
-                reason=reason,
-                category=None,
-            )
+    events: List[Tuple[str, Dict[str, Any]]] = []
+    chat_runner.run_turn(turn, lambda event, data: events.append((event, data)), threading.Event())
+    event, data = events[-1]
+    if event == "error":
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=data)
+    return schemas.ChatResponse(session_id=payload.session_id, **data)
 
-        allowed, category, rejection = question_filter.validate_question(payload.question)
-        if not allowed:
-            conversation_service.log_conversation(
-                session_id=payload.session_id,
-                visitor_id=visitor.get("id", payload.session_id),
-                question=payload.question,
-                answer=rejection or settings.blocked_message,
-                category=category,
-                is_blocked=True,
-            )
-            return schemas.ChatResponse(
-                session_id=payload.session_id,
-                answer=rejection or settings.blocked_message,
-                blocked=True,
-                reason=rejection or settings.blocked_message,
-                category=category,
-            )
 
+def _sse(event: str, data: Dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+
+async def _event_stream(turn: chat_runner.Turn) -> AsyncIterator[str]:
+    if turn.blocked:
+        yield _sse("blocked", turn.blocked)
+        return
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[Optional[Tuple[str, Dict[str, Any]]]] = asyncio.Queue()
+    cancel = threading.Event()
+
+    def emit(event: str, data: Dict[str, Any]) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, (event, data))
+
+    def produce() -> None:
         try:
-            answer, citations = llm_service.generate_persona_answer(payload.question, category, visitor)
-            if "경력 관련 질문만 응답" in (answer or "") and category:
-                logger.warning("fallback phrase detected in non-blocked path; forcing rag rescue answer")
-                answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
-        except Exception as exc:
-            logger.exception("persona answer generation failed: %s", exc)
-            answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
-            conversation_service.log_conversation(
-                session_id=payload.session_id,
-                visitor_id=visitor.get("id", payload.session_id),
-                question=payload.question,
-                answer=answer,
-                category=category,
-                is_blocked=False,
-            )
-            return schemas.ChatResponse(
-                session_id=payload.session_id,
-                answer=answer,
-                blocked=False,
-                reason=None,
-                category=category,
-                citations=citations,
-            )
+            chat_runner.run_turn(turn, emit, cancel)
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
 
-        if "경력 관련 질문만 응답" in (answer or ""):
-            answer, citations = llm_service.build_rag_rescue_answer(payload.question, category)
+    loop.run_in_executor(None, produce)
+    try:
+        while True:
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=PING_SECONDS)
+            except asyncio.TimeoutError:
+                yield ": ping\n\n"
+                continue
+            if item is None:
+                break
+            yield _sse(*item)
+    finally:
+        # Client went away (or we finished): stop reading from the model.
+        cancel.set()
 
-        conversation_service.log_conversation(
-            session_id=payload.session_id,
-            visitor_id=visitor.get("id", payload.session_id),
-            question=payload.question,
-            answer=answer,
-            category=category,
-            is_blocked=False,
-        )
 
-        return schemas.ChatResponse(
-            session_id=payload.session_id,
-            answer=answer,
-            blocked=False,
-            reason=None,
-            category=category,
-            citations=citations,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("chat endpoint unexpected error: %s", exc)
-        # Never leak 500 to user-facing chat; degrade gracefully.
-        return schemas.ChatResponse(
-            session_id=payload.session_id,
-            answer="잠시 응답 품질 점검 중이에요. 지금 질문은 받아두었고, 같은 질문을 한 번만 다시 보내주시면 안정적으로 답할게요.",
-            blocked=False,
-            reason=None,
-            category="general",
-            citations=[],
-        )
+@router.post("/stream")
+async def ask_question_stream(payload: schemas.ChatRequest, request: Request):
+    """Answer as Server-Sent Events: start, delta…, then done | error (or a single blocked)."""
+    turn = await run_in_threadpool(_prepare, payload, request)
+    return StreamingResponse(
+        _event_stream(turn),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.post("/feedback")
+def submit_feedback(payload: schemas.FeedbackCreate):
+    saved = conversation_service.record_feedback(payload.session_id, payload.conversation_id, payload.rating)
+    if not saved:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="답변을 찾을 수 없습니다.")
+    return {"ok": True}

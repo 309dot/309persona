@@ -2,10 +2,29 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Why the visitor came, picked on the first screen (labels in visitor_service.PURPOSE_LABELS).
+VisitorPurpose = Literal["hiring", "colleague", "designer", "browsing"]
+
+# Truncate (not reject) free-text visitor fields so an overlong value can't
+# break session creation.
+VISITOR_FIELD_LIMITS = {
+    "visitor_name": 50,
+    "visitor_affiliation": 100,
+    "visit_ref": 100,
+    "referrer": 500,
+}
+
+
+def _truncate(value: Optional[str], limit: int) -> Optional[str]:
+    if value is None:
+        return None
+    return value.strip()[:limit]
 
 
 class VisitorCreate(BaseModel):
@@ -13,6 +32,23 @@ class VisitorCreate(BaseModel):
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
+    visitor_purpose: Optional[VisitorPurpose] = None
+
+    @field_validator(*VISITOR_FIELD_LIMITS, mode="before")
+    @classmethod
+    def truncate_fields(cls, value, info):
+        return _truncate(value, VISITOR_FIELD_LIMITS[info.field_name]) if isinstance(value, str) else value
+
+
+class VisitorUpdate(BaseModel):
+    visitor_name: Optional[str] = None
+    visitor_affiliation: Optional[str] = None
+    visitor_purpose: Optional[VisitorPurpose] = None
+
+    @field_validator("visitor_name", "visitor_affiliation", mode="before")
+    @classmethod
+    def truncate_fields(cls, value, info):
+        return _truncate(value, VISITOR_FIELD_LIMITS[info.field_name]) if isinstance(value, str) else value
 
 
 class VisitorResponse(BaseModel):
@@ -21,11 +57,25 @@ class VisitorResponse(BaseModel):
     visitor_affiliation: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
+    visitor_purpose: Optional[str] = None
+
+
+class HistoryTurn(BaseModel):
+    """A previous question and answer from the same chat, sent back by the client."""
+
+    question: str = Field(..., max_length=1000)
+    answer: str = Field(..., max_length=4000)
 
 
 class ChatRequest(BaseModel):
-    session_id: str = Field(..., min_length=8)
-    question: str = Field(..., min_length=4)
+    session_id: str = Field(..., min_length=8, max_length=64)
+    question: str = Field(..., min_length=4, max_length=1000)
+    history: List[HistoryTurn] = Field(default_factory=list, max_length=10)
+
+
+class SourceLabel(BaseModel):
+    id: str
+    label: str
 
 
 class ChatResponse(BaseModel):
@@ -35,6 +85,17 @@ class ChatResponse(BaseModel):
     reason: Optional[str] = None
     category: Optional[str] = None
     citations: List[str] = Field(default_factory=list)
+    sources: List[SourceLabel] = Field(default_factory=list)
+    follow_ups: List[str] = Field(default_factory=list)
+    conversation_id: Optional[str] = None
+    remaining: Optional[int] = None
+    limit: Optional[int] = None
+
+
+class FeedbackCreate(BaseModel):
+    session_id: str = Field(..., min_length=8, max_length=64)
+    conversation_id: str = Field(..., min_length=1, max_length=64)
+    rating: Literal["up", "down"]
 
 
 class StatPoint(BaseModel):
@@ -46,6 +107,7 @@ class VisitorRecord(BaseModel):
     id: str
     visitor_name: Optional[str] = None
     visitor_affiliation: Optional[str] = None
+    visitor_purpose: Optional[str] = None
     visit_ref: Optional[str] = None
     referrer: Optional[str] = None
     session_id: Optional[str] = None
@@ -60,6 +122,13 @@ class ConversationRecord(BaseModel):
     category: Optional[str] = None
     is_blocked: bool = False
     timestamp: Optional[datetime] = None
+    pipeline: Optional[str] = None
+    model: Optional[str] = None
+    latency_ms: Optional[int] = None
+    first_token_ms: Optional[int] = None
+    error: Optional[str] = None
+    feedback: Optional[str] = None
+    sources: List[str] = Field(default_factory=list)
 
 
 class FunnelStepStat(BaseModel):
@@ -71,9 +140,17 @@ class FunnelStepStat(BaseModel):
 
 class DashboardKpis(BaseModel):
     total_sessions: int = 0
+    visits: int = 0
     avg_questions_per_session: float = 0.0
     blocked_rate: float = 0.0
     readiness_rate: float = 0.0
+    failure_rate: float = 0.0
+    latency_p50_ms: Optional[int] = None
+    first_token_p50_ms: Optional[int] = None
+    feedback_up: int = 0
+    feedback_down: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
 class DashboardStats(BaseModel):
@@ -85,11 +162,64 @@ class DashboardStats(BaseModel):
     recent_questions: List[ConversationRecord]
     funnel_steps: List[FunnelStepStat] = Field(default_factory=list)
     kpis: DashboardKpis = Field(default_factory=DashboardKpis)
+    purpose_stats: List[StatPoint] = Field(default_factory=list)
+
+
+class SessionDetail(BaseModel):
+    session_id: str
+    visitor: Optional[VisitorRecord] = None
+    conversations: List[ConversationRecord]
 
 
 class FunnelEventCreate(BaseModel):
-    session_id: str = Field(..., min_length=8)
-    event: str = Field(..., min_length=2)
+    session_id: str = Field(..., min_length=8, max_length=64)
+    event: str = Field(..., pattern=r"^[a-z0-9_]{2,64}$")
     properties: dict = Field(default_factory=dict)
 
+    @field_validator("properties")
+    @classmethod
+    def limit_properties(cls, value: dict) -> dict:
+        if len(value) > 20 or len(json.dumps(value, ensure_ascii=False, default=str)) > 2000:
+            raise ValueError("properties must have at most 20 keys and 2000 characters")
+        return value
 
+
+
+
+class GraphNode(BaseModel):
+    id: str
+    label: str
+    kind: Literal["center", "project", "doc", "topic", "note"]
+    group: Optional[str] = None
+    meta: Optional[str] = None
+    summary: Optional[str] = None
+    question: Optional[str] = None
+    pages: Optional[str] = None
+
+
+class KnowledgeGraph(BaseModel):
+    nodes: List[GraphNode]
+    edges: List[List[str]]
+    version: int
+
+
+class KnowledgeNoteInfo(BaseModel):
+    id: str
+    title: str
+    kind: str
+    path: str
+    chars: int
+    included: bool
+    links: int = 0
+
+
+class KnowledgeStatus(BaseModel):
+    source: Literal["none", "local", "github"]
+    loaded_at: Optional[datetime] = None
+    error: Optional[str] = None
+    notes: List[KnowledgeNoteInfo] = Field(default_factory=list)
+    skipped: List[str] = Field(default_factory=list)
+    notes_chars: int = 0
+    notes_left_out: int = 0
+    notes_max_chars: int = 0
+    prompt_chars: int = 0

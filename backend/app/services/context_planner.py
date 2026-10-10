@@ -1,11 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass
@@ -54,24 +49,6 @@ def build_retrieval_plan(question: str) -> RetrievalPlan:
     return RetrievalPlan(intent, ["project", "working", "reference"], "narrative", False, project_pack, "mixed")
 
 
-def _load_latest_record(kind: str, project_pack: str) -> str:
-    folder = ROOT / "memory" / ("decisions" if kind == "decision" else "failures")
-    if not folder.exists():
-        return ""
-    files = sorted([p for p in folder.glob("*.json") if p.name != "schema.json"], reverse=True)
-    for p in files:
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if str(data.get("project", "")).lower() not in {project_pack.lower(), "309persona", ""}:
-            continue
-        if kind == "decision":
-            return f"{data.get('topic','')}: {data.get('decision','')} (reason: {data.get('reason','')})".strip()
-        return f"{data.get('topic','')}: {data.get('symptom','')} -> {data.get('fix','')}".strip()
-    return ""
-
-
 def compose_context_sections(plan: RetrievalPlan, rag_chunks: list[dict]) -> str:
     by_type: dict[str, list[str]] = {k: [] for k in ["identity", "project", "working", "decision", "failure", "reference"]}
     for c in rag_chunks:
@@ -98,14 +75,6 @@ def compose_context_sections(plan: RetrievalPlan, rag_chunks: list[dict]) -> str
             ordered.append(f"[{src}] {by_type[src][0][:220]}")
     if by_type.get("failure"):
         ordered.append(f"[failure] {by_type['failure'][0][:220]}")
-
-    latest_decision = _load_latest_record("decision", plan.project_pack)
-    if latest_decision:
-        ordered.append(f"[latest_decision] {latest_decision[:220]}")
-
-    latest_failure = _load_latest_record("failure", plan.project_pack)
-    if latest_failure:
-        ordered.append(f"[latest_failure] {latest_failure[:220]}")
 
     if not ordered:
         return ""

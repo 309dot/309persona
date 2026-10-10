@@ -1,0 +1,15 @@
+# Build context is the repo root (docker build -f backend/Dockerfile .)
+.git
+.github
+.claude
+**/node_modules
+**/__pycache__
+frontend
+docs
+qa
+infra
+backend/.venv
+backend/tests
+knowledge_base/309files/pdf
+knowledge_base/drafts
+knowledge_base/instructions

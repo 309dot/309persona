@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - name: Typecheck and build
+        run: npm run build
+      - name: Initial bundle size budget
+        run: npm run size
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv no longer moves major tags, so pin the release.
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          working-directory: backend
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run --frozen ruff check .
+      - name: Compile all modules
+        run: uv run --frozen python -m compileall -q app scripts evals
+      - name: Test
+        run: uv run --frozen pytest
+      - name: requirements.txt matches uv.lock
+        # Render and the Docker image install from requirements.txt. Regenerate with:
+        # uv export --no-hashes --no-dev --format requirements-txt --quiet -o requirements.txt
+        # Dependabot PRs are re-exported by dependabot-requirements.yml instead
+        # (both the PR run and the branch push run Dependabot triggers).
+        if: github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+        run: diff <(grep -v '^#' requirements.txt) <(uv export --frozen --no-hashes --no-dev --no-header --format requirements-txt --quiet)
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t persona-api:ci .
+      - name: Start container and wait for /health
+        run: |
+          docker run -d --name api -p 8080:8080 persona-api:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/health && exit 0
+            sleep 1
+          done
+          docker logs api
+          exit 1
+      - name: Knowledge base loads inside the image
+        run: |
+          docker exec api python -c "
+          from app.services.knowledge_base import retrieve_relevant_chunks
+          chunks = retrieve_relevant_chunks('디자인 시스템 경험', top_k=3)
+          assert chunks, 'no knowledge chunks'
+          print([c['source'] for c in chunks])
+          "

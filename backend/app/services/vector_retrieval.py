@@ -14,6 +14,8 @@ def _client() -> OpenAI:
     return OpenAI(
         api_key=(settings.openai_api_key or "ollama"),
         base_url=(settings.openai_base_url or "http://127.0.0.1:11434/v1"),
+        timeout=settings.llm_timeout_seconds,
+        max_retries=settings.llm_max_retries,
     )
 
 
@@ -24,6 +26,8 @@ def retrieve_vector_chunks(query: str, top_k: int = 6) -> List[Dict[str, str]]:
     emb = _client().embeddings.create(
         model=settings.rag_embedding_model,
         input=query,
+        # openai>=3 defaults to base64; keep the float wire format Ollama and pgvector code expect.
+        encoding_format="float",
     ).data[0].embedding
     emb_literal = "[" + ",".join(str(v) for v in emb) + "]"
 
