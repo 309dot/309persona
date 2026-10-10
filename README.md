@@ -15,9 +15,8 @@
 frontend/        # React 웹앱
 backend/         # FastAPI 서버
 knowledge_base/  # 309 지식베이스 JSON/문서
-docs/            # 설계 및 운영 문서
+docs/            # 설계 및 운영 문서 (docs/archive: 이전 개발 기록)
 qa/              # QA 시나리오 및 자동화 스크립트
-history_log/     # 일자별 변경 이력
 plan/            # 상위 기획 문서
 ```
 
@@ -69,6 +68,6 @@ npm run dev
 
 - `docs/` 폴더에 시스템 다이어그램, API 명세, 페르소나 정의 문서를 정리합니다.
 - `qa/` 폴더에는 기능/교란 방지 테스트 케이스 및 자동화 스크립트를 추가합니다.
-- 모든 변경 사항은 `history_log/YYYY-MM-DD.md` 파일에 기록합니다.
+- 변경 이력은 git 커밋과 PR로 관리합니다. 이전 일자별 기록은 `docs/archive/history_log/`에 있습니다.
 
 

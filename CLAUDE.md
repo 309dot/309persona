@@ -77,5 +77,5 @@ PYTHONPATH=. .venv/bin/python scripts/usage_report.py --months 6
 
 - 레포가 public이다. 서비스 계정 키·`.env*`뿐 아니라 방문자 질문·이름 같은 Firestore 데이터 export도 커밋하지 않는다(`reports/`는 gitignore됨).
 - `/entry`, `/chat` 라우트와 `src/components/` 일부는 레거시다. 새 기능은 `/persona` 기준으로 작업한다.
-- `memory/`, `.taskmaster/`, `.cursor/plans/`, `history_log/`는 이전 개발 에이전트의 작업 기록이다. 앱이 읽지 않으며 프롬프트에 연결하지 않는다.
+- `docs/archive/`는 이전 개발 기록(Cursor 기획, Taskmaster 작업 목록, 일자별 로그, 개발 에이전트 메모리)이다. 앱이 읽지 않으며 프롬프트에 연결하지 않는다.
 - 답변 품질 문제를 키워드 리스트나 재시도 추가로 막지 않는다. 휴리스틱 계층은 계획서 Phase 3에서 교체 대상이다.

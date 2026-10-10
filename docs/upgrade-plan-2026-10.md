@@ -179,7 +179,7 @@ question_filter(키워드) → lexical 검색 → 키워드 rerank("2024" 가산
 - [ ] Firestore에서 최근 6개월 세션·질문 수 집계 → 비용 산정, 평가셋 재료 — `backend/scripts/usage_report.py` 추가 완료, 자격 증명이 있는 환경에서 실행 대기
 - [x] 개발 환경: `CLAUDE.md`, `.nvmrc`(24) + `engines`, 클라우드 세션용 SessionStart 훅(`.claude/hooks/session-start.sh`). 권한 allowlist는 사용 패턴이 쌓인 뒤 `/fewer-permission-prompts`로 만든다
 - [x] CI(GitHub Actions, `.github/workflows/ci.yml`): 프론트 lint·typecheck·build, 백엔드 compile + 스모크 테스트 2종(`answer_quality_smoke_test.py`, 신규 `api_smoke_test.py`) — 첫 실행 통과
-- [ ] 개발 산출물 정리 결정: `.cursor/`, `.taskmaster/`, `history_log/`, `memory/` → `docs/archive/`로 이동 또는 삭제 — 사용자 결정 대기
+- [x] 개발 산출물 정리: `.cursor/plans/`, `.taskmaster/`, `history_log/`, `memory/`(+ `update_working_memory.py`) → `docs/archive/`로 이동
 - [x] 2025-12부터 열려 있던 vercel[bot] draft PR 2개(Vercel Web Analytics, 내용 동일) 닫음 — Phase 4 관측성에서 재검토
 
 **운영 실태 (2026-10-10)** — 보안 관련 값은 public 레포라 기록하지 않는다
