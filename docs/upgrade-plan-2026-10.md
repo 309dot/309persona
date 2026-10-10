@@ -119,10 +119,11 @@
 - 운영에서 답변이 나오지 않음: 예전에는 LLM 실패를 고정 문단으로 덮어 드러나지 않았다. LLM 연결(남은 일 1·2)이 필요하다
 - legacy 파이프라인도 `LLM_TEMPERATURE`를 따르게 함(고정 0.35/0.45였음). Gemini 3 계열은 기본값 1.0을 권장한다
 - 기록 지도가 가끔 빈 화면이 되던 원인: 첫 프레임 시각이 지도 생성 시각보다 이르면 경과 시간이 음수가 되어 궤도 반지름이 음수 → `ctx.ellipse` 예외로 그리기 루프가 멈춤. 경과 시간을 0 아래로 내려가지 않게 고침. E2E가 처리 안 된 예외를 실패로 세면서 드러났고, 프레임 시각을 앞당겨 매번 재현하는 검사를 넣음
+- Claude 예비 연결(사용자 결정: Gemini 기본, 예비는 Claude Haiku 5.5): `ANTHROPIC_API_KEY`가 있으면 두 파이프라인 모두 OpenAI 호환 모델이 첫 글자 전에 실패할 때 Claude가 답한다(`services/claude_client.py`, 공식 `anthropic` SDK). OpenAI 호환 키 없이 Claude 키만 있으면 Claude만 쓴다. temperature는 보내지 않고(Haiku 5.5는 400), 지식베이스 시스템 프롬프트는 캐시, 거절(refusal)은 실패로 처리. 대화 로그의 모델은 실제로 답한 모델. legacy 품질 재호출이 실패하면 앞 답을 쓴다(예전에는 질문 전체가 실패). `OPENAI_FALLBACK_MODEL` 기본값을 비움(같은 주소에 없는 `qwen3:32b`를 부르던 문제). 가짜 Claude(`fake_llm.py`의 `/v1/messages`)로 실제 SDK를 돌리는 브라우저 검사 `e2e_claude.cjs`(direct 24·legacy 21)
 
 **남은 일 (사용자 확인 필요, 우선순위 순)**
 
-1. Render 환경 변수: LLM 연결(지금 운영에서 답변이 안 나옴 → `docs/deployment.md` "LLM 연결"의 Gemini 값), `ADMIN_ALLOWED_EMAILS`(비면 대시보드 403), `TRUSTED_PROXY_HOPS`(Render 1)
+1. Render 환경 변수: LLM 연결(지금 운영에서 답변이 안 나옴 → `docs/deployment.md` "LLM 연결"의 Gemini 값과 "Claude 예비 연결"의 `ANTHROPIC_API_KEY`), `ADMIN_ALLOWED_EMAILS`(비면 대시보드 403), `TRUSTED_PROXY_HOPS`(Render 1)
 2. D1: 무료 모델(Gemini 무료 등급)로 결정 → AI Studio 키 발급(`GEMINI_API_KEY`) → `uv run python -m evals.run --pipeline both` → direct 전환 여부 판단. PM 방향으로 바꾼 지식베이스·프롬프트도 이때 함께 확인한다
 3. 비공개 노트 저장소·토큰 설정, 노트 샘플 2~3개로 템플릿·변환 확인 → 실제 노트 작성(`docs/obsidian-notes.md`)
 4. Firestore 자격 증명이 있는 환경에서 `scripts/usage_report.py --months 6` → 비용 산정, 평가셋 보강

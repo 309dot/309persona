@@ -51,8 +51,10 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고(첫 화면에서 고른 방문 목적 `visitor_purpose` 포함) 질문을 `POST /api/chat/stream`(SSE)으로 보낸다. 직전 답변 3개를 `history`로 함께 보낸다. 이벤트는 `start`(남은 질문 수, 질문 단어로 고른 기록 지도 노드 `related`) → `delta`… → `answer_end`(본문 끝, 이때부터 다음 질문 가능) → `done`(근거·후속 질문·`conversation_id`·남은 질문 수) 또는 `error`, 차단이면 `blocked` 하나. 백엔드에 스트림 경로가 없으면(404 "Not Found") 한 번 확인 후 `POST /api/chat`(JSON)으로 바꾼다. SSE 파서와 API 주소 결정(`resolveBaseUrl()`)은 `src/services/api.ts`.
 2. `backend/app/api/routes/chat.py` → `services/chat_runner.py`: `prepare_turn()`이 방문자 조회 → 세션 한도·IP 한도(`core/rate_limiter.py`, 메모리) → `question_filter`(탈옥 정규식만 차단)를 처리하고, `run_turn()`이 `ANSWER_PIPELINE`에 따라 답을 만든다.
-   - `direct`(`services/direct_pipeline.py`): `app/prompts/persona_direct.txt` + 지식베이스 전체(`knowledge_document.render_knowledge_block()`, 출처 id `PROFILE`·`P1..`·`RESUME`·`NOTES`·비공개 노트 `N:슬러그`) + 대화 이력 + 방문자 정보로 LLM을 **한 번** 스트리밍 호출한다. 모델은 답변 뒤에 `<<<META>>>`와 JSON(sources, follow_ups, topic)을 쓰고, `StreamParser`가 이 부분과 `<think>` 블록을 화면에서 숨긴다. 예비 모델(`OPENAI_FALLBACK_MODEL`)은 첫 글자가 나가기 전 실패에만 쓴다.
+   - `direct`(`services/direct_pipeline.py`): `app/prompts/persona_direct.txt` + 지식베이스 전체(`knowledge_document.render_knowledge_block()`, 출처 id `PROFILE`·`P1..`·`RESUME`·`NOTES`·비공개 노트 `N:슬러그`) + 대화 이력 + 방문자 정보로 LLM을 **한 번** 스트리밍 호출한다. 모델은 답변 뒤에 `<<<META>>>`와 JSON(sources, follow_ups, topic)을 쓰고, `StreamParser`가 이 부분과 `<think>` 블록을 화면에서 숨긴다. 예비 모델(`OPENAI_FALLBACK_MODEL`, 그다음 Claude)은 첫 글자가 나가기 전 실패에만 쓴다.
    - `legacy`(`services/llm_service.py`, 기본값): 지식팩 요약 + lexical 검색 + 키워드 rerank를 `system_prompt.txt`에 넣고 호출한 뒤 `answer_quality` 게이트로 최대 3회 재호출, 그래도 안 되면 `rag_fallback`의 고정 문단. 이력은 쓰지 않는다.
+   - 모델 순서는 두 방식 모두 `llm_service.model_chain()`: `OPENAI_MODEL` → `OPENAI_FALLBACK_MODEL` → Claude(`ANTHROPIC_API_KEY`가 있을 때, `services/claude_client.py`, 공식 `anthropic` SDK). OpenAI 호환 키가 비어 있고 Claude 키만 있으면 Claude만 쓴다. legacy의 품질 재호출은 처음 답한 모델로 하고, 재호출이 실패하면 앞 답을 쓴다. 대화 로그의 `model`은 실제로 답한 모델이다.
+   - Claude 호출에는 temperature를 보내지 않는다(Claude Haiku 5.5는 기본값이 아닌 샘플링 값을 400으로 거부). 지식베이스 시스템 프롬프트는 캐시 표시를 붙이고, 생각 토큰이 출력 한도에 들어가므로 `max_tokens`는 4096 이상, 추론 강도는 `ANTHROPIC_EFFORT`(low). `stop_reason`이 refusal이면 실패로 처리한다.
 3. LLM 예외는 SSE `error` / JSON `503`으로 그대로 알리고, 그 질문은 한도에서 돌려준다(`release`). 가짜 답변으로 덮지 않는다. 화면은 "다시 시도" 버튼을 보여 준다.
 4. 대화 로그(`conversations`)에 pipeline, model, latency_ms, first_token_ms, 토큰 수, sources, follow_ups, error(실패 코드)를 남기고, 방문자 피드백은 `POST /api/chat/feedback`이 같은 문서에 `feedback`으로 쓴다(자기 세션의 답변만).
 
@@ -95,6 +97,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 - `backend/app/core/config.py`의 pydantic-settings가 **`backend/.env.local`** 을 읽는다(`.env` 아님). 샘플은 `backend/env.sample`.
 - `ALLOWED_ORIGINS`, `ADMIN_ALLOWED_EMAILS`는 쉼표 구분과 JSON 배열 둘 다 받는다. `ADMIN_ALLOWED_EMAILS`가 비어 있으면 대시보드는 모두 403이다(fail-closed).
+- `ANTHROPIC_API_KEY`(비우면 Claude 예비 연결 없음)·`ANTHROPIC_MODEL`(claude-haiku-5-5)·`ANTHROPIC_EFFORT`(low)·`ANTHROPIC_BASE_URL`(QA용). 테스트(`tests/conftest.py`)와 QA 스택은 실제 Claude를 부르지 않도록 키를 비운다.
 - `ANSWER_PIPELINE`(legacy|direct), `CHAT_HISTORY_TURNS`, `LLM_TEMPERATURE`, `LLM_MAX_OUTPUT_TOKENS`, `LLM_STREAM_USAGE`(스트림 토큰 사용량 요청, 지원 안 하는 서버면 false), `LLM_REASONING_EFFORT`(생각하는 모델의 reasoning_effort. 생각 토큰도 출력 한도에 들어가므로 켜면 출력 한도를 올린다. Gemini 연결 예시는 `docs/deployment.md`).
 - `NOTES_GITHUB_REPO`·`NOTES_GITHUB_TOKEN`(그 저장소 Contents 읽기 전용)·`NOTES_GITHUB_REF`·`NOTES_SUBDIR`·`NOTES_DIR`·`NOTES_MAX_CHARS`(프롬프트에 넣는 노트 분량).
 - 질문 한도는 백엔드 `MAX_SESSION_QUESTIONS`(기본 5)가 기준이고 응답의 `remaining`·`limit`을 프론트가 그대로 표시한다. 같은 IP는 `MAX_IP_QUESTIONS`/`MAX_IP_SESSIONS`(`IP_WINDOW_MINUTES`)로 막는다. 클라이언트 IP는 `X-Forwarded-For`의 오른쪽에서 `TRUSTED_PROXY_HOPS`번째 값이다(Render 1). 한도는 프로세스 메모리라 재배포 때 초기화되고 인스턴스끼리 공유되지 않는다.

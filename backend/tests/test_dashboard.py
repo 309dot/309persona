@@ -2,19 +2,8 @@
 
 from types import SimpleNamespace
 
-import pytest
-
 from app.core.config import settings
 from app.services import conversation_service, direct_pipeline, visitor_service
-from tests.fake_firestore import FakeFirestore
-
-
-@pytest.fixture
-def db(monkeypatch):
-    fake = FakeFirestore()
-    for module in (conversation_service, visitor_service):
-        monkeypatch.setattr(module, "get_firestore_client", lambda: fake)
-    return fake
 
 
 def log(session_id, question, **fields):

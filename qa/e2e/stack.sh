@@ -1,7 +1,7 @@
 #!/bin/bash
 # Local QA stack: fake LLM (11500) + backend with in-memory Firestore (8000) + vite preview (4173).
 # usage: qa/e2e/stack.sh build | build-admin | start | stop | restart
-# Env passed through to the backend: ANSWER_PIPELINE=direct, QA_FAKE_ADMIN=1.
+# Env passed through to the backend: ANSWER_PIPELINE=direct, QA_FAKE_ADMIN=1, QA_NOTES=1, QA_CLAUDE=1.
 set -u
 QA="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$QA/../.." && pwd)"

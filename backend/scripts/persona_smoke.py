@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="실제 OpenAI 호출 대신 생성될 페이로드만 출력",
+        help="실제 LLM 호출 대신 생성될 페이로드만 출력",
     )
     return parser.parse_args()
 
@@ -43,9 +43,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    api_key_set = bool(os.getenv("OPENAI_API_KEY"))
+    api_key_set = bool(os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"))
     if not api_key_set:
-        print("[경고] OPENAI_API_KEY가 설정되지 않았습니다. .env.local을 확인해 주세요.")
+        print("[경고] OPENAI_API_KEY·ANTHROPIC_API_KEY가 모두 비어 있습니다. .env.local을 확인해 주세요.")
         if not args.dry_run:
             print("`--dry-run` 옵션으로 프롬프트만 미리 확인할 수 있습니다.")
             sys.exit(1)
@@ -67,9 +67,10 @@ def main() -> None:
         print(prompt)
         return
 
-    answer = llm_service.generate_persona_answer(args.question, category, visitor)
-    print("=== PERSONA ANSWER ===")
+    answer, citations, model = llm_service.generate_persona_answer(args.question, category, visitor)
+    print(f"=== PERSONA ANSWER ({model}) ===")
     print(answer)
+    print("근거:", ", ".join(citations) or "없음")
 
 
 if __name__ == "__main__":

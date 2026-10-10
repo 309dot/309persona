@@ -38,11 +38,18 @@ class Settings(BaseSettings):
     environment: str = Field(default="local")
     openai_api_key: str = Field(default="", description="LLM API Key (OpenAI or OpenAI-compatible)")
     openai_model: str = Field(default="qwen3:32b")
-    openai_fallback_model: str = Field(default="qwen3:32b")
+    openai_fallback_model: str = Field(default="", description="Tried when openai_model fails; empty: none")
     openai_base_url: str = Field(
         default="http://127.0.0.1:11434/v1",
         description="OpenAI-compatible base URL (e.g. Ollama /v1)",
     )
+    # Claude through the Anthropic API, tried after the OpenAI-compatible models (claude_client.py).
+    anthropic_api_key: str = Field(default="", description="Claude API key; empty: no Claude fallback")
+    anthropic_model: str = Field(default="claude-haiku-5-5")
+    anthropic_effort: str = Field(
+        default="low", description="output_config.effort (low | medium | high); empty: the model's default"
+    )
+    anthropic_base_url: str = Field(default="", description="Anthropic API URL override; empty: SDK default")
     answer_pipeline: str = Field(
         default="legacy",
         description="legacy: retrieval + quality-gate retries; direct: one streamed call with the full "

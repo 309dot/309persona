@@ -135,7 +135,7 @@ def test_empty_answer_is_an_error(client, session_id, direct):
 
 def test_legacy_pipeline_streams_one_delta(client, session_id, monkeypatch):
     monkeypatch.setattr(settings, "answer_pipeline", "legacy")
-    monkeypatch.setattr(llm_service, "generate_persona_answer", lambda q, c, v: ("레거시 답변이에요.", ["doc:resume#3"]))
+    monkeypatch.setattr(llm_service, "generate_persona_answer", lambda q, c, v: ("레거시 답변이에요.", ["doc:resume#3"], "local-model"))
     events = read_events(client, {"session_id": session_id, "question": "경력 알려줘"})
     assert [name for name, _ in events] == ["start", "delta", "done"]
     assert events[-1][1]["sources"] == [{"id": "RESUME", "label": "이력서"}]

@@ -9,7 +9,8 @@
    docker build -f backend/Dockerfile -t 309-agent-api .
    ```
 2. 환경 변수 (Render 대시보드 → Environment)
-   - `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` — OpenAI 호환 LLM 엔드포인트
+   - `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` — OpenAI 호환 LLM 엔드포인트(아래 "LLM 연결")
+   - `ANTHROPIC_API_KEY` — Claude 예비 연결(아래 "Claude 예비 연결"). 비우면 쓰지 않는다
    - `FIREBASE_CREDENTIALS_JSON` 또는 `FIREBASE_CREDENTIALS_PATH`
    - `KNOWLEDGE_PACK_PATH=/knowledge_base/309_knowledge_pack.json` (Docker 기본 복사 경로)
    - `ALLOWED_ORIGINS` (쉼표 구분 또는 JSON 배열)
@@ -40,17 +41,26 @@ OpenAI 호환 주소를 그대로 쓰므로 코드 변경 없이 환경 변수�
    OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
    OPENAI_API_KEY=<AI Studio 키>
    OPENAI_MODEL=gemini-3.5-flash-lite
-   OPENAI_FALLBACK_MODEL=gemini-3.8-flash
    LLM_REASONING_EFFORT=low
    LLM_MAX_OUTPUT_TOKENS=4096
    LLM_TEMPERATURE=1.0
    ```
-   - 무료 등급은 최신 Flash(`gemini-3.8-flash`)의 하루 요청 수가 매우 적다(포럼 보고 하루 20회, 공식 값은 AI Studio에서 확인). legacy 파이프라인은 질문 하나에 LLM을 여러 번 부를 수 있어 금방 바닥나므로, 무료로 운영할 때는 한도가 넉넉한 Flash-Lite를 기본으로 두고 Flash를 예비로 둔다. 결제를 켜면 둘을 바꿔도 된다.
-   - 예비 모델은 첫 글자가 나가기 전에 실패할 때(하루 한도 초과 포함)만 쓴다.
+   - 선택: `OPENAI_FALLBACK_MODEL=gemini-3.8-flash`. 무료 등급은 최신 Flash의 하루 요청 수가 매우 적다(포럼 보고 하루 20회, 공식 값은 AI Studio에서 확인). legacy 파이프라인은 질문 하나에 LLM을 여러 번 부를 수 있어 금방 바닥나므로, 무료로 운영할 때는 한도가 넉넉한 Flash-Lite를 기본으로 둔다. Claude 예비 연결을 켰다면 이 줄은 없어도 된다.
+   - 예비 모델은 첫 글자가 나가기 전에 실패할 때(하루 한도 초과 포함)만 쓴다. 순서는 `OPENAI_MODEL` → `OPENAI_FALLBACK_MODEL` → Claude.
    - Gemini의 Flash 계열은 생각하는 모델이라 생각 토큰도 출력 한도에 들어간다. 추론 강도를 낮추고 출력 한도를 올려 두지 않으면 답이 잘린다.
    - 대시보드의 토큰 수가 계속 0이면 `LLM_STREAM_USAGE=false`.
 3. 바꾼 뒤 `backend/evals`로 legacy와 direct를 비교하고(`uv run python -m evals.run --pipeline both`), 같거나 나으면 `ANSWER_PIPELINE=direct`로 바꾼다.
 4. 무료 등급은 질문·답변이 제공사의 서비스 개선에 쓰일 수 있다(방문자 화면의 개인정보 안내에 적어 둠). 비공개 노트도 모델로 전송되므로 공개하면 안 되는 내용은 노트에 넣지 않는다. 이 조건이 맞지 않으면 결제를 켠 유료 등급을 쓴다.
+
+### Claude 예비 연결
+
+Gemini(또는 다른 OpenAI 호환 모델)가 첫 글자를 쓰기 전에 실패하면 Claude가 대신 답한다. 공식 `anthropic` SDK로 부른다.
+
+1. Render 환경 변수에 `ANTHROPIC_API_KEY=<Claude API 키>`(`sk-ant-`로 시작)를 넣는다. 모델은 기본값 `claude-haiku-5-5`, 추론 강도는 `ANTHROPIC_EFFORT=low`.
+2. `OPENAI_API_KEY`를 비워 두고 이 키만 넣으면 Claude만으로 답한다.
+3. 어느 모델이 답했는지는 대시보드 대화 로그의 모델 값(`claude-haiku-5-5`)으로 본다. Claude가 자주 보이면 Gemini 쪽 키·한도를 확인한다.
+4. 비용: Claude Haiku 5.5는 입력 100만 토큰당 $0.10, 출력 $0.50(2026-10 기준, 프롬프트 10만 토큰 이하). 지식베이스 시스템 프롬프트는 캐시되어 다시 읽을 때 입력 단가의 0.1배다. 질문 하나에 지식베이스(비공개 노트 포함) 크기에 따라 대략 $0.001~0.01이다.
+5. 질문·직전 대화·방문자 이름과 소속이 Anthropic으로 전송된다(방문자 화면의 개인정보 안내는 "외부 AI 모델 서버"로 적혀 있어 그대로 맞다).
 
 ## Frontend (Vercel)
 
