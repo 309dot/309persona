@@ -16,7 +16,7 @@ anyio==4.15.1
     #   watchfiles
 cachecontrol==0.14.4
     # via firebase-admin
-certifi==2026.7.22
+certifi==2026.10.19
     # via
     #   httpcore
     #   httpx
@@ -33,17 +33,17 @@ cryptography==50.0.2
     #   pyjwt
 docstring-parser==0.18.0
     # via anthropic
-fastapi==0.143.0
+fastapi==0.161.1
     # via persona-backend
 firebase-admin==7.7.0
     # via persona-backend
-google-api-core==2.42.0
+google-api-core==2.43.0
     # via
     #   firebase-admin
     #   google-cloud-core
     #   google-cloud-firestore
     #   google-cloud-storage
-google-auth==2.61.0
+google-auth==2.62.0
     # via
     #   google-api-core
     #   google-cloud-core
@@ -55,7 +55,7 @@ google-cloud-core==2.8.0
     #   google-cloud-storage
 google-cloud-firestore==2.34.1 ; platform_python_implementation != 'PyPy'
     # via firebase-admin
-google-cloud-storage==3.17.0
+google-cloud-storage==3.17.1
     # via firebase-admin
 google-crc32c==1.9.0
     # via
@@ -63,16 +63,16 @@ google-crc32c==1.9.0
     #   google-resumable-media
 google-resumable-media==2.11.0
     # via google-cloud-storage
-googleapis-common-protos==1.75.5
+googleapis-common-protos==1.76.0
     # via
     #   google-api-core
     #   grpcio-status
-grpcio==1.84.0 ; platform_python_implementation != 'PyPy'
+grpcio==1.84.1 ; platform_python_implementation != 'PyPy'
     # via
     #   google-api-core
     #   google-cloud-firestore
     #   grpcio-status
-grpcio-status==1.84.0 ; platform_python_implementation != 'PyPy'
+grpcio-status==1.84.1 ; platform_python_implementation != 'PyPy'
     # via google-api-core
 h11==0.16.0
     # via
@@ -85,7 +85,7 @@ hpack==4.2.0
     # via h2
 httpcore==1.0.9
     # via httpx
-httpcore2==2.13.1 ; sys_platform != 'emscripten'
+httpcore2==2.16.0 ; sys_platform != 'emscripten'
     # via httpx2
 httptools==0.9.0
     # via uvicorn
@@ -93,7 +93,7 @@ httpx==0.28.1
     # via
     #   firebase-admin
     #   persona-backend
-httpx2==2.13.1
+httpx2==2.16.0
     # via
     #   anthropic
     #   openai
@@ -113,7 +113,7 @@ jiter==0.17.0
     #   openai
 msgpack==1.2.3
     # via cachecontrol
-openai==3.28.0
+openai==3.37.0
     # via persona-backend
 opentelemetry-api==1.45.1
     # via
@@ -138,18 +138,18 @@ pyasn1==0.6.4
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth
-pycparser==3.11 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
-pydantic==2.14.0
+pydantic==2.14.1
     # via
     #   anthropic
     #   fastapi
     #   openai
     #   persona-backend
     #   pydantic-settings
-pydantic-core==2.50.0
+pydantic-core==2.50.1
     # via pydantic
-pydantic-settings==2.15.0
+pydantic-settings==2.16.1
     # via persona-backend
 pyjwt==2.15.1
     # via firebase-admin
@@ -171,9 +171,9 @@ sniffio==1.3.1
     # via
     #   anthropic
     #   openai
-starlette==1.7.0
+starlette==1.9.0
     # via fastapi
-truststore==0.10.4 ; sys_platform != 'emscripten'
+truststore==0.10.5 ; sys_platform != 'emscripten'
     # via
     #   httpcore2
     #   httpx2
@@ -203,5 +203,5 @@ uvloop==0.23.0 ; platform_python_implementation != 'PyPy' and sys_platform != 'c
     # via uvicorn
 watchfiles==1.3.0
     # via uvicorn
-websockets==17.2
+websockets==17.3
     # via uvicorn
