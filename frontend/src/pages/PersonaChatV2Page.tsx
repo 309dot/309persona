@@ -34,6 +34,7 @@ import { AvatarPresence, MapIcon, StreamingText, ThinkingIndicator } from './per
 import { PrivacyNotice } from './persona/PrivacyNotice';
 import { ProjectCards } from './persona/ProjectCards';
 import { PURPOSES, purposeLabel, questionsFor, type VisitorPurpose } from './persona/purpose';
+import { loadWebCases, type WebCase } from './persona/webCases';
 import type {
   ChatOutcome,
   ChatSource,
@@ -685,6 +686,8 @@ export function PersonaChatV2Page() {
     }
 
     conversationStartedRef.current = true;
+    // Case covers and links for the project cards, fetched while the answer streams.
+    void loadWebCases();
     const threadId = randomId();
     const questionAt = new Date().toISOString();
     setThreads((prev) => [
@@ -736,6 +739,11 @@ export function PersonaChatV2Page() {
     setMapView(null);
     setViewer({ start: range?.[0] ?? 1, range, title });
     void trackFunnelEvent('portfolio_opened', { from, page: range?.[0] ?? 1 });
+  };
+
+  // The case opens in a new tab on the portfolio site; the chat stays as it is.
+  const trackCaseOpened = (from: string, webCase: WebCase) => {
+    void trackFunnelEvent('web_case_opened', { from, slug: webCase.slug });
   };
 
   const closePortfolio = useCallback(
@@ -951,6 +959,7 @@ export function PersonaChatV2Page() {
                                 .map((source) => nodesById.get(source.id))
                                 .filter((node): node is GraphNode => Boolean(node && (node.kind === 'project' || node.kind === 'note')))}
                               onOpen={(node, range) => openPortfolio('project_card', range, node.label)}
+                              onOpenCase={(_node, webCase) => trackCaseOpened('project_card', webCase)}
                             />
                           ) : null}
                         </div>
@@ -1077,6 +1086,7 @@ export function PersonaChatV2Page() {
             disabled={loading}
             onAsk={handleMapAsk}
             onOpenPages={(node, range) => openPortfolio('map', range, node.label)}
+            onOpenCase={(_node, webCase) => trackCaseOpened('map', webCase)}
             onClose={closeMap}
           />
         </Suspense>

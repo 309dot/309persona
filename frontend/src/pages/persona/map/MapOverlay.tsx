@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { GraphNode, KnowledgeGraph } from '../../../types/api';
 import { pagesLabel, parsePages } from '../portfolio/chapters';
+import { caseFor, useWebCases, type WebCase } from '../webCases';
 import KnowledgeMapCanvas from './KnowledgeMapCanvas';
 import { KIND_LABELS, questionFor, type MapSignals } from './nodes';
 
@@ -34,6 +35,7 @@ export default function MapOverlay({
   disabled,
   onAsk,
   onOpenPages,
+  onOpenCase,
   onClose,
 }: {
   graph: KnowledgeGraph;
@@ -44,6 +46,8 @@ export default function MapOverlay({
   onAsk: (question: string, node: GraphNode) => void;
   /** Opens the portfolio viewer on a record's pages. */
   onOpenPages?: (node: GraphNode, range: [number, number]) => void;
+  /** Called when a project's case on the portfolio site is opened (in a new tab). */
+  onOpenCase?: (node: GraphNode, webCase: WebCase) => void;
   onClose: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -51,6 +55,7 @@ export default function MapOverlay({
   );
   const closeRef = useRef<HTMLButtonElement>(null);
   const selected = graph.nodes.find((node) => node.id === selectedId) ?? null;
+  const cases = useWebCases();
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -68,6 +73,8 @@ export default function MapOverlay({
   const state = selected ? stateOf(selected, signals) : '';
   const question = selected ? questionFor(selected) : '';
   const pages = parsePages(selected?.pages);
+  // Topics span several projects, so only a project or a note links to a single case.
+  const webCase = selected && (selected.kind === 'project' || selected.kind === 'note') ? caseFor(selected.label, cases) : undefined;
 
   return (
     <div
@@ -136,6 +143,17 @@ export default function MapOverlay({
                   >
                     포트폴리오 {pagesLabel(pages)} 보기
                   </button>
+                ) : null}
+                {webCase ? (
+                  <a
+                    href={webCase.url}
+                    target="_blank"
+                    rel="noopener"
+                    onClick={() => onOpenCase?.(selected, webCase)}
+                    className="rounded-full border border-line bg-white px-4 py-2 text-[13px] font-semibold text-ink transition hover:bg-mist"
+                  >
+                    웹 케이스 보기 <span aria-hidden="true">↗</span>
+                  </a>
                 ) : null}
                 <button
                   type="button"

@@ -25,8 +25,9 @@ node qa/e2e/e2e_stream.cjs
 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_map.cjs
 
-# 4) 포트폴리오·방문 목적·요약: 목적 선택 → 세션·프롬프트, 근거 칩·프로젝트 카드, 포트폴리오 뷰어(키보드·스와이프·장/쪽 목록·늦게 오는 쪽),
-#    대화 요약과 인쇄 화면, 겹쳐 보낸 질문의 남은 수·완료 모달, 지도 없는 백엔드, 모바일 (76개)
+# 4) 포트폴리오·방문 목적·요약: 목적 선택 → 세션·프롬프트, 근거 칩·프로젝트 카드, 웹 케이스 링크(사이트 목록은 가짜 응답),
+#    포트폴리오 뷰어(키보드·스와이프·장/쪽 목록·늦게 오는 쪽), 대화 요약과 인쇄 화면, 겹쳐 보낸 질문의 남은 수·완료 모달,
+#    지도 없는 백엔드, 모바일 (83개)
 QA_NOTES=1 ANSWER_PIPELINE=direct qa/e2e/stack.sh restart
 node qa/e2e/e2e_portfolio.cjs
 
