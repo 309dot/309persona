@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트
 
-309(성백곤)의 이력서·포트폴리오를 바탕으로 방문자(리크루터·면접관)의 질문에 309의 말투로 답하는 "AI 커피챗" 서비스. 프론트는 `309designlab.com` 메인 페이지로 운영된다. 문서·UI 문구는 한국어, 커밋 메시지는 영어 명령형 한 줄.
+309(성백곤)의 이력서·포트폴리오를 바탕으로 방문자(리크루터·면접관)의 질문에 309의 말투로 답하는 "AI 커피챗" 서비스. 프론트는 `www.309designlab.com/persona`로 운영된다(도메인은 포트폴리오 사이트가 갖고, 이 앱은 그 사이트를 거쳐 서비스된다 — 아래 "배포"). 문서·UI 문구는 한국어, 커밋 메시지는 영어 명령형 한 줄.
 
 로드맵, 진행 현황, 알려진 버그 목록(B1~B12)은 `docs/upgrade-plan-2026-10.md`에 있다. 작업 전에 해당 Phase와 "남은 일"을 확인할 것.
 
@@ -69,6 +69,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 - 포트폴리오 PDF는 쪽 이미지로 보여 준다: `frontend/public/portfolio/`의 `pNN`(뷰어 2000px)·`mNN`(카드 800px)·`tNN`(쪽 목록 240px) WebP. PDF를 바꾸면 `python3 frontend/scripts/render_portfolio_pages.py`(poppler·Pillow)로 다시 만들고, `pages/persona/portfolio/chapters.ts`의 `PORTFOLIO_PAGES`·`CHAPTERS`와 지식팩 `pages`를 맞춘다.
 - 근거 → 쪽: 지식팩 프로젝트의 `pages`(`"7-11"`)와 노트 속성 `portfolio_pages`가 그래프 노드의 `pages`로 나간다. 쪽이 있는 근거는 칩·답변 아래 카드(`ProjectCards`, 최대 2장, 내용은 지식팩에서)·지도에서 `PortfolioViewer`를 그 쪽으로 연다. 그래프가 없으면(구버전 백엔드) 근거 칩은 PDF 링크로 돌아간다.
+- 웹 케이스: `pages/persona/webCases.ts`가 포트폴리오 사이트의 `GET https://www.309designlab.com/api/works`(CORS 허용)를 탭마다 한 번(첫 질문 때) 받아, 프로젝트·노트 라벨을 케이스의 이름·`aliases`와 정확히 맞춘다(공백·따옴표·문장부호 무시). 맞으면 카드에 "웹 케이스 보기" 링크가 붙고, 쪽이 없는 프로젝트는 사이트 커버를 쓴 링크 카드가 된다. 지도의 프로젝트·노트에도 링크가 생긴다(주제는 여러 프로젝트에 걸쳐 있어 제외). 새 탭으로 열고 `web_case_opened`(from, slug)를 남긴다. 사이트에 닿지 못하면 예전처럼 쪽 있는 카드만 나온다. 지식팩 라벨을 바꾸면 사이트(`309dot/309designlab-web`의 `content/works.js`) `aliases`도 맞춘다.
 - 방문 목적(`pages/persona/purpose.ts`: hiring·colleague·designer·browsing)은 목적별 추천 질문, 프롬프트 방문자 줄의 "목적: …"(`visitor_service.purpose_label`), 대시보드 목적 카드에 쓰인다. 대화가 시작되면 고를 수 없다.
 - `ChatSummary`는 오늘 대화(질문·답변·근거와 쪽)를 한 장으로 보여 주고 PDF 저장은 `window.print()`에 맡긴다. 인쇄 때 요약만 남기는 규칙은 `index.css`의 `@media print`(루트의 `summary-open`).
 - 질문별 "남은 질문"은 `start` 이벤트 값이다. `done`의 `remaining`은 보낼 때의 세션 값이라, 본문이 끝난 뒤 바로 보낸 다음 질문까지 세어져 있을 수 있다. 완료 모달은 진행 중인 마지막 질문에서만 띄운다.
@@ -114,6 +115,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 ## 배포
 
 - 프론트: Vercel이 루트 `vercel.json`으로 `frontend/`를 빌드한다(Node 24.x, 출력 `frontend/dist`). `main` 푸시 시 운영 배포, 다른 브랜치는 프리뷰. 포트폴리오 쪽 이미지(`/portfolio/`)는 하루 캐시.
+- 도메인: `www.309designlab.com`(과 `309designlab.com` → www)은 포트폴리오 사이트(GitHub `309dot/309designlab-web`, Vercel `309designlab-web`)에 붙어 있다. 사이트에 없는 경로(`/persona`, `/admin`, `/assets/*`, `/portfolio/*`, `/favicon.svg` …)는 사이트의 fallback rewrite가 이 앱의 운영 주소 `309persona.vercel.app`으로 넘긴다. 사이트가 쓰는 경로(`/`, `/work/*`, `/api/*`, `/media/*`, `/llms.txt` 등)는 www에서 이 앱으로 오지 않으므로 프론트에 그런 경로를 새로 만들지 않는다.
 - 백엔드: Render(`https://three09persona.onrender.com/api`). `backend/Dockerfile`(Python 3.13, 비루트 사용자, `PORT` 환경 변수 사용)은 레포 루트를 컨텍스트로 빌드하며 지식베이스를 `/knowledge_base`에 복사한다(`KNOWLEDGE_PACK_PATH=/knowledge_base/309_knowledge_pack.json`). PDF·`drafts/`·`instructions/`는 루트 `.dockerignore`로 이미지에서 빠진다. CI가 이미지를 빌드해 `/health`와 지식베이스 로딩을 확인한다.
 - 프론트와 백엔드는 따로 배포되므로 API를 바꿀 때 구버전 상대와도 동작하게 둔다(예: 스트림 404 → JSON 폴백, `/api/chat` 유지).
 - 스테이징: `infra/docker-compose.staging.yml`(API + nginx로 `frontend/dist` 서빙). SSE는 응답의 `X-Accel-Buffering: no`로 nginx 버퍼링을 끈다.

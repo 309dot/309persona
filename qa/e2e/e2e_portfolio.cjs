@@ -39,6 +39,23 @@ const P2_CHIP = '페이히어 디자인 시스템 (2022–2023)';
 const P2_CARD = '페이히어 디자인 시스템 · 포트폴리오 7~11쪽 보기';
 const focusedLabel = (page) =>
   page.evaluate(() => document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent?.trim());
+// The portfolio site's case list (frontend/src/pages/persona/webCases.ts), faked: P2 has portfolio pages, P3 has none.
+const SITE = 'https://www.309designlab.com';
+const webCase = (slug, name, alias) => ({ slug, name, url: `${SITE}/work/${slug}`, coverSmall: `${SITE}/media/covers/${slug}-960.webp`, aliases: [alias] });
+const WEB_CASES = [
+  webCase('payhere-design-system', '페이히어 디자인 시스템 & 2.0 리뉴얼', '페이히어 디자인 시스템'),
+  webCase('hana-hap', '하나은행 마이데이터 ‘하나 합’', "'하나 합' 금융 UX"),
+];
+const worksRequests = [];
+const mockSite = (ctx) =>
+  Promise.all([
+    ctx.route(`${SITE}/api/works`, (route) => {
+      worksRequests.push(route.request().url());
+      return route.fulfill({ json: { works: WEB_CASES } });
+    }),
+    ctx.route(`${SITE}/media/covers/*`, (route) => route.fulfill({ path: path.join(__dirname, '../../frontend/public/portfolio/m01.webp') })),
+    ctx.route(`${SITE}/work/*`, (route) => route.fulfill({ contentType: 'text/html', body: '<title>web case</title>' })),
+  ]);
 
 (async () => {
   await setMode({ mode: 'normal', chunk_delay: 0.01, meta_delay: 0, sources: null });
@@ -46,6 +63,7 @@ const focusedLabel = (page) =>
   const noteId = graph.nodes.find((n) => n.kind === 'note' && n.label === 'QA 프로젝트 회고')?.id;
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await mockSite(context);
   const page = await context.newPage();
   const consoleErrors = [];
   const apiCalls = [];
@@ -103,7 +121,7 @@ const focusedLabel = (page) =>
   const resumeHref = await page.locator('main').getByRole('link', { name: '이력서', exact: true }).getAttribute('href');
   check('이력서 근거는 이력서 PDF', (resumeHref || '').endsWith('Product-resume.pdf'), resumeHref);
   const cards = page.getByLabel('답변에 나온 프로젝트').getByRole('button');
-  check('프로젝트 카드 1장(쪽이 있는 P2만)', (await cards.count()) === 1);
+  check('뷰어를 여는 카드 1장(쪽이 있는 P2만)', (await cards.count()) === 1);
   const card = page.getByRole('button', { name: P2_CARD });
   const cardText = await card.innerText();
   check('카드 내용은 지식팩(제목·기간·요약)', cardText.includes('페이히어 디자인 시스템') && cardText.includes('2022–2023') && cardText.includes('컴포넌트/토큰 재정의'), cardText.replace(/\n/g, ' / '));
@@ -112,6 +130,18 @@ const focusedLabel = (page) =>
   const thumb = await cardImage.evaluate((img) => ({ src: img.getAttribute('src'), width: img.naturalWidth }));
   check('카드 이미지: 7쪽(800px)', thumb.src === '/portfolio/m07.webp' && thumb.width === 800, JSON.stringify(thumb));
   await card.screenshot({ path: path.join(SHOTS, 'P-card.png') });
+  const cardList = page.getByLabel('답변에 나온 프로젝트');
+  const caseLink = cardList.getByRole('link', { name: '웹 케이스 보기', exact: true });
+  await caseLink.waitFor({ timeout: 5000 });
+  check('P2 카드에 웹 케이스 링크(새 탭)', (await caseLink.getAttribute('href')) === WEB_CASES[0].url && (await caseLink.getAttribute('target')) === '_blank');
+  const hanaCard = cardList.getByRole('link', { name: "'하나 합' 금융 UX · 웹 케이스 보기 (새 창)" });
+  check('쪽이 없는 P3는 웹 케이스 카드(사이트 커버)', (await hanaCard.getAttribute('href')) === WEB_CASES[1].url && (await hanaCard.locator('img').getAttribute('src')) === WEB_CASES[1].coverSmall);
+  check('사이트 케이스 목록은 한 번만 받음', worksRequests.length === 1, JSON.stringify(worksRequests));
+  await cardList.screenshot({ path: path.join(SHOTS, 'P-cards-web.png') });
+  const [casePage] = await Promise.all([context.waitForEvent('page'), hanaCard.click()]);
+  await casePage.waitForLoadState();
+  check('웹 케이스는 새 탭에서 열림', casePage.url() === WEB_CASES[1].url, casePage.url());
+  await casePage.close();
 
   // ---------------------------------------------------------------- Q. 포트폴리오 뷰어
   screen = 'Q. 포트폴리오 뷰어';
@@ -187,8 +217,13 @@ const focusedLabel = (page) =>
   await map.waitFor();
   const list = map.getByRole('navigation', { name: '기록 목록' });
   check('지도: 선택된 근거(P2)에 포트폴리오 버튼', (await map.locator('[data-selected="P2"]').count()) === 1 && (await map.getByRole('button', { name: '포트폴리오 7~11쪽 보기' }).isVisible()));
+  const mapCase = map.getByRole('link', { name: '웹 케이스 보기', exact: true });
+  check('지도: P2에 웹 케이스 링크', (await mapCase.getAttribute('href')) === WEB_CASES[0].url);
+  const [mapCasePage] = await Promise.all([context.waitForEvent('page'), mapCase.click()]);
+  await mapCasePage.close();
   await list.getByRole('button', { name: 'AI 프로덕트' }).click();
   check('지도: 쪽이 없는 주제는 버튼 없음', (await map.getByRole('button', { name: /^포트폴리오 .*보기$/ }).count()) === 0);
+  check('지도: 주제에는 웹 케이스 링크 없음', (await map.getByRole('link', { name: /웹 케이스/ }).count()) === 0);
   await list.getByRole('button', { name: 'QA 프로젝트 회고' }).click();
   check('지도: 노트에 적힌 쪽(6~11)', await map.getByRole('button', { name: '포트폴리오 6~11쪽 보기' }).isVisible());
   await map.getByRole('button', { name: '포트폴리오 6~11쪽 보기' }).click();
@@ -198,6 +233,9 @@ const focusedLabel = (page) =>
   await waitFor(async () => (await funnel('portfolio_opened')).length === 4, 5000);
   const opened = (await funnel('portfolio_opened')).map((e) => `${e.properties.from}:${e.properties.page}`);
   check('portfolio_opened 기록(카드·칩·입력창·지도)', JSON.stringify(opened) === '["project_card:7","source_chip:7","dock:1","map:6"]', JSON.stringify(opened));
+  await waitFor(async () => (await funnel('web_case_opened')).length === 2, 5000);
+  const casesOpened = (await funnel('web_case_opened')).map((e) => `${e.properties.from}:${e.properties.slug}`);
+  check('web_case_opened 기록(카드·지도)', JSON.stringify(casesOpened) === '["project_card:hana-hap","map:payhere-design-system"]', JSON.stringify(casesOpened));
   check('뷰어 코드는 처음 열 때 받음', scripts.some((s) => s.startsWith('PortfolioViewer-')));
 
   // ---------------------------------------------------------------- R. 대화 요약
@@ -298,6 +336,7 @@ const focusedLabel = (page) =>
   // ---------------------------------------------------------------- T. 모바일
   screen = 'T. 모바일·움직임 줄이기';
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce', hasTouch: true, isMobile: true });
+  await mockSite(mobile);
   const page3 = await mobile.newPage();
   page3.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page3.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`));
