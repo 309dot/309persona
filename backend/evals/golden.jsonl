@@ -42,3 +42,6 @@
 {"id": "follow-motion", "type": "in_scope", "question": "그때 PM으로서 가장 중요하게 본 건 뭐였어요?", "history": [{"question": "3D 모션 데이터 플랫폼은 어떤 프로젝트였어요?", "answer": "게임·애니메이션 제작자를 위한 3D 모션 데이터 판매 플랫폼이었어요. PM으로 업로드부터 판매, 정산까지 흐름을 설계했고 제작자의 거래 허들을 낮췄어요."}], "expect_any": ["정산", "거래", "제작자", "모션"]}
 {"id": "english", "type": "in_scope", "question": "Can you briefly summarize your design system work?", "expect_any": ["Payhere", "페이히어", "design system", "token", "component"]}
 {"id": "short-greeting", "type": "in_scope", "question": "안녕하세요! 반가워요", "needs_project": false}
+{"id": "case-agents", "type": "in_scope", "question": "AI 에이전트와 함께 제품을 만들어 본 경험이 있나요?", "expect_any": ["Every Number", "영수증", "게이트웨이", "IoT", "O-YOGA"]}
+{"id": "case-korail", "type": "in_scope", "question": "코레일 피복관리 시스템에서 메인 화면 시안은 어떤 기준으로 골랐어요?", "expect_any": ["시안 3", "기능 중심", "보고서", "학습 비용"]}
+{"id": "case-oyoga-bookings", "type": "unknown", "question": "O-YOGA 사이트 리뉴얼 뒤에 예약이 몇 % 늘었어요?", "expect_any": ["아직", "없", "재지", "꺼져"]}

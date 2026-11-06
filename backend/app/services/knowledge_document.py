@@ -1,8 +1,9 @@
 """The whole knowledge base as one prompt block, with ids the model cites as sources.
 
-The direct pipeline injects all of it instead of retrieving chunks: the fact
-documents are small (about 20 KB), so retrieval mostly adds ways to miss.
-Private Obsidian notes (obsidian_notes.py) join as `N:<slug>` sources up to
+The direct pipeline injects all of it instead of retrieving chunks: the documents
+are small (about 42K characters with the site's case studies), so retrieval mostly
+adds ways to miss. Each case of the portfolio site (web_cases.md) is a `W:<slug>`
+source. Private Obsidian notes (obsidian_notes.py) join as `N:<slug>` sources up to
 NOTES_MAX_CHARS; everything here is rebuilt when the notes are reloaded.
 """
 
@@ -15,7 +16,13 @@ from functools import lru_cache
 from typing import Any, Dict, Iterable, List
 
 from ..core.config import settings
-from .knowledge_base import load_fact_documents, load_knowledge_pack
+from .knowledge_base import (
+    WEB_CASE_CHUNK,
+    WEB_CASE_PREFIX,
+    load_fact_documents,
+    load_knowledge_pack,
+    load_web_cases,
+)
 from .obsidian_notes import NOTE_PREFIX, Note, get_notes, notes_version, reset_notes
 
 logger = logging.getLogger(__name__)
@@ -82,6 +89,8 @@ def _knowledge_sources(_notes_version: int) -> tuple[KnowledgeSource, ...]:
         source_id, label = _doc_source(stem)
         sources.append(KnowledgeSource(source_id, label, content))
 
+    sources.extend(KnowledgeSource(case_id, title, text) for case_id, title, text in load_web_cases())
+
     included, left_out = notes_in_prompt()
     sources.extend(KnowledgeSource(note.id, note.title, note.text) for note in included)
     if left_out:
@@ -117,6 +126,9 @@ def _resolve(raw: str) -> str | None:
     if raw.startswith("project:"):
         title = raw.removeprefix("project:").strip()
         return next((s.id for s in knowledge_sources() if PROJECT_ID_RE.match(s.id) and s.label == title), None)
+    if raw.startswith(WEB_CASE_CHUNK):  # legacy retrieval chunk of a site case
+        source_id = WEB_CASE_PREFIX + raw.removeprefix(WEB_CASE_CHUNK).split("#", 1)[0]
+        return source_id if source_id in by_id else None
     if raw.startswith("doc:"):
         stem = raw.removeprefix("doc:").split("#", 1)[0]
         source_id, _ = _doc_source(stem)

@@ -16,6 +16,8 @@ PROJECT_TERMS = [
     "페이히어", "payhere", "하나 합", "하나은행", "3d 모션", "모션 데이터", "오디오북", "audiobook", "pos",
     "재고", "디자인 시스템", "design system", "309designlab", "마이데이터", "호텔", "코레일", "피복관리",
     "nct", "sm entertainment", "신시아",
+    # Cases on the portfolio site (knowledge_base/web_cases.md)
+    "every number", "iot", "게이트웨이", "o-yoga", "대출비교", "로아인텔리전스",
 ]
 # Text that only appears when prompt internals or raw knowledge leak into an answer.
 LEAK_MARKERS = [

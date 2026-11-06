@@ -122,6 +122,13 @@
 - Claude 예비 연결(사용자 결정: Gemini 기본, 예비는 Claude Haiku 5.5): `ANTHROPIC_API_KEY`가 있으면 두 파이프라인 모두 OpenAI 호환 모델이 첫 글자 전에 실패할 때 Claude가 답한다(`services/claude_client.py`, 공식 `anthropic` SDK). OpenAI 호환 키 없이 Claude 키만 있으면 Claude만 쓴다. temperature는 보내지 않고(Haiku 5.5는 400), 지식베이스 시스템 프롬프트는 캐시, 거절(refusal)은 실패로 처리. 대화 로그의 모델은 실제로 답한 모델. legacy 품질 재호출이 실패하면 앞 답을 쓴다(예전에는 질문 전체가 실패). `OPENAI_FALLBACK_MODEL` 기본값을 비움(같은 주소에 없는 `qwen3:32b`를 부르던 문제). 가짜 Claude(`fake_llm.py`의 `/v1/messages`)로 실제 SDK를 돌리는 브라우저 검사 `e2e_claude.cjs`(direct 24·legacy 21)
 - 운영 확인(Vercel 임시 실행 환경에서 운영 백엔드로 테스트 질문): 서버·기록 지도·세션은 정상, 답변은 1초 만에 실패. Render 변수가 `Gemini_api_key`·`claude_API_KEY`·`OPENAI_API_KEY`(OpenAI 키, 주소 없음)로 들어 있어 코드가 Gemini·Claude 키를 못 읽고 기본값인 로컬 Ollama 주소로 요청하고 있었다 → 사용자 요청대로 적힌 이름 그대로 읽게 함: `GEMINI_API_KEY`로 Gemini를 1순위로(기본 모델 gemini-3.5-flash-lite, 추론 low, temperature·`stream_options` 안 보냄, `max_tokens` 4096 이상), `CLAUDE_API_KEY`를 `ANTHROPIC_API_KEY` 별칭으로(이름은 대소문자 무관), `OPENAI_BASE_URL`이 로컬 기본값이면 Gemini·Claude 키가 있을 때 건너뜀. QA 스택에 운영과 같은 구성(`QA_GEMINI=1`)을 더해 `e2e_claude.cjs` direct 27·legacy 23
 
+**사이트 케이스 추가 (2026-11-06)**
+
+- 사이트(www.309designlab.com) 개편으로 케이스 글이 사이트에 생겼지만 에이전트는 `knowledge_base/` 자료로만 답해 몰랐다 → 사이트 `llms-full.txt`의 케이스 10개를 `knowledge_base/web_cases.md`로 그대로 옮김(2026-11-06 21:02 KST에 받음). 케이스마다 출처 하나: direct `W:슬러그`, legacy 조각 `doc:web_cases/슬러그#번호`
+- 크기: direct 시스템 프롬프트 10,713자 → 43,759자(UTF-8 21KB → 94KB), 출처 10 → 20개, legacy 검색 조각 60 → 248개, 평가가 근거로 인정하는 숫자 59 → 175개
+- legacy(운영 기본값): 기존 평가 질문 44개 중 36개의 검색 결과가 바뀌고 31개에 사이트 케이스 조각이 들어간다. "총 경력", 날씨처럼 막연한 질문에도 관계없는 케이스 문단이 끼어든다
+- 평가셋 47문항(`case-*` 3개). 실제 LLM 평가 전이다(남은 일 2). 사이트 `refresh-2` 브랜치가 머지되면 다시 받는다(`knowledge_base/README.md`)
+
 **남은 일 (사용자 확인 필요, 우선순위 순)**
 
 1. Render 환경 변수: LLM 연결(지금 운영에서 답변이 안 나옴 → `docs/deployment.md` "LLM 연결"의 Gemini 값과 "Claude 예비 연결"의 `ANTHROPIC_API_KEY`), `ADMIN_ALLOWED_EMAILS`(비면 대시보드 403), `TRUSTED_PROXY_HOPS`(Render 1)
