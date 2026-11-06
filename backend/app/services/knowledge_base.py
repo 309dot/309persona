@@ -21,6 +21,7 @@ WEB_CASES_FILE = "web_cases.md"
 WEB_CASE_PREFIX = "W:"
 WEB_CASE_CHUNK = "doc:web_cases/"
 CASE_URL_RE = re.compile(r"^- URL: \S+/work/([\w-]+)$", re.MULTILINE)
+CASE_PERIOD_RE = re.compile(r"^- 기간: (.+)$", re.MULTILINE)
 
 
 @lru_cache
@@ -202,13 +203,16 @@ def _build_rag_chunks(_notes_version: int) -> List[Tuple[str, str, str]]:
             if len(text) >= 40:
                 chunks.append((f"doc:{stem}#{idx}", text, "portfolio"))
 
-    # A case's paragraphs rarely name the case, so each chunk starts with its title (as notes do).
+    # A case's paragraphs rarely name the case or its dates, so each chunk starts with its title
+    # (as notes do) and period; without the period the model guessed the year of a case.
     for case_id, title, content in load_web_cases():
         slug = case_id.removeprefix(WEB_CASE_PREFIX)
+        period = CASE_PERIOD_RE.search(content)
+        header = f"[{title}] {period.group(1).strip()}" if period else f"[{title}]"
         for idx, block in enumerate(content.split("\n\n"), start=1):
             text = block.strip()
             if len(text) >= 40:
-                chunks.append((f"{WEB_CASE_CHUNK}{slug}#{idx}", f"[{title}]\n{text}", "portfolio"))
+                chunks.append((f"{WEB_CASE_CHUNK}{slug}#{idx}", f"{header}\n{text}", "portfolio"))
 
     for note in get_notes().notes:
         slug = note.id.removeprefix(NOTE_PREFIX)

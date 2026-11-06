@@ -81,7 +81,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 ### 지식베이스
 
 - 폴더별 역할은 `knowledge_base/README.md`. 지식팩 JSON과 `309files/*.md`(사실만)를 런타임이 읽는다. legacy는 `309files`를 빈 줄 기준으로 쪼개 검색하고(`doc:파일명#번호`), direct는 전부 프롬프트에 넣는다. `instructions/`(지시문)와 `drafts/`(검토 전 초안)는 읽지 않는다.
-- `knowledge_base/web_cases.md`는 포트폴리오 사이트 `llms-full.txt`의 케이스 글을 그대로 옮긴 것이다. 케이스마다 출처가 하나다: direct는 `W:슬러그`, legacy 조각은 `doc:web_cases/슬러그#번호`(케이스 제목을 앞에 붙임). 문장은 고치지 않고 사이트에서 다시 받는다(`knowledge_base/README.md`). 이 파일로 direct 시스템 프롬프트가 약 4.4만 자가 된다.
+- `knowledge_base/web_cases.md`는 포트폴리오 사이트 `llms-full.txt`의 케이스 글을 그대로 옮긴 것이다. 케이스마다 출처가 하나다: direct는 `W:슬러그`, legacy 조각은 `doc:web_cases/슬러그#번호`(케이스 제목과 기간을 앞에 붙임). 문장은 고치지 않고 사이트에서 다시 받는다(`knowledge_base/README.md`). 이 파일로 direct 시스템 프롬프트가 약 4.4만 자가 된다.
 - 지시문을 `309files/`에 넣지 말 것. 사실로 쓰여 답변에 새어 나온다. 전화번호 줄은 로딩 때 빠진다.
 - 309는 프로덕트 매니저/디자이너다(2026 이력서, `309files/pdf/Product-resume.pdf`). 지식팩 요약·`resume.md`·두 프롬프트의 첫 줄이 이 방향으로 맞춰져 있다.
 - `309files/pdf/`는 프론트가 GitHub raw 주소로 직접 링크하므로 경로를 바꾸지 않는다.

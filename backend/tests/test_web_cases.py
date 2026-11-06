@@ -30,7 +30,15 @@ def test_cases_join_the_direct_prompt_without_the_file_header():
 def test_legacy_chunks_name_their_case_and_cite_it():
     chunks = {source: text for source, text, _ in knowledge_base.build_rag_chunks()}
     oyoga = [source for source in chunks if source.startswith("doc:web_cases/o-yoga#")]
-    assert oyoga and all(chunks[source].startswith("[O-YOGA 웹사이트 리뉴얼]\n") for source in oyoga)
+    assert oyoga and all(chunks[source].startswith("[O-YOGA 웹사이트 리뉴얼] 2026.10 — 2026.11\n") for source in oyoga)
+    # Every chunk carries its case's period, which most paragraphs never mention.
+    headers = {
+        case_id.removeprefix("W:"): f"[{title}] {knowledge_base.CASE_PERIOD_RE.search(text).group(1).strip()}"
+        for case_id, title, text in knowledge_base.load_web_cases()
+    }
+    for source, text in chunks.items():
+        if source.startswith("doc:web_cases/"):
+            assert text.split("\n", 1)[0] == headers[source.removeprefix("doc:web_cases/").split("#")[0]]
     # Published text, not instructions: the paragraph that mentions a "금지 목록" stays.
     assert any("제품 UI용 금지 목록" in chunks[source] for source in oyoga)
     assert knowledge_document.label_sources([oyoga[0], "W:korail", "doc:web_cases/nope#1"]) == [
