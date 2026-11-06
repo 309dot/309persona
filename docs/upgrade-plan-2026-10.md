@@ -122,10 +122,21 @@
 - Claude 예비 연결(사용자 결정: Gemini 기본, 예비는 Claude Haiku 5.5): `ANTHROPIC_API_KEY`가 있으면 두 파이프라인 모두 OpenAI 호환 모델이 첫 글자 전에 실패할 때 Claude가 답한다(`services/claude_client.py`, 공식 `anthropic` SDK). OpenAI 호환 키 없이 Claude 키만 있으면 Claude만 쓴다. temperature는 보내지 않고(Haiku 5.5는 400), 지식베이스 시스템 프롬프트는 캐시, 거절(refusal)은 실패로 처리. 대화 로그의 모델은 실제로 답한 모델. legacy 품질 재호출이 실패하면 앞 답을 쓴다(예전에는 질문 전체가 실패). `OPENAI_FALLBACK_MODEL` 기본값을 비움(같은 주소에 없는 `qwen3:32b`를 부르던 문제). 가짜 Claude(`fake_llm.py`의 `/v1/messages`)로 실제 SDK를 돌리는 브라우저 검사 `e2e_claude.cjs`(direct 24·legacy 21)
 - 운영 확인(Vercel 임시 실행 환경에서 운영 백엔드로 테스트 질문): 서버·기록 지도·세션은 정상, 답변은 1초 만에 실패. Render 변수가 `Gemini_api_key`·`claude_API_KEY`·`OPENAI_API_KEY`(OpenAI 키, 주소 없음)로 들어 있어 코드가 Gemini·Claude 키를 못 읽고 기본값인 로컬 Ollama 주소로 요청하고 있었다 → 사용자 요청대로 적힌 이름 그대로 읽게 함: `GEMINI_API_KEY`로 Gemini를 1순위로(기본 모델 gemini-3.5-flash-lite, 추론 low, temperature·`stream_options` 안 보냄, `max_tokens` 4096 이상), `CLAUDE_API_KEY`를 `ANTHROPIC_API_KEY` 별칭으로(이름은 대소문자 무관), `OPENAI_BASE_URL`이 로컬 기본값이면 Gemini·Claude 키가 있을 때 건너뜀. QA 스택에 운영과 같은 구성(`QA_GEMINI=1`)을 더해 `e2e_claude.cjs` direct 27·legacy 23
 
+**사이트 케이스 추가 (2026-11-06)**
+
+- 사이트(www.309designlab.com) 개편으로 케이스 글이 사이트에 생겼지만 에이전트는 `knowledge_base/` 자료로만 답해 몰랐다 → 사이트 `llms-full.txt`의 케이스 10개를 `knowledge_base/web_cases.md`로 그대로 옮김(2026-11-06 21:02 KST에 받음). 케이스마다 출처 하나: direct `W:슬러그`, legacy 조각 `doc:web_cases/슬러그#번호`
+- 크기: direct 시스템 프롬프트 10,713자 → 43,759자(UTF-8 21KB → 94KB), 출처 10 → 20개, legacy 검색 조각 60 → 248개, 평가가 근거로 인정하는 숫자 59 → 175개
+- legacy(운영 기본값): 기존 평가 질문 44개 중 36개의 검색 결과가 바뀌고 31개에 사이트 케이스 조각이 들어간다. "총 경력", 날씨처럼 막연한 질문에도 관계없는 케이스 문단이 끼어든다
+- 평가셋 47문항(`case-*` 3개). 사이트 `refresh-2` 브랜치가 머지되면 다시 받는다(`knowledge_base/README.md`)
+- 로컬 모델 평가(qwen3.5:35b, 생각 끔, `tone`을 뺀 전 체크 통과 문항 수, 47문항 중): legacy main 36 → PR 37, direct main 40 → PR 44. 케이스 질문 3개를 다 맞힌 건 PR direct뿐이다. PR legacy는 범위 밖·공격 질문에도 케이스 이야기를 붙인다(날씨 질문에 O-YOGA의 없는 기능을 지어냄)
+- PR legacy에서 Every Number를 "2024년" 프로젝트라고 한 답이 2개 나왔다. 케이스 기간이 legacy 조각 188개 중 케이스마다 하나에만 있어서다 → 조각마다 `[케이스 제목] 기간`을 붙임. 다시 돌리니 연도 착오 0개, 통과 36(설정마다 한 번씩 돌린 결과라 1~2문항 차이는 우연일 수 있다). 질문에 "현재"가 있으면 Every Number 조각(기간 "2026.10 — 현재")이 더 잘 잡힌다
+- Gemini 평가(gemini-3.5-flash-lite, 코드 기본값, Gemini만, 문항 사이 6초, 429 없음). 전 체크 통과 문항 수(괄호는 `tone`을 뺀 수): legacy main 41(42) → PR 39(42), direct main 18(43) → PR 11(45). 케이스 질문 3개를 다 맞힌 건 이번에도 PR direct뿐이다. legacy 잡음은 qwen보다 적다(`scope` 둘 다 1.0)
+- direct는 Gemini에서 해요체를 잘 안 따른다: `tone` 통과 main 37개 중 10개 → PR 1개(사이트 케이스 글이 합니다체이고 direct 프롬프트의 3/4을 차지). direct로 바꾸기 전에 말투를 손본다. legacy(운영) 말투는 0.946 → 0.919. direct 입력은 질문당 5,723 → 23,528토큰(Gemini `countTokens`)
+
 **남은 일 (사용자 확인 필요, 우선순위 순)**
 
 1. Render 환경 변수: LLM 연결(지금 운영에서 답변이 안 나옴 → `docs/deployment.md` "LLM 연결"의 Gemini 값과 "Claude 예비 연결"의 `ANTHROPIC_API_KEY`), `ADMIN_ALLOWED_EMAILS`(비면 대시보드 403), `TRUSTED_PROXY_HOPS`(Render 1)
-2. D1: 무료 모델(Gemini 무료 등급)로 결정 → AI Studio 키 발급(`GEMINI_API_KEY`) → `uv run python -m evals.run --pipeline both` → direct 전환 여부 판단. PM 방향으로 바꾼 지식베이스·프롬프트도 이때 함께 확인한다
+2. D1: 무료 모델(Gemini 무료 등급)로 결정 → AI Studio 키 발급(`GEMINI_API_KEY`) → `uv run python -m evals.run --pipeline both` → direct 전환 여부 판단. PM 방향으로 바꾼 지식베이스·프롬프트도 이때 함께 확인한다. 사이트 케이스 PR에서 한 번 돌렸다(위): direct는 내용이 가장 좋지만 해요체를 먼저 손봐야 한다
 3. 비공개 노트 저장소·토큰 설정, 노트 샘플 2~3개로 템플릿·변환 확인 → 실제 노트 작성(`docs/obsidian-notes.md`)
 4. Firestore 자격 증명이 있는 환경에서 `scripts/usage_report.py --months 6` → 비용 산정, 평가셋 보강
 5. 개인정보 보관 기간 결정 → 안내 문구·Firestore TTL

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from functools import lru_cache
 from math import sqrt
@@ -13,6 +14,14 @@ from ..core.config import settings
 from .obsidian_notes import NOTE_PREFIX, get_notes, notes_version
 from .redaction import redact_contacts
 from .vector_retrieval import retrieve_vector_chunks
+
+# The portfolio site's case studies, one source per case: W:<slug> in the direct prompt,
+# doc:web_cases/<slug>#<n> as legacy chunks (a doc: source, so legacy filters keep it).
+WEB_CASES_FILE = "web_cases.md"
+WEB_CASE_PREFIX = "W:"
+WEB_CASE_CHUNK = "doc:web_cases/"
+CASE_URL_RE = re.compile(r"^- URL: \S+/work/([\w-]+)$", re.MULTILINE)
+CASE_PERIOD_RE = re.compile(r"^- 기간: (.+)$", re.MULTILINE)
 
 
 @lru_cache
@@ -102,6 +111,28 @@ def load_fact_documents() -> List[Tuple[str, str]]:
     return documents
 
 
+@lru_cache
+def load_web_cases() -> List[Tuple[str, str, str]]:
+    """Return (source id, title, text) for each case in web_cases.md next to the knowledge pack.
+
+    The file is the case part of www.309designlab.com/llms-full.txt as published. A case is a
+    "## " section with a "- URL: …/work/<slug>" line; the header above the first case says
+    where and when the text was taken and is not knowledge.
+    """
+    path = Path(settings.knowledge_pack_path).resolve().parent / WEB_CASES_FILE
+    if not path.is_file():
+        return []
+
+    cases: List[Tuple[str, str, str]] = []
+    for section in re.split(r"(?m)^(?=## )", redact_contacts(path.read_text(encoding="utf-8")))[1:]:
+        url = CASE_URL_RE.search(section)
+        if url:
+            heading = section.split("\n", 1)[0].removeprefix("## ")
+            title = re.sub(r"^\d+\s+", "", heading).strip()  # without the site's case number
+            cases.append((WEB_CASE_PREFIX + url.group(1), title, section.strip()))
+    return cases
+
+
 def _tokenize(text: str) -> List[str]:
     cleaned = "".join(ch.lower() if ch.isalnum() else " " for ch in text)
     return [t for t in cleaned.split() if len(t) > 1]
@@ -171,6 +202,17 @@ def _build_rag_chunks(_notes_version: int) -> List[Tuple[str, str, str]]:
                 continue
             if len(text) >= 40:
                 chunks.append((f"doc:{stem}#{idx}", text, "portfolio"))
+
+    # A case's paragraphs rarely name the case or its dates, so each chunk starts with its title
+    # (as notes do) and period; without the period the model guessed the year of a case.
+    for case_id, title, content in load_web_cases():
+        slug = case_id.removeprefix(WEB_CASE_PREFIX)
+        period = CASE_PERIOD_RE.search(content)
+        header = f"[{title}] {period.group(1).strip()}" if period else f"[{title}]"
+        for idx, block in enumerate(content.split("\n\n"), start=1):
+            text = block.strip()
+            if len(text) >= 40:
+                chunks.append((f"{WEB_CASE_CHUNK}{slug}#{idx}", f"{header}\n{text}", "portfolio"))
 
     for note in get_notes().notes:
         slug = note.id.removeprefix(NOTE_PREFIX)

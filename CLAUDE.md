@@ -51,7 +51,7 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 1. `frontend/src/pages/PersonaChatV2Page.tsx`(`/persona`)가 **첫 질문 때** `POST /api/visitors`로 세션을 만들고(첫 화면에서 고른 방문 목적 `visitor_purpose` 포함) 질문을 `POST /api/chat/stream`(SSE)으로 보낸다. 직전 답변 3개를 `history`로 함께 보낸다. 이벤트는 `start`(남은 질문 수, 질문 단어로 고른 기록 지도 노드 `related`) → `delta`… → `answer_end`(본문 끝, 이때부터 다음 질문 가능) → `done`(근거·후속 질문·`conversation_id`·남은 질문 수) 또는 `error`, 차단이면 `blocked` 하나. 백엔드에 스트림 경로가 없으면(404 "Not Found") 한 번 확인 후 `POST /api/chat`(JSON)으로 바꾼다. SSE 파서와 API 주소 결정(`resolveBaseUrl()`)은 `src/services/api.ts`.
 2. `backend/app/api/routes/chat.py` → `services/chat_runner.py`: `prepare_turn()`이 방문자 조회 → 세션 한도·IP 한도(`core/rate_limiter.py`, 메모리) → `question_filter`(탈옥 정규식만 차단)를 처리하고, `run_turn()`이 `ANSWER_PIPELINE`에 따라 답을 만든다.
-   - `direct`(`services/direct_pipeline.py`): `app/prompts/persona_direct.txt` + 지식베이스 전체(`knowledge_document.render_knowledge_block()`, 출처 id `PROFILE`·`P1..`·`RESUME`·`NOTES`·비공개 노트 `N:슬러그`) + 대화 이력 + 방문자 정보로 LLM을 **한 번** 스트리밍 호출한다. 모델은 답변 뒤에 `<<<META>>>`와 JSON(sources, follow_ups, topic)을 쓰고, `StreamParser`가 이 부분과 `<think>` 블록을 화면에서 숨긴다. 예비 모델(`OPENAI_FALLBACK_MODEL`, 그다음 Claude)은 첫 글자가 나가기 전 실패에만 쓴다.
+   - `direct`(`services/direct_pipeline.py`): `app/prompts/persona_direct.txt` + 지식베이스 전체(`knowledge_document.render_knowledge_block()`, 출처 id `PROFILE`·`P1..`·`RESUME`·`NOTES`·사이트 케이스 `W:슬러그`·비공개 노트 `N:슬러그`) + 대화 이력 + 방문자 정보로 LLM을 **한 번** 스트리밍 호출한다. 모델은 답변 뒤에 `<<<META>>>`와 JSON(sources, follow_ups, topic)을 쓰고, `StreamParser`가 이 부분과 `<think>` 블록을 화면에서 숨긴다. 예비 모델(`OPENAI_FALLBACK_MODEL`, 그다음 Claude)은 첫 글자가 나가기 전 실패에만 쓴다.
    - `legacy`(`services/llm_service.py`, 기본값): 지식팩 요약 + lexical 검색 + 키워드 rerank를 `system_prompt.txt`에 넣고 호출한 뒤 `answer_quality` 게이트로 최대 3회 재호출, 그래도 안 되면 `rag_fallback`의 고정 문단. 이력은 쓰지 않는다.
    - 모델 순서는 두 방식 모두 `llm_service.model_chain()`: Gemini(`GEMINI_API_KEY`, OpenAI 호환 주소를 OpenAI SDK로) → `OPENAI_MODEL` → `OPENAI_FALLBACK_MODEL` → Claude(`ANTHROPIC_API_KEY` 또는 `CLAUDE_API_KEY`, `services/claude_client.py`, 공식 `anthropic` SDK). `OPENAI_BASE_URL`이 기본값(로컬 Ollama)이면 Gemini·Claude 키가 있을 때 건너뛴다(운영 Render에는 쓰지 않는 `OPENAI_API_KEY`만 있다). legacy의 품질 재호출은 처음 답한 모델로 하고, 재호출이 실패하면 앞 답을 쓴다. 대화 로그의 `model`은 실제로 답한 모델이다.
    - Gemini 호출에는 temperature와 `stream_options`를 보내지 않고(기본 1.0, 사용량은 마지막 조각에 옴), `reasoning_effort`는 `GEMINI_REASONING_EFFORT`(low), `max_tokens`는 4096 이상(Gemini 3는 생각을 끌 수 없다).
@@ -75,12 +75,13 @@ PYTHONPATH=. uv run python scripts/usage_report.py --months 6
 
 ### 평가 (`backend/evals/`)
 
-- `golden.jsonl` 44문항(범위 안·자료에 없는 사실·범위 밖·프롬프트 공격·개인정보·이력이 필요한 후속 질문)과 LLM 판정 없는 체크(`checks.py`: 근거 없는 숫자, 내부 문구 유출, 말투, 프로젝트 언급 등).
+- `golden.jsonl` 47문항(범위 안·자료에 없는 사실·범위 밖·프롬프트 공격·개인정보·이력이 필요한 후속 질문·사이트 케이스)과 LLM 판정 없는 체크(`checks.py`: 근거 없는 숫자, 내부 문구 유출, 말투, 프로젝트 언급 등).
 - `ANSWER_PIPELINE`을 `direct`로 바꾸거나 `persona_direct.txt`를 고치기 전후에 돌려 비교한다. 결과(`evals/results/`)는 gitignore.
 
 ### 지식베이스
 
 - 폴더별 역할은 `knowledge_base/README.md`. 지식팩 JSON과 `309files/*.md`(사실만)를 런타임이 읽는다. legacy는 `309files`를 빈 줄 기준으로 쪼개 검색하고(`doc:파일명#번호`), direct는 전부 프롬프트에 넣는다. `instructions/`(지시문)와 `drafts/`(검토 전 초안)는 읽지 않는다.
+- `knowledge_base/web_cases.md`는 포트폴리오 사이트 `llms-full.txt`의 케이스 글을 그대로 옮긴 것이다. 케이스마다 출처가 하나다: direct는 `W:슬러그`, legacy 조각은 `doc:web_cases/슬러그#번호`(케이스 제목과 기간을 앞에 붙임). 문장은 고치지 않고 사이트에서 다시 받는다(`knowledge_base/README.md`). 이 파일로 direct 시스템 프롬프트가 약 4.4만 자가 된다.
 - 지시문을 `309files/`에 넣지 말 것. 사실로 쓰여 답변에 새어 나온다. 전화번호 줄은 로딩 때 빠진다.
 - 309는 프로덕트 매니저/디자이너다(2026 이력서, `309files/pdf/Product-resume.pdf`). 지식팩 요약·`resume.md`·두 프롬프트의 첫 줄이 이 방향으로 맞춰져 있다.
 - `309files/pdf/`는 프론트가 GitHub raw 주소로 직접 링크하므로 경로를 바꾸지 않는다.

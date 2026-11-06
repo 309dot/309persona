@@ -3,6 +3,7 @@
 import threading
 
 from app.services.direct_pipeline import PipelineResult
+from app.services.knowledge_base import WEB_CASE_PREFIX
 from app.services.knowledge_document import PROJECT_ID_RE, knowledge_sources
 from evals import checks, run
 from evals.checks import polite_ratio, run_checks, ungrounded_numbers
@@ -23,7 +24,7 @@ def test_numbers_must_come_from_the_knowledge_base():
     assert ungrounded_numbers("12년 넘게 일했고 협업 효율을 40% 이상 개선했어요.") == []
     assert ungrounded_numbers("사례 2개를 말씀드릴게요.\n1. 첫째는 3단계로 진행했어요.") == []
     assert ungrounded_numbers("2019년부터 디자인 시스템을 운영했어요.") == []  # KB has 2019.06
-    assert ungrounded_numbers("당시 디자인팀은 17명이었고 전환율이 23% 올랐어요.") == ["17", "23"]
+    assert ungrounded_numbers("당시 디자인팀은 47명이었고 전환율이 83% 올랐어요.") == ["47", "83"]
     assert ungrounded_numbers("오늘 회의는 3시에 시작해요.", context="오늘 회의는 3시에 시작합니다") == []
 
 
@@ -82,6 +83,6 @@ def test_runner_records_filter_blocks_and_errors(monkeypatch):
 
 
 def test_project_terms_cover_the_knowledge_base_projects():
-    titles = [s.label.lower() for s in knowledge_sources() if PROJECT_ID_RE.match(s.id)]
+    titles = [s.label.lower() for s in knowledge_sources() if PROJECT_ID_RE.match(s.id) or s.id.startswith(WEB_CASE_PREFIX)]
     for title in titles:
         assert any(term in title for term in checks.PROJECT_TERMS), title
