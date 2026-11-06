@@ -55,6 +55,8 @@ uv run python -m evals.run --pipeline legacy --limit 5
 2. 운영에서 1~2주 지켜본 뒤(대시보드의 실패율·피드백) 문제가 없으면 legacy 전용 코드를 지운다: `answer_quality.py`, `rag_fallback.py`, `answer_sanitize.py`, `context_planner.py`, `llm_service.generate_persona_answer`, `question_filter`의 키워드 분류.
 3. 지표가 나쁘면 문항별 `notes`(지어낸 숫자, 유출 문구, 말투 비율)를 보고 `app/prompts/persona_direct.txt`를 고친 뒤 다시 돌린다.
 
-## 로컬 Ollama로 direct를 돌릴 때
+## 로컬 Ollama로 돌릴 때
 
-지식베이스 전체를 넣으면 시스템 프롬프트가 약 4.4만 자(사이트 케이스 포함. 예전 1.1만 자가 7~9천 토큰이었으니 약 2.8만~3.6만 토큰)가 된다. Ollama의 컨텍스트 길이 설정이 이보다 작으면 앞부분이 잘리므로 `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`처럼 늘려서 띄운다.
+- 지식베이스 전체를 넣으면 direct 시스템 프롬프트가 약 4.4만 자(사이트 케이스 포함)가 된다. qwen3.5:35b로 잰 질문당 입력은 약 2.1만 토큰이었다(사이트 케이스 전 약 5천. 토크나이저에 따라 다르다). Ollama의 컨텍스트 길이 설정이 이보다 작으면 앞부분이 잘리므로 `OLLAMA_CONTEXT_LENGTH=65536 ollama serve`처럼 늘려서 띄운다.
+- qwen3.5처럼 생각(thinking)하는 모델은 기본으로 생각부터 해서 legacy 답변 한도(420토큰)를 다 쓰고 빈 답을 낸다. `LLM_REASONING_EFFORT=none`으로 생각을 끈다(답변 한도도 `LLM_MAX_OUTPUT_TOKENS`로 늘어난다). 이렇게 47문항이 legacy 약 11분, direct 약 10분 걸렸다(M4 Pro). 생각을 켜면 한 번에 2~4분이 걸린다.
+- 생각을 끈 qwen3.5는 해요체를 잘 안 따라 `tone`이 낮게 나온다. 파이프라인이나 지식베이스를 비교할 때는 `tone`을 빼고 본다.

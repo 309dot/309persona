@@ -127,7 +127,8 @@
 - 사이트(www.309designlab.com) 개편으로 케이스 글이 사이트에 생겼지만 에이전트는 `knowledge_base/` 자료로만 답해 몰랐다 → 사이트 `llms-full.txt`의 케이스 10개를 `knowledge_base/web_cases.md`로 그대로 옮김(2026-11-06 21:02 KST에 받음). 케이스마다 출처 하나: direct `W:슬러그`, legacy 조각 `doc:web_cases/슬러그#번호`
 - 크기: direct 시스템 프롬프트 10,713자 → 43,759자(UTF-8 21KB → 94KB), 출처 10 → 20개, legacy 검색 조각 60 → 248개, 평가가 근거로 인정하는 숫자 59 → 175개
 - legacy(운영 기본값): 기존 평가 질문 44개 중 36개의 검색 결과가 바뀌고 31개에 사이트 케이스 조각이 들어간다. "총 경력", 날씨처럼 막연한 질문에도 관계없는 케이스 문단이 끼어든다
-- 평가셋 47문항(`case-*` 3개). 실제 LLM 평가 전이다(남은 일 2). 사이트 `refresh-2` 브랜치가 머지되면 다시 받는다(`knowledge_base/README.md`)
+- 평가셋 47문항(`case-*` 3개). 사이트 `refresh-2` 브랜치가 머지되면 다시 받는다(`knowledge_base/README.md`)
+- 로컬 모델 평가(qwen3.5:35b, 생각 끔, `tone`을 뺀 전 체크 통과 문항 수, 47문항 중): legacy main 36 → PR 37, direct main 40 → PR 44. 케이스 질문 3개를 다 맞힌 건 PR direct뿐이다. PR legacy는 범위 밖·공격 질문에도 케이스 이야기를 붙이고, Every Number를 "2024년" 프로젝트라고 한 답이 2개 나왔다(케이스 기간은 legacy 조각 188개 중 케이스마다 하나에만 있음). Gemini 평가는 아직이다(남은 일 2)
 
 **남은 일 (사용자 확인 필요, 우선순위 순)**
 
